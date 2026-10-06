@@ -1,0 +1,25 @@
+# Secrets — nunca commitar
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+
+# Expo / React Native
+.expo/
+.expo-shared/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local
+.tmp-hook-test/

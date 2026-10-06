@@ -1,0 +1,253 @@
+{
+  "users": [
+    {
+      "id": "usr-demo",
+      "name": "João Silva",
+      "propertyOrCompany": "Fazenda Boa Vista",
+      "email": "demo@agrotech.com.br",
+      "password": "$2a$10$EAc2eP.RFLNdQ8450qRg0OE2VK2TGe6T6YwKMS3kKODJktBfeU1IS",
+      "role": "PRODUTOR"
+    },
+    {
+      "id": "usr-admin",
+      "name": "Administrador AgroTech",
+      "propertyOrCompany": "AgroTech Oficial",
+      "email": "admin@agrotech.com.br",
+      "password": "$2a$10$AxMaw36PBi95NWOh2AsQX.Nn/THQ..0MBvD8Q7K7hbFK87.tKzLAe",
+      "role": "ADMIN"
+    },
+    {
+      "id": "usr-1789692116344",
+      "name": "Yasmin Lino",
+      "propertyOrCompany": "Por do Sol",
+      "email": "yasmiv270@gmail.com",
+      "password": "$2a$10$XquaDxh0U9JCxArCtjaB4uR.YzE6QzEhAt1np6aCh5ncRAb57b8kS",
+      "role": "PRODUTOR"
+    },
+    {
+      "id": "usr-1790721829861",
+      "name": "Rooselt Adam Silva Henriques de Oliveira",
+      "propertyOrCompany": "Estiva",
+      "email": "rooselt@gmail.com",
+      "password": "$2a$10$/cBCaQNhEZJ7ZVsnBNwXku8okCjqgI80SE6x5WK2fQGfzN8K1k406",
+      "role": "PRODUTOR"
+    }
+  ],
+  "products": [
+    {
+      "id": "1790730069421",
+      "name": "Semente de Milho Híbrido VT PRO 3 Safra 2026",
+      "price": 480,
+      "category": "Grãos",
+      "unit": "saca 60kg",
+      "location": "Cascavel - PR",
+      "stock": 140,
+      "shippingType": "CIF - Entrega na Fazenda",
+      "certification": "Registro MAPA PR-9941 • Germinação 97% • Tratamento Industrial Cruiser",
+      "image": "https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=900&q=80",
+      "imageEmoji": "🌽",
+      "imageBg": "#F1F8E9",
+      "rating": 5,
+      "reviewsCount": 1,
+      "description": "Híbrido de alto teto produtivo com tolerância máxima a estresse hídrico e pragas da folhagem. Ideal para safrinha no Centro-Oeste e Sul do país. Lote novo com laudo oficial de germinação emitido por laboratório credenciado.",
+      "ownerEmail": "yasmiv270@gmail.com",
+      "sellerName": "Por do Sol",
+      "comments": [
+        {
+          "author": "Yasmin Lino",
+          "text": "Produto cadastrado e disponível para entrega.",
+          "rating": 5
+        }
+      ]
+    },
+    {
+      "id": "1790125706884",
+      "name": "Café Pilão",
+      "price": 30,
+      "category": "Grãos",
+      "description": "Café de safra selecionada",
+      "image": null,
+      "imageEmoji": "🌽",
+      "imageBg": "#F1F8E9",
+      "rating": 5,
+      "reviewsCount": 1,
+      "ownerEmail": "yasmiv270@gmail.com",
+      "comments": [
+        {
+          "author": "Yasmin Lino",
+          "text": "Produto cadastrado e disponível para entrega.",
+          "rating": 5
+        }
+      ]
+    },
+    {
+      "id": "1",
+      "name": "Ração Bovinos Corte 30kg",
+      "price": 89.9,
+      "category": "Rações",
+      "image": "https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=900&q=80",
+      "imageEmoji": "🐄",
+      "imageBg": "#E8F5E9",
+      "rating": 4.8,
+      "reviewsCount": 32,
+      "description": "Ração de alta digestibilidade para gado de corte, enriquecida com minerais e vitaminas essenciais para ganho de peso rápido na terminação.",
+      "comments": [
+        {
+          "author": "Carlos Mendes",
+          "text": "Excelente ganho de peso no rebanho em 30 dias de uso.",
+          "rating": 5
+        },
+        {
+          "author": "Marcos Souza",
+          "text": "Ótimo custo-benefício para a seca.",
+          "rating": 4.5
+        }
+      ],
+      "ownerEmail": "demo@agrotech.com.br"
+    },
+    {
+      "id": "2",
+      "name": "Fertilizante NPK 10-10-10 50kg",
+      "price": 150,
+      "category": "Fertilizantes",
+      "image": "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=900&q=80",
+      "imageEmoji": "🧪",
+      "imageBg": "#E8F5E9",
+      "rating": 4.9,
+      "reviewsCount": 54,
+      "description": "Formulação equilibrada ideal para plantio e manutenção de diversas culturas agrícolas, promovendo enraizamento forte.",
+      "comments": [
+        {
+          "author": "Sítio Boa Esperança",
+          "text": "Usamos no milho e o desenvolvimento foliar foi surpreendente.",
+          "rating": 5
+        }
+      ],
+      "ownerEmail": "demo@agrotech.com.br"
+    },
+    {
+      "id": "3",
+      "name": "Semente de Milho Híbrido 20kg",
+      "price": 450,
+      "category": "Grãos",
+      "image": "https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=900&q=80",
+      "imageEmoji": "🌽",
+      "imageBg": "#F1F8E9",
+      "rating": 4.7,
+      "reviewsCount": 18,
+      "description": "Sementes tratadas com alta tolerância a pragas e seca, garantindo teto produtivo elevado para grãos e silagem.",
+      "comments": [
+        {
+          "author": "Fazenda Santa Maria",
+          "text": "Germinação acima de 95%. Recomendo.",
+          "rating": 5
+        }
+      ],
+      "ownerEmail": "demo@agrotech.com.br"
+    },
+    {
+      "id": "4",
+      "name": "Trator Fruteiro 75cv (Diária)",
+      "price": 800,
+      "category": "Máquinas",
+      "image": "https://images.unsplash.com/photo-1530267981375-f0de937f5f13?auto=format&fit=crop&w=900&q=80",
+      "imageEmoji": "🚜",
+      "imageBg": "#E0F2F1",
+      "rating": 5,
+      "reviewsCount": 12,
+      "description": "Aluguel por diária de trator compacto ideal para pomares e cafezais, equipado com tomada de força e tração 4x4.",
+      "comments": [
+        {
+          "author": "Agro Cafezal",
+          "text": "Equipamento revisado e entregue no prazo na fazenda.",
+          "rating": 5
+        }
+      ],
+      "ownerEmail": "demo@agrotech.com.br"
+    }
+  ],
+  "orders": [
+    {
+      "id": "AGT-20973",
+      "date": "Hoje",
+      "status": "Pedido Confirmado",
+      "trackingCode": "BR-CHECK-001",
+      "carrier": "AgroExpress Logística Rural",
+      "estimatedDelivery": "Em 3 a 5 dias úteis",
+      "total": 89.9,
+      "items": [
+        {
+          "price": 89.9,
+          "quantity": 1,
+          "name": "Ra��o Bovinos Corte 30kg",
+          "id": "1"
+        }
+      ],
+      "timeline": [
+        {
+          "title": "Pedido Confirmado",
+          "time": "Hoje",
+          "completed": true
+        },
+        {
+          "title": "Insumos em Separação no CD",
+          "time": "Aguardando",
+          "completed": false
+        },
+        {
+          "title": "Saiu para Entrega",
+          "time": "Aguardando",
+          "completed": false
+        },
+        {
+          "title": "Chegada na Fazenda",
+          "time": "Previsão em breve",
+          "completed": false
+        }
+      ]
+    },
+    {
+      "id": "AGT-84920",
+      "date": "15/Set/2026",
+      "status": "Em trânsito",
+      "trackingCode": "BR-AGRO-982134-X",
+      "carrier": "AgroExpress Logística Rural",
+      "estimatedDelivery": "18/Set/2026",
+      "total": 329.8,
+      "items": [
+        {
+          "name": "Ração Bovinos Corte 30kg",
+          "quantity": 2,
+          "price": 89.9
+        },
+        {
+          "name": "Fertilizante NPK 10-10-10 50kg",
+          "quantity": 1,
+          "price": 150
+        }
+      ],
+      "timeline": [
+        {
+          "title": "Pedido Confirmado",
+          "time": "15/Set às 09:30",
+          "completed": true
+        },
+        {
+          "title": "Insumos em Separação no CD",
+          "time": "15/Set às 14:15",
+          "completed": true
+        },
+        {
+          "title": "Saiu para Entrega (Caminhão AgroExpress)",
+          "time": "16/Set às 08:00",
+          "completed": true
+        },
+        {
+          "title": "Chegada na Fazenda",
+          "time": "Previsão: 18/Set",
+          "completed": false
+        }
+      ]
+    }
+  ]
+}

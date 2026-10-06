@@ -1,0 +1,94 @@
+// --- IA ASSISTENTE DE ANÚNCIO ---
+// Analisa a descrição livre do vendedor e preenche os campos do formulário.
+// Funciona localmente (sem chaves de API): reconhece palavras-chave agro
+// e estima preço/unidade/categoria a partir do texto.
+const AI_KEYWORDS = [
+  { match: ['milho', 'soja', 'semente', 'trigo', 'arroz', 'feijão', 'grão', 'café', 'algodão', 'sorgo'], category: 'Grãos', unit: 'saca 60kg', price: 320, desc: 'Lote de sementes/grãos com certificação de origem. Ideal para plantio na safra atual, com laudo de germinação e embalagem original.' },
+  { match: ['npk', 'adubo', 'fertilizante', 'ureia', 'calcário', 'nitrogênio', 'fósforo', 'potássio'], category: 'Fertilizantes', unit: 'saca 50kg', price: 185, desc: 'Fertilizante granulado de alta solubilidade, formulação balanceada para formação radicular vigorosa. Entrega imediata em carretas fechadas.' },
+  { match: ['racao', 'ração', 'nutrição', 'confinamento', 'bovino', 'suíno', 'aves', 'sal mineral'], category: 'Rações', unit: 'saca 30kg', price: 92, desc: 'Alimento concentrado balanceado para engorda intensiva, com excelente conversão alimentar e minerais quelatados.' },
+  { match: ['trator', 'colheitadeira', 'máquina', 'pulverizador', 'implemento', 'arado', 'grade', 'plantadeira', 'carreta'], category: 'Máquinas', unit: 'diária de locação', price: 750, desc: 'Equipamento revisado com manutenção em dia, pronto para uso no preparo de solo e operações de campo. Operador disponível.' },
+  { match: ['herbicida', 'agrotóxico', 'defensivo', 'inseticida', 'fungicida', 'glyphosate', 'glifosato'], category: 'Outros', unit: 'litro', price: 45, desc: 'Produto registrado no MAPA, com bula e receita agronômica. Embalagem lacrada, lote recente.' }
+];
+
+window.aiFillProduct = function() {
+  const promptEl = document.getElementById('aiPrompt');
+  if (!promptEl) return;
+  const prompt = promptEl.value.trim().toLowerCase();
+
+  if (!prompt || prompt.length < 5) {
+    showToast('Descreva o que você quer anunciar para a IA preencher.', 'error');
+    return;
+  }
+
+  // Detecta a categoria pelas palavras-chave
+  const found = AI_KEYWORDS.find(k => k.match.some(word => prompt.includes(word)));
+  const category = found ? found.category : 'Outros';
+  const unit = found ? found.unit : 'saca 60kg';
+  const basePrice = found ? found.price : 150;
+  const descText = found ? found.desc : 'Anúncio gerado pela IA AgroTech a partir da descrição do produtor. Entre em contato para negociar condições e frete.';
+
+  // Extrai preço se o vendedor citou um valor no texto (ex: "R$ 250" ou "250 reais")
+  let price = basePrice;
+  const priceMatch = prompt.match(/r\$\s*(\d+[.,]\d{0,2})|(\d+)\s*reais/);
+  if (priceMatch) {
+    price = parseFloat((priceMatch[1] || priceMatch[2]).replace(',', '.')) || basePrice;
+  }
+
+  // Extrai quantidade se citada (ex: "200 sacas")
+  let stock = 100;
+  const stockMatch = prompt.match(/(\d+)\s*(sacas?|unidades?|toneladas?|litros?|big bags?)/);
+  if (stockMatch) stock = parseInt(stockMatch[1], 10) || 100;
+
+  // Título: usa o início do texto do produtor, capitalizado
+  const titleFromPrompt = prompt
+    .split(/[.,;\n]/)[0]
+    .split(' ')
+    .slice(0, 10)
+    .join(' ')
+    .replace(/(^|\b)(\w)/g, (m, p1, p2) => p1 + p2.toUpperCase());
+  const name = titleFromPrompt || `Anúncio ${category}`;
+
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  };
+
+  setVal('prodName', name);
+  setVal('prodPrice', price.toFixed(2));
+  setVal('prodUnit', unit);
+  setVal('prodCategory', category);
+  setVal('prodStock', stock);
+  setVal('prodDesc', `${descText}\n\n(Descrição original do produtor: "${prompt}")`);
+
+  showToast('✨ IA preencheu o anúncio! Revise os campos antes de publicar.', 'success');
+};
+
+// --- UPLOAD DE FOTO DO LOTE ---
+window.handleProductImageUpload = function(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('Selecione um arquivo de imagem (JPG, PNG, etc).', 'error');
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo de 2MB.', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    const input = document.getElementById('prodImage');
+    if (input) input.value = dataUrl;
+    const preview = document.getElementById('prodImagePreview');
+    if (preview) {
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+    }
+    showToast('Foto do lote carregada!', 'success');
+  };
+  reader.readAsDataURL(file);
+};

@@ -1,0 +1,38 @@
+:root {
+  --forest: #1F3D2B;
+  --moss: #4C7A4A;
+  --wheat: #D9A441;
+  --paper: #F6F3EA;
+  --ink: #241F16;
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Public Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+body {
+  background-color: #e2e8f0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+#app-container {
+  width: 100%;
+  max-width: 430px;
+  height: 100vh;
+  background-color: var(--paper);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+}

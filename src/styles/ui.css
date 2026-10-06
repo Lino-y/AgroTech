@@ -1,0 +1,200 @@
+:root {
+  --forest: #1F3D2B;
+  --moss: #4C7A4A;
+  --wheat: #D9A441;
+  --paper: #F6F3EA;
+  --ink: #241F16;
+  --forest-950: #112a1a;
+  --forest-900: #183d27;
+  --forest-800: #215a33;
+  --forest-700: #2e7d32;
+  --forest-600: #3d8b42;
+  --forest-500: #4c7a4a;
+  --leaf-100: #eef9f0;
+  --leaf-200: #dff3e4;
+  --leaf-300: #cfead2;
+  --gold: #d9a441;
+  --white: #ffffff;
+  --text: #132719;
+  --muted: #5d6f62;
+  --danger: #d94b5c;
+  --shadow-soft: none;
+  --shadow-card: none;
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  -moz-box-shadow: none !important;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: 'Public Sans', sans-serif;
+  background: #F3F4F6;
+  color: var(--text);
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  padding: 18px 14px 28px;
+}
+
+#app-container {
+  width: min(100%, 430px);
+  min-height: calc(100vh - 46px);
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(32, 88, 50, 0.08);
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+}
+
+#navbar-root {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(10px);
+}
+
+#main-content {
+  background: #F8FBF8;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  transition: all 0.2s ease;
+}
+
+button {
+  border: none;
+  cursor: pointer;
+  box-shadow: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  outline: none !important;
+  filter: drop-shadow(none) !important;
+  text-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  -moz-box-shadow: none !important;
+}
+
+button:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+button:active {
+  transform: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input,
+select,
+textarea {
+  background: rgba(255,255,255,0.96);
+  color: var(--text);
+  border: 1px solid #dfeee0;
+  border-radius: 14px;
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #7f8e82;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(46,125,50,0.55);
+}
+
+.toast-root {
+  position: fixed;
+  right: 16px;
+  bottom: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 2000;
+}
+
+.toast {
+  min-width: 190px;
+  max-width: 300px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--white);
+  letter-spacing: 0.1px;
+}
+
+.toast.success {
+  background: #2E7D32;
+}
+
+.toast.error {
+  background: #D94B5C;
+}
+
+.toast.info {
+  background: #1B5E20;
+}
+
+.empty-state {
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(76,122,74,0.18);
+  border-radius: 22px;
+  padding: 26px 18px;
+  text-align: center;
+}
+
+.card-modern {
+  background: rgba(255,255,255,0.98);
+  border: 1px solid rgba(76,122,74,0.12);
+  border-radius: 22px;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+/* RNF03: Drag-to-Scroll para carrosséis horizontais */
+.drag-scroll-container {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.drag-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.drag-scroll-container.is-dragging {
+  cursor: grabbing;
+}

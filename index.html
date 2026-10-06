@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgroTech Mobile</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <link rel="stylesheet" href="src/styles/tokens.css">
+  <link rel="stylesheet" href="src/styles/ui.css">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app-container">
+    <div id="toast-root" class="toast-root"></div>
+    <div id="navbar-root"></div>
+    <main id="main-content">
+      <div style="padding: 40px 20px; text-align: center; color: #1B5E20;">
+        <h1>Carregando AgroTech...</h1>
+        <p>Aguarde enquanto o app inicializa</p>
+      </div>
+    </main>
+  </div>
+  <script type="module">
+    console.log('Script iniciando...');
+    try {
+      import('./src/modules/catalog.js').then(() => {
+        console.log('✓ catalog.js carregado com sucesso');
+      }).catch(err => {
+        console.error('❌ Erro ao carregar catalog.js:', err);
+        const main = document.getElementById('main-content');
+        if (main) {
+          main.innerHTML = '<div style="padding: 40px; color: red;"><h2>Erro</h2><p>' + err.message + '</p><pre>' + err.stack + '</pre></div>';
+        }
+      });
+    } catch (e) {
+      console.error('❌ Erro geral:', e);
+    }
+  </script>
+</body>
+</html>
