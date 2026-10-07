@@ -49,7 +49,7 @@ export function validateCouponCode(code, subtotal = 0) {
 export function calculateCartSummary(cart = [], appliedCoupon = null) {
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
   let discount = 0;
-  let freeShipping = subtotal >= 800;
+  let freeShipping = subtotal > 800; // RF03: frete grátis acima de R$ 800,00
 
   if (appliedCoupon && COUPON_RULES[appliedCoupon]) {
     const rule = COUPON_RULES[appliedCoupon];

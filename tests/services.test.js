@@ -184,3 +184,38 @@ test('buildSupportReply oferece transferência quando solicitado', () => {
   assert.equal(reply.isHuman, true);
   assert.match(reply.text, /atendente|especialista/i);
 });
+
+// Limites das regras de carrinho: cada teste abaixo mata um mutante que passava ileso.
+test('frete grátis só acima de R$ 800 (RF03): exatamente R$ 800 ainda paga frete', () => {
+  assert.equal(calculateCartSummary([{ id: '1', price: 800, quantity: 1 }]).shipping, 35);
+  assert.equal(calculateCartSummary([{ id: '1', price: 800.01, quantity: 1 }]).shipping, 0);
+});
+
+test('cupom FRETEGRATIS zera o frete abaixo de R$ 800', () => {
+  const cart = [{ id: '1', price: 500, quantity: 1 }];
+  assert.equal(calculateCartSummary(cart).shipping, 35);
+  assert.equal(calculateCartSummary(cart, 'FRETEGRATIS').shipping, 0);
+  assert.equal(calculateCartSummary(cart, 'FRETEGRATIS').total, 500);
+});
+
+test('cupom vale a partir do valor mínimo, inclusive', () => {
+  assert.equal(validateCouponCode('AGRO10', 150).valid, true);
+  assert.equal(validateCouponCode('AGRO10', 149.99).valid, false);
+  assert.equal(calculateCartSummary([{ id: '1', price: 150, quantity: 1 }], 'AGRO10').discount, 15);
+});
+
+test('resumo do carrinho não aplica cupom abaixo do mínimo', () => {
+  const summary = calculateCartSummary([{ id: '1', price: 100, quantity: 1 }], 'AGRO10');
+  assert.equal(summary.discount, 0);
+  assert.equal(summary.total, 135);
+});
+
+test('e-mail sem ponto no domínio é inválido', () => {
+  assert.equal(validateEmail('produtor@fazenda'), false);
+  assert.equal(validateEmail(' produtor@fazenda.com.br '), true);
+});
+
+test('adicionar produto nulo não altera o carrinho', () => {
+  const cart = [{ id: 'p1', price: 50, quantity: 1 }];
+  assert.equal(addProductToCart(cart, null), cart);
+});
