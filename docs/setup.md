@@ -61,8 +61,12 @@ estado inicial, apague o arquivo e reinicie o servidor.
 | O quê | Comando |
 |---|---|
 | Testes do app (`tests/`), incluindo os de API, que sobem o `server.js` numa porta livre com um banco temporário (`DATA_FILE`) | `npm test` |
+| Testes com barreira de cobertura nativa do Node (linhas 88%, branches 68%, funções 85%) | `npm run test:coverage` |
 | Lint (ESLint, com alerta de função grande ou complexa) | `npm run lint` |
+| Lint com orçamento: os 19 avisos legados são aceitos, avisos novos falham | `npm run lint:budget` |
 | Tipos (JSDoc nos arquivos com `// @ts-check`) | `npm run typecheck` |
+| Verificação completa local antes do push | `npm run verify` |
+| Auditoria de dependências com bloqueio em vulnerabilidade alta/crítica | `npm run audit:dependencies` |
 | Governança (spec-guard e workflow-guide) | `node --test .ai/scripts/spec-guard.test.js .claude/hooks/workflow-guide.test.js` |
 | Referências de arquivo quebradas na doc | `npm run check:coherence` |
 

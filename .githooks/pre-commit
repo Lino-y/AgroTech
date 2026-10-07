@@ -13,5 +13,5 @@ esac
 # lint-staged resolve os dois, se um dia fizer falta.
 files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.js')
 [ -z "$files" ] && exit 0
-npx --no-install eslint $files || { echo "[pre-commit] ESLint barrou o commit (npm run lint; sem eslint? rode npm install)." >&2; exit 1; }
+npm run lint:budget || { echo "[pre-commit] ESLint barrou o commit (npm run lint; warnings acima do orçamento)." >&2; exit 1; }
 npx --no-install tsc -p jsconfig.json || { echo "[pre-commit] Checagem de tipos barrou o commit (npm run typecheck)." >&2; exit 1; }
