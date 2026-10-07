@@ -1,3 +1,14 @@
+// @ts-check
+
+/**
+ * @typedef {{ type: 'percent' | 'fixed', value: number, min: number, description: string }
+ *   | { type: 'free_shipping', min: number, description: string }} CouponRule
+ * @typedef {{ price?: number | string, quantity?: number | string }} CartLine
+ * @typedef {{ subtotal: number, discount: number, shipping: number, total: number,
+ *   freeShipping: boolean, hasCoupon: boolean }} CartSummary
+ */
+
+/** @type {Record<string, CouponRule>} */
 export const COUPON_RULES = {
   AGRO10: { type: 'percent', value: 0.10, min: 150, description: '10% OFF acima de R$ 150' },
   FRETEGRATIS: { type: 'free_shipping', min: 400, description: 'Frete Grátis acima de R$ 400' },
@@ -7,6 +18,10 @@ export const COUPON_RULES = {
 
 export const VALID_COUPONS = Object.keys(COUPON_RULES);
 
+/**
+ * @param {unknown} code
+ * @param {number} [subtotal]
+ */
 export function validateCouponCode(code, subtotal = 0) {
   const upper = String(code || '').trim().toUpperCase();
   if (!upper) {
@@ -26,6 +41,11 @@ export function validateCouponCode(code, subtotal = 0) {
 }
 
 
+/**
+ * @param {CartLine[]} [cart]
+ * @param {string | null} [appliedCoupon]
+ * @returns {CartSummary}
+ */
 export function calculateCartSummary(cart = [], appliedCoupon = null) {
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
   let discount = 0;
@@ -59,10 +79,18 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
   };
 }
 
+/**
+ * @param {unknown} email
+ * @returns {boolean}
+ */
 export function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
+/**
+ * @param {{ id?: string, name?: string, propertyOrCompany?: string, email?: string,
+ *   password?: string, role?: string }} [payload]
+ */
 export function normalizeUser(payload = {}) {
   return {
     id: payload.id || `usr-${Date.now()}`,

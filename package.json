@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks')}catch{}\"",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test",
+    "lint": "eslint .",
+    "typecheck": "tsc -p jsconfig.json",
     "check:coherence": "node .ai/scripts/check-coherence.js"
   },
   "dependencies": {
@@ -15,5 +18,11 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "typescript": "^7.0.2"
   }
 }

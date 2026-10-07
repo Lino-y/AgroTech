@@ -21,5 +21,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Claude Code local
+# Claude Code local: permissões pessoais (o .claude/settings.json do time continua versionado)
 .tmp-hook-test/
+.claude/settings.local.json

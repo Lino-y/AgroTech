@@ -1,62 +1,74 @@
-# dev-harness (template)
+# AgroTech
 
-Harness de desenvolvimento genérico, extraído do projeto `mais-frota/catfish`
-depois de validado ao vivo lá: hooks de governança + pipeline de skills
-spec-driven + roteiro de implementação. Sem nada específico de domínio —
-copie pra qualquer app novo, independente do tema/stack.
+## Visão geral
 
-## O que tem aqui
+Plataforma mobile-first de e-commerce e gestão financeira voltada ao
+agronegócio (`.ai/specs/01-visao-geral-e-personas.md`):
 
-- `.claude/hooks/` — 5 hooks (`ship-gate`, `destructive-guard`,
-  `conventional-commit`, `secret-scan`, `secret-in-prompt`) que bloqueiam
-  push/PR sem confirmação, ações destrutivas e segredo vazando pro chat ou
-  pro commit.
-- `.claude/skills/` — pipeline `to-spec` → `implement` → `tdd` →
-  `spec-code-review`, mais `grill-with-docs`/`grilling`/`domain-modeling`
-  (de [mattpocock/skills](https://github.com/mattpocock/skills),
-  descrições em PT-BR) e `setup-matt-pocock-skills` (configura o repo).
-- `.claude/settings.json` — permissões de autonomia + hooks já ligados.
-- `docs/agents/playbook.md` — roteiro passo a passo de feature/hotfix.
-- `docs/tasks/README.md`, `.ai/templates/{blueprint,spec}-template.md` —
-  convenção de spec (issue do GitHub) + blueprint local citando
-  `arquivo:linha` real.
-- `.ai/scripts/check-coherence.js` — checa referência de arquivo quebrada
-  em `.ai/`, `docs/`, `.claude/`, `.github/`.
-- `CLAUDE.md` / `AGENTS.md` — esqueletos com `{{placeholders}}` pra
-  preencher por projeto.
-- `.gitignore` — protege `.env`, ignora node_modules/build/etc.
+- **Comprador Rural**: compra insumos e controla as finanças da fazenda.
+- **Vendedor Agro**: anuncia máquinas, rações, fertilizantes e animais.
 
-## Como instanciar num projeto novo
+Fluxos principais (RF01–RF06 em `.ai/specs/02-requisitos-funcionais.md`):
+cadastro com perfil, catálogo com busca e filtros, carrinho com cupons e
+frete grátis, checkout (Pix, cartão, boleto), rastreio do pedido em 4
+estágios e chatbot de suporte.
 
-1. Copie todo o conteúdo desta pasta pra raiz do projeto novo (não
-   sobrescreva um `README.md`/`.gitignore` já existente sem checar antes).
-2. Preencha os `{{placeholders}}` em `CLAUDE.md` e `AGENTS.md` (nome do
-   projeto, stack, integrações reais).
-3. Ajuste `.claude/settings.json` → `permissions.allow`: adicione as CLIs
-   do stack real (ex: `Bash(supabase:*)`, `Bash(aws:*)`, `Bash(jest:*)`).
-4. `gh auth login` (uma vez por máquina, se ainda não estiver logado).
-5. Dentro do Claude Code, no projeto novo: rode `/setup-matt-pocock-skills`
-   — ele detecta o remote do GitHub e configura `docs/agents/*.md`
-   sozinho.
-6. Se quiser `rtk` (economia de token): `rtk init` (Claude) e/ou
-   `rtk init --codex` (Codex) — precisa do binário instalado primeiro
-   (`winget install rtk-ai.rtk` no Windows).
-7. Se quiser o plugin `ponytail` em escopo de projeto:
-   ```
-   claude plugin marketplace add https://github.com/DietrichGebert/ponytail.git --scope project
-   claude plugin install ponytail@ponytail --scope project
-   ```
-8. Rode `node .ai/scripts/check-coherence.js` pra confirmar que nada ficou
-   quebrado antes do primeiro commit. Antes do passo 5 (`/setup-matt-pocock-skills`),
-   ele vai acusar 5 referências a `docs/agents/issue-tracker.md`/`domain.md`
-   — é esperado, somem depois de rodar o setup.
-9. Complete `docs/agents/playbook.md` com uma seção "O que ainda não
-   existe" específica desse projeto (banco, CI, staging, etc.).
+## Estado atual do repositório
 
-## O que NÃO trouxe de propósito
+SPA em JavaScript puro (módulos ES, sem build) servida por uma API Express
+(`server.js`), que também guarda os dados no arquivo `src/data/db.json`.
+Para instalar e rodar, veja [`docs/setup.md`](docs/setup.md).
 
-O `.ai/` original do catfish (agents/roles/rules/sensors/workflows) não
-está aqui — era scaffold específico de domínio (fleet management) ou
-redundante com o que já está neste template. Não recrie esse volume de
-documentação sem uso real por trás; adicione `.ai/rules`/`.ai/sensors`
-próprios só se o projeto novo realmente precisar, um de cada vez.
+As specs em `.ai/specs/` também descrevem o *alvo*: o schema PostgreSQL
+(`06`) e a API OpenAPI (`05`) ainda não existem como descritos. Antes de
+assumir que algo foi implementado, confira no código.
+
+## Stack
+
+- Front: HTML + CSS (design tokens em `src/styles/tokens.css`) + JavaScript
+  puro em módulos ES
+- API: Node.js + Express 4, autenticação JWT (`jsonwebtoken`) e senhas com
+  bcrypt (`bcryptjs`)
+- Dados: arquivo JSON (`src/data/db.json`)
+- Testes: `node:test`, nativo do Node
+- Qualidade: ESLint 10 e TypeScript 7 só como checador de JSDoc (sem build)
+
+## Estrutura do repositório
+
+```text
+AgroTech/
+├─ index.html             # entrada da SPA (carrega src/modules/catalog.js)
+├─ server.js              # API Express (/api/*) e servidor dos arquivos do front
+├─ eslint.config.js       # lint: erro barra o commit, complexidade só avisa
+├─ jsconfig.json          # checagem de tipos por JSDoc (arquivos com // @ts-check)
+├─ src/
+│  ├─ modules/            # telas e fluxos: catálogo, carrinho, auth, rastreio, suporte
+│  ├─ services/           # regras de negócio e acesso à API (cart, catalog, commerce...)
+│  ├─ components/         # Navbar, ProductCard, FinanceChart
+│  ├─ styles/             # tokens.css (design tokens) e ui.css
+│  └─ data/db.json        # "banco" em arquivo, lido e gravado pelo server.js
+├─ assets/                # logo
+├─ tests/                 # testes do app (npm test)
+├─ docs/
+│  ├─ setup.md            # instalação e execução local
+│  ├─ agents/             # playbook, arquitetura, issue tracker e domínio (fluxo com IA)
+│  └─ tasks/              # blueprints por issue (o "como")
+├─ .ai/
+│  ├─ specs/              # specs do produto: visão, RF/RNF, arquitetura, API, schema, tasklist
+│  ├─ rules/              # regras do fluxo (02, 09, 10)
+│  ├─ skills/             # competências técnicas do domínio
+│  ├─ templates/          # templates de spec e blueprint
+│  └─ scripts/            # spec-guard (pre-push) e check-coherence
+├─ .claude/               # hooks, skills e settings do Claude Code
+├─ .githooks/             # pre-commit, commit-msg e pre-push (qualquer ferramenta)
+├─ .github/               # templates de issue e de PR
+├─ .qa/                   # scripts e prints de QA no navegador, gerados em sessões de IA
+├─ CLAUDE.md, AGENTS.md   # regras para agentes (Claude Code; Codex e outros)
+└─ package.json           # scripts start, dev, test, lint, typecheck, check:coherence e prepare
+```
+
+## Como contribuir
+
+Todo trabalho nasce de uma spec e chega por PR — roteiro em
+[`docs/agents/playbook.md`](docs/agents/playbook.md). Commit direto na `main`
+é bloqueado pelos git hooks, ativados pelo `npm install`.
