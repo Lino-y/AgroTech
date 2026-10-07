@@ -33,9 +33,9 @@ cp .env.example .env
 - O `npm install` também ativa os git hooks (`.githooks/`, pelo script
   `prepare`). Confira com `git config core.hooksPath`, que deve responder
   `.githooks`.
-- No `.env`: `PORT` (padrão 3001) e `JWT_SECRET`. Sem `JWT_SECRET` a API
-  assina os tokens com um segredo fixo de desenvolvimento (`server.js:16`);
-  defina um valor seu.
+- No `.env`: `PORT` (padrão 3001) e `JWT_SECRET` (o comando para gerar um
+  está no `.env.example`). Sem `JWT_SECRET` a API sorteia um segredo a cada
+  início (`server.js:20`) e o login cai sempre que o servidor reinicia.
 
 ## 3. Rodar
 
@@ -61,7 +61,7 @@ teste.
 
 | O quê | Comando |
 |---|---|
-| Testes do app (`tests/`) | `npm test` |
+| Testes do app (`tests/`), incluindo os de API, que sobem o `server.js` numa porta livre com um banco temporário (`DATA_FILE`) | `npm test` |
 | Lint (ESLint, com alerta de função grande ou complexa) | `npm run lint` |
 | Tipos (JSDoc nos arquivos com `// @ts-check`) | `npm run typecheck` |
 | Governança (spec-guard e workflow-guide) | `node --test .ai/scripts/spec-guard.test.js .claude/hooks/workflow-guide.test.js` |
