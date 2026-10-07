@@ -1,12 +1,12 @@
 ﻿import { AuthService } from './auth.js';
 import { OrderTracker } from './tracker.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
-import { buildDefaultProducts, calculateCartSummary, validateCouponCode, COUPON_RULES, VALID_COUPONS } from '../services/commerce.js';
+import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
 import { buildSupportReply } from '../services/support.js';
-import { getProducts, getToken, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createOrder, createProduct, loadProducts, loginUser, registerUser } from '../services/api.js';
+import { getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
+import { createOrder, createProduct, loginUser, registerUser } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -382,7 +382,7 @@ function getTechnicalDetails(category, prompt) {
   const customLines = [];
 
   // Extrai variedade/cultivar se mencionada
-  const varietyMatch = prompt.match(/(cultivar|variedade|híbrido|híbrida)\s+([a-zá-ú0-9\s\-]+)/i);
+  const varietyMatch = prompt.match(/(cultivar|variedade|híbrido|híbrida)\s+([a-zá-ú0-9\s-]+)/i);
   if (varietyMatch && category === 'Grãos') {
     customLines.unshift(`• Cultivar/Variedade: ${varietyMatch[2].trim().toUpperCase()}`);
   }
@@ -400,7 +400,7 @@ function getTechnicalDetails(category, prompt) {
   }
 
   // Extrai marca/modelo para máquinas
-  const modelMatch = prompt.match(/(john deere|massey|new holland|case|valtra|agrale|stara|jacto|kuhn|baldan|marchesan)\s+([a-z0-9\s\-]+)/i);
+  const modelMatch = prompt.match(/(john deere|massey|new holland|case|valtra|agrale|stara|jacto|kuhn|baldan|marchesan)\s+([a-z0-9\s-]+)/i);
   if (modelMatch && category === 'Máquinas') {
     customLines.unshift(`• Marca/Modelo: ${modelMatch[1].toUpperCase()} ${modelMatch[2].trim().toUpperCase()}`);
   }
@@ -581,7 +581,7 @@ window.aiFillProduct = function() {
   } else {
     const cleaned = prompt
         .replace(/(?:r\$\s*)?\d[\d.,]*/g, ' ') // remove preços e quantidades
-        .replace(/\b(reais|por|a|em|com|unidades?|toneladas?)\b/g, (m, w) => /\b(a|em|com|por)\b/.test(m) ? m : ' ')
+        .replace(/\b(reais|por|a|em|com|unidades?|toneladas?)\b/g, (m) => /\b(a|em|com|por)\b/.test(m) ? m : ' ')
         .split(/\s+/).filter(Boolean).slice(0, 6).join(' ');
     if (cleaned.length >= 3) {
       name = cleaned.replace(/(^|\s)([a-zá-ú])/g, (m, p1, p2) => p1 + p2.toUpperCase());
@@ -592,7 +592,6 @@ window.aiFillProduct = function() {
   // Descrição: se o produtor pediu para "criar/gerar descrição", monta uma ficha
   // técnica a partir dos dados extraídos; senão cria descrição criativa de marketing.
   const wantsGenerated = /crie|criar|gere|gerar|fa[zç]a?|monte|montar|escreva|escrever/.test(prompt) && /descri/.test(prompt);
-  const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
   let desc;
   if (wantsGenerated) {
     const lines = [];
@@ -675,6 +674,12 @@ window.handlePublishProduct = async function(event) {
     state.activeScreen = 'catalog';
     renderApp();
   } catch (error) {
+    // O servidor recusou (ex.: preço ou imagem inválidos): mostra o motivo e fica no formulário.
+    // Falha de rede chega como TypeError do fetch e cai no modo local abaixo.
+    if (!(error instanceof TypeError)) {
+      showToast(error.message, 'error');
+      return;
+    }
     // Sem backend: mantém o anúncio localmente para não perder o trabalho
     state.products.unshift(draft);
     persistProducts();

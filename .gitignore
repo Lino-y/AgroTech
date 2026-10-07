@@ -21,5 +21,12 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Claude Code local
+# Banco local: o server.js cria a partir do defaultDb no primeiro uso; dado de teste não vai pro git
+src/data/db.json
+
+# Scripts e prints de QA ad-hoc no navegador (gerados em sessões de IA)
+.qa/
+
+# Claude Code local: permissões pessoais (o .claude/settings.json do time continua versionado)
 .tmp-hook-test/
+.claude/settings.local.json

@@ -1,3 +1,14 @@
+// @ts-check
+
+/**
+ * @typedef {{ type: 'percent' | 'fixed', value: number, min: number, description: string }
+ *   | { type: 'free_shipping', min: number, description: string }} CouponRule
+ * @typedef {{ price?: number | string, quantity?: number | string }} CartLine
+ * @typedef {{ subtotal: number, discount: number, shipping: number, total: number,
+ *   freeShipping: boolean, hasCoupon: boolean }} CartSummary
+ */
+
+/** @type {Record<string, CouponRule>} */
 export const COUPON_RULES = {
   AGRO10: { type: 'percent', value: 0.10, min: 150, description: '10% OFF acima de R$ 150' },
   FRETEGRATIS: { type: 'free_shipping', min: 400, description: 'Frete Grátis acima de R$ 400' },
@@ -5,8 +16,10 @@ export const COUPON_RULES = {
   COLHEITA20: { type: 'percent', value: 0.20, min: 800, description: '20% OFF acima de R$ 800' }
 };
 
-export const VALID_COUPONS = Object.keys(COUPON_RULES);
-
+/**
+ * @param {unknown} code
+ * @param {number} [subtotal]
+ */
 export function validateCouponCode(code, subtotal = 0) {
   const upper = String(code || '').trim().toUpperCase();
   if (!upper) {
@@ -26,10 +39,15 @@ export function validateCouponCode(code, subtotal = 0) {
 }
 
 
+/**
+ * @param {CartLine[]} [cart]
+ * @param {string | null} [appliedCoupon]
+ * @returns {CartSummary}
+ */
 export function calculateCartSummary(cart = [], appliedCoupon = null) {
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
   let discount = 0;
-  let freeShipping = subtotal >= 800;
+  let freeShipping = subtotal > 800; // RF03: frete grátis acima de R$ 800,00
 
   if (appliedCoupon && COUPON_RULES[appliedCoupon]) {
     const rule = COUPON_RULES[appliedCoupon];
@@ -59,10 +77,18 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
   };
 }
 
+/**
+ * @param {unknown} email
+ * @returns {boolean}
+ */
 export function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
+/**
+ * @param {{ id?: string, name?: string, propertyOrCompany?: string, email?: string,
+ *   password?: string, role?: string }} [payload]
+ */
 export function normalizeUser(payload = {}) {
   return {
     id: payload.id || `usr-${Date.now()}`,
@@ -72,94 +98,4 @@ export function normalizeUser(payload = {}) {
     password: String(payload.password || ''),
     role: payload.role || 'PRODUTOR'
   };
-}
-
-export function buildDefaultProducts() {
-  return [
-    {
-      id: '1',
-      name: 'Ração Bovinos Corte 30kg',
-      price: 89.90,
-      unit: 'saca 30kg',
-      location: 'Rio Verde - GO',
-      stock: 240,
-      shippingType: 'CIF - Entrega na Fazenda',
-      certification: 'Registro MAPA nº GO-09123 • Laudo Nutricional',
-      sellerName: 'Cooperativa Agropecuária do Sudoeste',
-      category: 'Rações',
-      image: 'https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=900&q=80',
-      imageEmoji: '🐄',
-      imageBg: '#E8F5E9',
-      rating: 4.8,
-      reviewsCount: 32,
-      description: 'Ração de alta digestibilidade para gado de corte, enriquecida com minerais e vitaminas essenciais para ganho de peso rápido na terminação.',
-      comments: [
-        { author: 'Carlos Mendes', text: 'Excelente ganho de peso no rebanho em 30 dias de uso.', rating: 5 },
-        { author: 'Marcos Souza', text: 'Ótimo custo-benefício para a seca.', rating: 4.5 }
-      ]
-    },
-    {
-      id: '2',
-      name: 'Fertilizante NPK 10-10-10 50kg',
-      price: 150.00,
-      unit: 'saca 50kg',
-      location: 'Patrocínio - MG',
-      stock: 180,
-      shippingType: 'CIF - Frota AgroExpress',
-      certification: 'Garantia de Teores MAPA nº MG-00431 • Emite NF-e',
-      sellerName: 'Agro Insumos Cerrado',
-      category: 'Fertilizantes',
-      image: 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=900&q=80',
-      imageEmoji: '🧪',
-      imageBg: '#E8F5E9',
-      rating: 4.9,
-      reviewsCount: 54,
-      description: 'Formulação equilibrada ideal para plantio e manutenção de diversas culturas agrícolas, promovendo enraizamento forte.',
-      comments: [
-        { author: 'Sítio Boa Esperança', text: 'Usamos no milho e o desenvolvimento foliar foi surpreendente.', rating: 5 }
-      ]
-    },
-    {
-      id: '3',
-      name: 'Semente de Milho Híbrido 20kg',
-      price: 450.00,
-      unit: 'saca 20kg (60 mil sementes)',
-      location: 'Cascavel - PR',
-      stock: 95,
-      shippingType: 'CIF - Carga Refrigerada',
-      certification: 'Germinação 96% • Pureza 99,8% • MAPA PR-8821',
-      sellerName: 'Sementes Santa Maria',
-      category: 'Grãos',
-      image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=900&q=80',
-      imageEmoji: '🌽',
-      imageBg: '#F1F8E9',
-      rating: 4.7,
-      reviewsCount: 18,
-      description: 'Sementes tratadas com alta tolerância a pragas e seca, garantindo teto produtivo elevado para grãos e silagem.',
-      comments: [
-        { author: 'Fazenda Santa Maria', text: 'Germinação acima de 95%. Recomendo.', rating: 5 }
-      ]
-    },
-    {
-      id: '4',
-      name: 'Trator Fruteiro 75cv (Diária)',
-      price: 800.00,
-      unit: 'diária de locação',
-      location: 'Ribeirão Preto - SP',
-      stock: 3,
-      shippingType: 'FOB - Retirada na Garagem Agrícola',
-      certification: 'Revisão de 250h Concluída • Seguro Máquina Incluso',
-      sellerName: 'AgroLoc Locações de Maquinário',
-      category: 'Máquinas',
-      image: 'https://images.unsplash.com/photo-1530267981375-f0de937f5f13?auto=format&fit=crop&w=900&q=80',
-      imageEmoji: '🚜',
-      imageBg: '#E0F2F1',
-      rating: 5.0,
-      reviewsCount: 12,
-      description: 'Aluguel por diária de trator compacto ideal para pomares e cafezais, equipado com tomada de força e tração 4x4.',
-      comments: [
-        { author: 'Agro Cafezal', text: 'Equipamento revisado e entregue no prazo na fazenda.', rating: 5 }
-      ]
-    }
-  ];
 }

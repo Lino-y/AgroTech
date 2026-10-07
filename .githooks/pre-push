@@ -1,0 +1,14 @@
+#!/bin/sh
+# Qualquer ferramenta: push direto para main/master é bloqueado, e o spec-guard
+# (.ai/scripts/spec-guard.js) roda antes de subir. `--no-verify` pula — e o CI pega.
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      echo "[pre-push] Push direto para ${remote_ref#refs/heads/} não é permitido: abra um PR." >&2
+      exit 1 ;;
+  esac
+  [ "$local_sha" = "$zero" ] && continue
+  node .ai/scripts/spec-guard.js origin/main "$local_sha" || exit 1
+done
+exit 0

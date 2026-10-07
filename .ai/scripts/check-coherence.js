@@ -2,12 +2,9 @@
 // Varre .ai/, docs/ e .claude/ atrás de referências de arquivo quebradas
 // (ex: ORCHESTRATOR.md apontando para uma skill que foi renomeada/apagada).
 // Sem dependências, sem CI — roda com `node .ai/scripts/check-coherence.js`.
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+const fs = require('fs');
+const path = require('path');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..', '..');
 const SCAN_DIRS = ['.ai', 'docs', '.claude', '.github'].filter((d) => fs.existsSync(path.join(ROOT, d)));
 const PATH_TOKEN_RE = /\.(?:ai|claude|github)\/[A-Za-z0-9_\-./]+\.(?:md|json|js|ya?ml)|docs\/[A-Za-z0-9_\-./]+\.(?:md|json)/g;

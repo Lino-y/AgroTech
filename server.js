@@ -5,7 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
+import { getProductCategoryStyle } from './src/services/catalog.js';
+import { calculateCartSummary } from './src/services/commerce.js';
 
 dotenv.config();
 
@@ -13,8 +16,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
-const JWT_SECRET = process.env.JWT_SECRET || 'agrotech-dev-secret';
-const dataFile = path.join(__dirname, 'src', 'data', 'db.json');
+// Sem JWT_SECRET, segredo aleatório por processo — nunca um valor fixo no código, que está
+// no GitHub e deixaria qualquer um forjar token de admin. Custo: o login cai a cada reinício.
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.JWT_SECRET) {
+  console.warn('[agrotech] JWT_SECRET ausente: usando segredo aleatório (o login cai a cada reinício). Defina-o no .env.');
+}
+// DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
+const dataFile = process.env.DATA_FILE || path.join(__dirname, 'src', 'data', 'db.json');
 
 const defaultDb = {
   users: [
@@ -105,6 +114,7 @@ const defaultDb = {
   orders: [
     {
       id: 'AGT-84920',
+      ownerEmail: 'demo@agrotech.com.br',
       date: '15/Set/2026',
       status: 'Em trânsito',
       trackingCode: 'BR-AGRO-982134-X',
@@ -213,6 +223,29 @@ async function writeDb(db) {
   await fs.writeFile(dataFile, JSON.stringify(db, null, 2), 'utf8');
 }
 
+// Perfis que o próprio usuário pode escolher no cadastro; ADMIN nunca vem do corpo da requisição.
+const SIGNUP_ROLES = ['PRODUTOR', 'VENDEDOR'];
+
+// ponytail: o front monta HTML com innerHTML, então o texto do usuário é escapado aqui, na entrada,
+// num lugar só. Teto: o JSON da API sai com entidades (&amp;); se outro cliente consumir a API,
+// troque por escape na saída do front e grave o texto cru.
+const HTML_ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const cleanText = (value) => String(value).trim().replace(/[&<>"']/g, (char) => HTML_ENTITIES[char]);
+
+// Imagem do produto: link http(s) (normalizado pelo URL, que codifica aspas) ou foto enviada pelo
+// app (data URL). Devolve undefined quando é inválida.
+const IMAGE_DATA_URL = /^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/;
+const safeImageUrl = (value) => {
+  if (!value) return null;
+  if (IMAGE_DATA_URL.test(value)) return value;
+  try {
+    const url = new URL(String(value));
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const sanitizeUser = (user) => ({
   id: user.id,
   name: user.name,
@@ -261,7 +294,10 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '2mb' }));
-app.use(express.static(__dirname));
+// Só o front é público: a raiz tem server.js e .env, e o banco fica em src/data/.
+app.use('/src/data', (_, res) => res.status(404).json({ message: 'Não encontrado.' }));
+app.use('/src', express.static(path.join(__dirname, 'src')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 app.get('/api/health', (_, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
@@ -272,6 +308,9 @@ app.post('/api/auth/register', async (req, res) => {
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Nome, e-mail e senha são obrigatórios.' });
   }
+  if (!SIGNUP_ROLES.includes(role)) {
+    return res.status(400).json({ message: 'Perfil inválido: use PRODUTOR ou VENDEDOR.' });
+  }
 
   const db = await readDb();
   const normalizedEmail = String(email).trim().toLowerCase();
@@ -281,8 +320,8 @@ app.post('/api/auth/register', async (req, res) => {
 
   const user = {
     id: `usr-${Date.now()}`,
-    name: String(name).trim(),
-    propertyOrCompany: String(propertyOrCompany).trim(),
+    name: cleanText(name),
+    propertyOrCompany: cleanText(propertyOrCompany),
     email: normalizedEmail,
     password: bcrypt.hashSync(String(password), 10),
     role
@@ -333,24 +372,34 @@ app.post('/api/products', authenticate, async (req, res) => {
   if (!name || !price || !category || !description) {
     return res.status(400).json({ message: 'Dados do produto incompletos.' });
   }
+  const priceValue = Number(price);
+  const stockValue = Number(stock);
+  if (!Number.isFinite(priceValue) || priceValue <= 0 || !Number.isFinite(stockValue) || stockValue < 0) {
+    return res.status(400).json({ message: 'O preço deve ser maior que zero e o estoque não pode ser negativo.' });
+  }
+  const image = safeImageUrl(imageUrl);
+  if (image === undefined) {
+    return res.status(400).json({ message: 'Imagem inválida: use um link http(s) ou envie uma foto.' });
+  }
+  const style = getProductCategoryStyle(String(category).trim());
 
   const db = await readDb();
   const product = {
     id: String(Date.now()),
-    name: String(name).trim(),
-    price: Number(price),
-    category: String(category).trim(),
-    unit: String(unit).trim(),
-    location: String(location).trim(),
-    stock: Number(stock),
-    shippingType: String(shippingType).trim(),
-    certification: String(certification).trim(),
-    image: imageUrl || null,
-    imageEmoji: category === 'Rações' ? '🐄' : category === 'Fertilizantes' ? '🧪' : category === 'Grãos' ? '🌽' : category === 'Máquinas' ? '🚜' : '📦',
-    imageBg: category === 'Rações' ? '#E8F5E9' : category === 'Fertilizantes' ? '#E8F5E9' : category === 'Grãos' ? '#F1F8E9' : category === 'Máquinas' ? '#E0F2F1' : '#F4FBF5',
+    name: cleanText(name),
+    price: priceValue,
+    category: cleanText(category),
+    unit: cleanText(unit),
+    location: cleanText(location),
+    stock: stockValue,
+    shippingType: cleanText(shippingType),
+    certification: cleanText(certification),
+    image,
+    imageEmoji: style.emoji,
+    imageBg: style.bg,
     rating: 5,
     reviewsCount: 1,
-    description: String(description).trim(),
+    description: cleanText(description),
     ownerEmail: req.user.email,
     sellerName: req.user.propertyOrCompany || req.user.name || 'Produtor Rural',
     comments: [{ author: req.user.name, text: 'Produto cadastrado e disponível para entrega.', rating: 5 }]
@@ -377,25 +426,38 @@ app.delete('/api/products/:id', authenticate, async (req, res) => {
   res.status(204).end();
 });
 
-app.get('/api/orders', authenticate, async (_, res) => {
+app.get('/api/orders', authenticate, async (req, res) => {
   const db = await readDb();
-  res.json(db.orders);
+  // Pedido sem dono (gravado antes desta regra) só aparece para o admin.
+  const orders = req.user.role === 'ADMIN' ? db.orders : db.orders.filter((order) => order.ownerEmail === req.user.email);
+  res.json(orders);
 });
 
 app.post('/api/orders', authenticate, async (req, res) => {
-  const { items = [], total = 0, trackingCode = 'BR-AGRO-' + Date.now() } = req.body;
+  const { items, coupon = null } = req.body;
 
   const db = await readDb();
+  // Preço e total saem do catálogo e da mesma regra do carrinho (calculateCartSummary), nunca do cliente.
+  const lines = Array.isArray(items)
+    ? items.map((item) => ({ product: db.products.find((p) => p.id === String(item?.id)), quantity: Number(item?.quantity) }))
+    : [];
+  if (!lines.length || lines.some(({ product, quantity }) => !product || !Number.isInteger(quantity) || quantity < 1)) {
+    return res.status(400).json({ message: 'Itens do pedido inválidos: informe produtos do catálogo e quantidades inteiras maiores que zero.' });
+  }
+  const orderItems = lines.map(({ product, quantity }) => ({ ...product, quantity }));
+  const { total } = calculateCartSummary(orderItems, typeof coupon === 'string' ? coupon.toUpperCase() : null);
+
   const order = {
     id: `AGT-${Math.floor(10000 + Math.random() * 90000)}`,
+    ownerEmail: req.user.email,
     date: 'Hoje',
     status: 'Pedido Confirmado',
     statusStep: 1,
-    trackingCode,
+    trackingCode: `BR-AGRO-${Math.floor(100000 + Math.random() * 900000)}-X`,
     carrier: 'AgroExpress Logística Rural',
     estimatedDelivery: 'Em 3 a 5 dias úteis',
-    total: Number(total),
-    items,
+    total,
+    items: orderItems,
     timeline: [
       { title: 'Pedido Confirmado', time: 'Hoje', completed: true },
       { title: 'Insumos em Separação no CD', time: 'Aguardando', completed: false },

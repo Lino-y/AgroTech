@@ -1,51 +1,30 @@
 # Domain Docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+Como as skills de engenharia devem consumir a documentação de domínio deste repo.
 
-## Before exploring, read these
+## Antes de explorar, leia
 
-- **`CONTEXT.md`** at the repo root, or
-- **`CONTEXT-MAP.md`** at the repo root if it exists: it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
+- **`CONTEXT.md`** na raiz do repo, se existir.
+- **`docs/adr/`**: ADRs que tocam a área que você vai mexer.
+- **`.ai/specs/`**: personas, requisitos funcionais e não funcionais do produto.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+Se `CONTEXT.md` ou `docs/adr/` não existirem ainda, **prossiga em silêncio** — não sinalize a ausência, não sugira criá-los antecipadamente. A skill `domain-modeling` (acionada via `grill-with-docs`) os cria sob demanda quando um termo/decisão é de fato resolvido.
 
-## File structure
-
-Single-context repo (most repos):
+## Estrutura (single-context)
 
 ```
 /
 ├── CONTEXT.md
 ├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
 └── src/
 ```
 
-Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
+Este repo é single-context (sem sinal de monorepo — sem workspaces, sem `CONTEXT-MAP.md`).
 
-```
-/
-├── CONTEXT-MAP.md
-├── docs/adr/                          ← system-wide decisions
-└── src/
-    ├── ordering/
-    │   ├── CONTEXT.md
-    │   └── docs/adr/                  ← context-specific decisions
-    └── billing/
-        ├── CONTEXT.md
-        └── docs/adr/
-```
+## Use o vocabulário do glossário
 
-## Use the glossary's vocabulary
+Ao nomear um conceito de domínio (título de issue, proposta de refactor, nome de teste), use o termo definido em `CONTEXT.md`. Não crie sinônimo para algo que já tem nome lá.
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+## Sinalize conflito com ADR
 
-If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
-
-## Flag ADR conflicts
-
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
-
-> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+Se a sua saída contradiz uma ADR existente, isso vira um achado explícito, nunca é resolvido em silêncio.

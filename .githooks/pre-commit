@@ -1,0 +1,17 @@
+#!/bin/sh
+# Vale para qualquer ferramenta (Claude, Codex, Cursor, pessoa): sem commit direto na main,
+# e erro de ESLint ou de tipo (JSDoc) nos .js do commit barra o commit.
+# Ativação: `npm install` na raiz (script prepare) ou `git config core.hooksPath .githooks`.
+branch=$(git rev-parse --abbrev-ref HEAD)
+case "$branch" in
+  main|master)
+    echo "[pre-commit] Commit direto em '$branch' não é permitido. Crie uma branch: git switch -c feat/{slug}" >&2
+    exit 1 ;;
+esac
+
+# ponytail: lê o arquivo do disco (não só a parte staged) e não aceita espaço no nome;
+# lint-staged resolve os dois, se um dia fizer falta.
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.js')
+[ -z "$files" ] && exit 0
+npx --no-install eslint $files || { echo "[pre-commit] ESLint barrou o commit (npm run lint; sem eslint? rode npm install)." >&2; exit 1; }
+npx --no-install tsc -p jsconfig.json || { echo "[pre-commit] Checagem de tipos barrou o commit (npm run typecheck)." >&2; exit 1; }
