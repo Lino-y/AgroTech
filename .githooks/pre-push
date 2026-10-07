@@ -2,6 +2,7 @@
 # Qualquer ferramenta: push direto para main/master é bloqueado, e o spec-guard
 # (.ai/scripts/spec-guard.js) roda antes de subir. `--no-verify` pula — e o CI pega.
 zero=0000000000000000000000000000000000000000
+npm run verify || exit 1
 while read -r local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/main|refs/heads/master)
