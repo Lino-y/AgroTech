@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
+import { getProductCategoryStyle } from './src/services/catalog.js';
 import { calculateCartSummary } from './src/services/commerce.js';
 
 dotenv.config();
@@ -380,6 +381,7 @@ app.post('/api/products', authenticate, async (req, res) => {
   if (image === undefined) {
     return res.status(400).json({ message: 'Imagem inválida: use um link http(s) ou envie uma foto.' });
   }
+  const style = getProductCategoryStyle(String(category).trim());
 
   const db = await readDb();
   const product = {
@@ -393,8 +395,8 @@ app.post('/api/products', authenticate, async (req, res) => {
     shippingType: cleanText(shippingType),
     certification: cleanText(certification),
     image,
-    imageEmoji: category === 'Rações' ? '🐄' : category === 'Fertilizantes' ? '🧪' : category === 'Grãos' ? '🌽' : category === 'Máquinas' ? '🚜' : '📦',
-    imageBg: category === 'Rações' ? '#E8F5E9' : category === 'Fertilizantes' ? '#E8F5E9' : category === 'Grãos' ? '#F1F8E9' : category === 'Máquinas' ? '#E0F2F1' : '#F4FBF5',
+    imageEmoji: style.emoji,
+    imageBg: style.bg,
     rating: 5,
     reviewsCount: 1,
     description: cleanText(description),

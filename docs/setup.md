@@ -35,7 +35,7 @@ cp .env.example .env
   `.githooks`.
 - No `.env`: `PORT` (padrão 3001) e `JWT_SECRET` (o comando para gerar um
   está no `.env.example`). Sem `JWT_SECRET` a API sorteia um segredo a cada
-  início (`server.js:20`) e o login cai sempre que o servidor reinicia.
+  início (`server.js:21`) e o login cai sempre que o servidor reinicia.
 
 ## 3. Rodar
 
@@ -51,11 +51,10 @@ Usuários de exemplo (o `server.js` recria os dois se faltarem no banco):
 | Produtor | `demo@agrotech.com.br` | `demo123` |
 | Admin | `admin@agrotech.com.br` | `admin123` |
 
-O banco é o arquivo `src/data/db.json`, versionado. Cadastros, anúncios e
-pedidos feitos no app são gravados nele, e no Windows o primeiro acesso já
-regrava o arquivo (o conteúdo fica igual, só o fim de linha muda). Rode
-`git diff src/data/db.json` antes de commitar para não versionar dado de
-teste.
+O banco é o arquivo `src/data/db.json`, fora do git: o `server.js` cria a
+partir dos dados de exemplo (`defaultDb`) no primeiro uso, e cadastros,
+anúncios e pedidos feitos no app ficam só na sua máquina. Para voltar ao
+estado inicial, apague o arquivo e reinicie o servidor.
 
 ## 4. Testes e qualidade
 

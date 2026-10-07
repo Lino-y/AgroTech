@@ -46,7 +46,7 @@ AgroTech/
 │  ├─ services/           # regras de negócio e acesso à API (cart, catalog, commerce...)
 │  ├─ components/         # Navbar, ProductCard, FinanceChart
 │  ├─ styles/             # tokens.css (design tokens) e ui.css
-│  └─ data/db.json        # "banco" em arquivo, lido e gravado pelo server.js
+│  └─ data/db.json        # "banco" em arquivo, fora do git (criado pelo server.js no 1º uso)
 ├─ assets/                # logo
 ├─ tests/                 # testes do app (npm test)
 ├─ docs/
@@ -62,7 +62,6 @@ AgroTech/
 ├─ .claude/               # hooks, skills e settings do Claude Code
 ├─ .githooks/             # pre-commit, commit-msg e pre-push (qualquer ferramenta)
 ├─ .github/               # templates de issue e de PR
-├─ .qa/                   # scripts e prints de QA no navegador, gerados em sessões de IA
 ├─ CLAUDE.md, AGENTS.md   # regras para agentes (Claude Code; Codex e outros)
 └─ package.json           # scripts start, dev, test, lint, typecheck, check:coherence e prepare
 ```

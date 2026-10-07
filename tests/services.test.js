@@ -14,7 +14,7 @@ globalThis.localStorage = {
   }
 };
 
-const { calculateCartSummary, validateEmail, validateCouponCode, COUPON_RULES } = await import('../src/services/commerce.js');
+const { calculateCartSummary, validateEmail, validateCouponCode } = await import('../src/services/commerce.js');
 const { addProductToCart, removeProductFromCart, updateCartItemQuantity } = await import('../src/services/cart.js');
 const { CartEngine } = await import('../src/modules/cart.js');
 const { AuthService } = await import('../src/modules/auth.js');

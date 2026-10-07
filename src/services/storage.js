@@ -8,7 +8,7 @@ export function readStorage(key, fallback = null) {
   try {
     const raw = localStorage.getItem(key);
     return raw === null ? fallback : JSON.parse(raw);
-  } catch (error) {
+  } catch {
     return fallback;
   }
 }
