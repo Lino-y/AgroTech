@@ -1,118 +1,117 @@
-# 08 — Spec de migração futura para React Native
+# 08 — Spec de migração mobile para React Native + Expo
 
 - **Status:** proposta / não implementada
-- **Tipo:** evolução arquitetural do cliente mobile
 - **ADR:** `docs/adr/0001-migracao-para-react-native.md`
+- **Padrão de referência:** `mais-frota/apps/mobile-driver`
 
 ## Objetivo
 
-Avaliar e, se aprovado, migrar progressivamente o cliente mobile do AgroTech
-da SPA web atual para React Native, preservando os contratos da API e as regras
-de negócio comprovadas por testes.
+Definir uma migração faseada da experiência mobile do AgroTech para React
+Native + Expo, seguindo o padrão maduro de separação entre telas, estado,
+serviços, storage e fila offline já adotado no Mais Frota.
 
-Esta spec documenta o alvo e o caminho de decisão. Ela não autoriza instalar
-React Native, Expo, bibliotecas de navegação ou qualquer nova dependência.
+Esta spec não instala dependências nem cria o app. Ela define o contrato para
+uma futura implementação.
 
-## Estado atual
+## Estado atual comprovado
 
-- cliente: HTML, CSS e módulos ES sem build;
-- estado e telas: `src/modules/catalog.js`;
-- serviços de API: `src/services/api.js`;
-- regras puras reutilizáveis: `src/services/`;
-- API: Express em `server.js`;
-- persistência: arquivo JSON local, sem banco remoto;
-- autenticação: sessão JWT consumida pelo cliente;
-- cobertura atual: testes nativos em `tests/`.
+- telas e estado web: `src/modules/catalog.js`;
+- acesso HTTP: `src/services/api.js`;
+- regras de carrinho e comércio: `src/services/cart.js` e
+  `src/services/commerce.js`;
+- API Express: `server.js`;
+- contrato HTTP: `.ai/specs/05-openapi-spec.md`;
+- testes API/serviços: `tests/api.test.js` e `tests/services.test.js`.
 
-## Escopo da avaliação
+## Arquitetura alvo
 
-O spike deve responder:
+```text
+apps/mobile/
+├─ app/screens/           # Login, catálogo, produto, carrinho, checkout, pedidos
+├─ app/components/        # UI sem regra de negócio
+├─ app/navigation/        # stack, tabs e proteção de rotas
+├─ app/store/             # auth, catalog, cart, orders, support
+├─ app/services/api.ts    # cliente HTTP e autenticação
+├─ app/services/storage.ts# sessão, cache e fila
+├─ app/utils/offlineQueue.ts
+├─ app/domain/            # cálculo de carrinho, cupons e normalização
+├─ app/types/             # tipos dos contratos
+└─ __tests__/
+```
 
-- React Native atende os fluxos mobile prioritários?
-- Expo ou React Native CLI é compatível com distribuição e integrações
-  necessárias?
-- quais funções de `src/services/` podem ser extraídas sem dependência de DOM?
-- como serão tratados token, logout, expiração e armazenamento seguro?
-- quais dados precisam funcionar offline e como serão sincronizados?
-- a API atual precisa de novos endpoints ou apenas de ajustes de contrato?
-- web e mobile compartilharão código por pacote ou apenas contratos/testes?
+## Fases
 
-## Fases propostas
+### Fase 0 — spike arquitetural
 
-### Fase 0 — decisão e spike
+- criar uma tela mínima autenticada em Expo;
+- consumir `/api/auth/me` usando um cliente HTTP centralizado;
+- validar armazenamento e remoção da sessão;
+- validar TypeScript estrito, testes e build Android/iOS;
+- registrar custo, riscos e decisão final na ADR.
 
-- fechar fluxos prioritários;
-- comparar Expo e React Native CLI;
-- validar uma tela autenticada contra `/api/auth/me`;
-- medir esforço, tamanho do bundle, tempo de inicialização e limitações
-  nativas;
-- registrar a decisão em uma ADR aprovada.
+### Fase 1 — fundação
 
-### Fase 1 — contratos e domínio
+- criar `apps/mobile` somente após aprovação do spike;
+- configurar navegação, tema, tratamento de erro e estados de carregamento;
+- criar `api service`, `storage service` e tipos dos contratos;
+- migrar primeiro as regras puras de carrinho/cupom com testes equivalentes;
+- definir estado por domínio sem colocar regra de negócio em componentes.
 
-- estabilizar `.ai/specs/05-openapi-spec.md`;
-- identificar regras de negócio sem DOM em `src/services/`;
-- garantir testes para cada regra migrada;
-- definir modelos de sessão, produto, carrinho e pedido;
-- definir compatibilidade entre versões web, API e mobile.
+### Fase 2 — fluxos verticais
 
-### Fase 2 — fundação mobile
+Migrar cada fluxo completo, com tela, serviço, erro, loading, teste e rollout:
 
-- criar o shell mobile somente após a aprovação da Fase 0;
-- configurar navegação, tema, tratamento de erro e telemetria;
-- implementar login, logout e restauração segura de sessão;
-- validar acessibilidade, estados de carregamento e falha de rede.
-
-### Fase 3 — fluxos verticais
-
-Migrar em fatias completas, nesta ordem inicial:
-
-1. autenticação;
+1. autenticação e logout;
 2. catálogo, busca e filtros;
-3. carrinho e cupons;
-4. checkout e pedidos;
-5. rastreio e suporte;
-6. finanças, se confirmadas como prioridade mobile.
+3. detalhe do produto e favoritos;
+4. carrinho e cupons;
+5. checkout e pedidos;
+6. rastreio e suporte;
+7. finanças, se confirmadas como prioridade mobile.
 
-Cada fatia precisa incluir tela, serviço, tratamento de erro, testes e
-critério de rollout. Nenhuma tela deve ser considerada migrada apenas por ter
-um protótipo visual.
+### Fase 3 — offline controlado
 
-### Fase 4 — offline e rollout
+- cachear somente catálogo consultado e dados autorizados;
+- persistir carrinho com revalidação obrigatória;
+- permitir fila apenas para ações não financeiras e idempotentes;
+- nunca persistir cartão nem confirmar pedido sem rede;
+- testar reconexão, duplicidade, conflito e expiração de sessão.
 
-- implementar somente o offline aprovado na decisão de produto;
-- testar expiração de sessão, duplicidade de pedido e reconciliação;
-- publicar para grupo piloto;
-- comparar erros, conversão e desempenho com a SPA;
-- definir a retirada ou manutenção do cliente web.
+### Fase 4 — rollout
 
-## Contratos obrigatórios antes do código
+- publicar para um grupo piloto;
+- medir crashes, falhas de autenticação, conversão e pedidos duplicados;
+- manter a SPA como fallback durante o piloto;
+- decidir a retirada de cada fluxo web somente após evidência.
 
-- endpoint novo ou alterado: atualizar `.ai/specs/05-openapi-spec.md`;
-- regra de negócio: teste em `tests/` antes ou junto da implementação;
-- novo armazenamento mobile: documentar dados, criptografia, expiração e
-  limpeza no logout;
-- fluxo offline: documentar estados pendente, sincronizado e conflitante;
-- cada critério concluído: evidência de código e teste;
-- dependência nova: justificar escolha, versão e alternativa descartada.
+## Contratos antes do código
 
-## Critérios de aceite da migração
+- endpoint novo/alterado: atualizar `.ai/specs/05-openapi-spec.md`;
+- regra de negócio migrada: manter teste em `tests/` ou criar teste equivalente
+  no domínio mobile;
+- sessão: documentar expiração, logout, 401/403 e limpeza de storage;
+- fila: documentar idempotency key, retry, backoff, conflito e descarte;
+- cache: documentar TTL, versão, invalidação e estado desatualizado;
+- dependência nova: justificar escolha e alternativa descartada.
 
-| ID | Critério | Verificação | Status |
+## Critérios de aceite
+
+| ID | Critério | Evidência esperada | Status |
 |---|---|---|---|
-| RN01 | Spike compara Expo e React Native CLI | ADR aprovada com métricas | 🔴 |
-| RN02 | Fluxos prioritários estão definidos | Spec de produto aprovada | 🔴 |
-| RN03 | Contratos da API têm política de compatibilidade | OpenAPI + teste de integração | 🔴 |
-| RN04 | Sessão é restaurada e removida com segurança | Testes de login/logout/expiração | 🔴 |
-| RN05 | Cada fluxo migrado tem teste funcional | Testes mobile e de API | 🔴 |
-| RN06 | Offline e sincronização têm comportamento definido | Testes de falha e reconciliação | 🔴 |
-| RN07 | Rollout piloto não aumenta erros críticos | Métricas e checklist de release | 🔴 |
+| RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🔴 |
+| RN02 | API e tipos mobile seguem o contrato existente | testes de integração | 🔴 |
+| RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | 🔴 |
+| RN04 | Storage isola sessão, cache e fila | testes de storage | 🔴 |
+| RN05 | Carrinho offline revalida preço e estoque | teste de reconexão | 🔴 |
+| RN06 | Nenhum cartão ou pedido financeiro entra na fila | teste de segurança | 🔴 |
+| RN07 | Cada fluxo migrado tem teste e rollout reversível | checklist de release | 🔴 |
+| RN08 | SPA continua funcional durante o piloto | smoke test web | 🔴 |
 
-## Fora de escopo nesta etapa
+## Fora de escopo
 
-- instalar React Native ou Expo;
-- reescrever `src/modules/catalog.js`;
-- alterar a API sem contrato aprovado;
-- trocar o arquivo JSON por PostgreSQL;
-- adicionar notificações, pagamentos reais ou sincronização offline sem uma
-  decisão específica.
+- migrar a API para NestJS;
+- trocar JSON por PostgreSQL ou Prisma;
+- adicionar Supabase, Redis, RabbitMQ ou serviços de telemetria;
+- reescrever a SPA antes de validar o cliente mobile;
+- implementar pagamento offline;
+- instalar React Native/Expo nesta etapa documental.
