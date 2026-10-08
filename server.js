@@ -500,9 +500,6 @@ app.delete('/api/products/:id/reviews/:reviewId', authenticate, async (req, res)
   await writeDb(db);
   res.status(204).end();
 });
-  await writeDb(db);
-  res.status(201).json(product);
-});
 
 app.delete('/api/products/:id', authenticate, async (req, res) => {
   const db = await readDb();
