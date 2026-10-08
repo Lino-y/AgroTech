@@ -185,8 +185,8 @@ async function ensureDbFile() {
     const parsed = JSON.parse(raw);
     const normalizedDb = {
       users: normalizeDbUsers(parsed.users || defaultDb.users),
-      products: parsed.products && parsed.products.length ? parsed.products : defaultDb.products,
-      orders: parsed.orders && parsed.orders.length ? parsed.orders : defaultDb.orders
+      products: parsed.products || defaultDb.products,
+      orders: parsed.orders || defaultDb.orders
     };
 
     if (JSON.stringify(normalizedDb) !== raw) {
@@ -218,7 +218,13 @@ const sanitizeUser = (user) => ({
   name: user.name,
   propertyOrCompany: user.propertyOrCompany,
   email: user.email,
-  role: user.role
+  role: user.role,
+  storeProfileImage: user.storeProfileImage || null,
+  storeCoverImage: user.storeCoverImage || null,
+  storeBio: user.storeBio || '',
+  storePhone: user.storePhone || '',
+  storeLocation: user.storeLocation || '',
+  storeHours: user.storeHours || ''
 });
 
 const authenticate = async (req, res, next) => {
@@ -316,6 +322,35 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
   res.json({ user: req.user });
 });
 
+app.put('/api/auth/store', authenticate, async (req, res) => {
+  const {
+    name, propertyOrCompany, storeProfileImage, storeCoverImage,
+    storeBio, storePhone, storeLocation, storeHours
+  } = req.body;
+
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ message: 'O nome é obrigatório.' });
+  }
+
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ message: 'Usuário não encontrado.' });
+  }
+
+  user.name = String(name).trim();
+  if (propertyOrCompany !== undefined) user.propertyOrCompany = String(propertyOrCompany).trim();
+  if (storeProfileImage !== undefined) user.storeProfileImage = String(storeProfileImage || '').trim() || null;
+  if (storeCoverImage !== undefined) user.storeCoverImage = String(storeCoverImage || '').trim() || null;
+  if (storeBio !== undefined) user.storeBio = String(storeBio || '').slice(0, 500);
+  if (storePhone !== undefined) user.storePhone = String(storePhone || '').trim();
+  if (storeLocation !== undefined) user.storeLocation = String(storeLocation || '').trim();
+  if (storeHours !== undefined) user.storeHours = String(storeHours || '').trim();
+
+  await writeDb(db);
+  res.json({ user: sanitizeUser(user) });
+});
+
 app.get('/api/products', async (_, res) => {
   const db = await readDb();
   res.json(db.products);
@@ -348,15 +383,74 @@ app.post('/api/products', authenticate, async (req, res) => {
     image: imageUrl || null,
     imageEmoji: category === 'Rações' ? '🐄' : category === 'Fertilizantes' ? '🧪' : category === 'Grãos' ? '🌽' : category === 'Máquinas' ? '🚜' : '📦',
     imageBg: category === 'Rações' ? '#E8F5E9' : category === 'Fertilizantes' ? '#E8F5E9' : category === 'Grãos' ? '#F1F8E9' : category === 'Máquinas' ? '#E0F2F1' : '#F4FBF5',
-    rating: 5,
-    reviewsCount: 1,
+    rating: 0,
+    reviewsCount: 0,
     description: String(description).trim(),
     ownerEmail: req.user.email,
     sellerName: req.user.propertyOrCompany || req.user.name || 'Produtor Rural',
-    comments: [{ author: req.user.name, text: 'Produto cadastrado e disponível para entrega.', rating: 5 }]
+    comments: []
   };
 
   db.products.unshift(product);
+  await writeDb(db);
+  res.status(201).json(product);
+});
+
+app.post('/api/products/:id/reviews', authenticate, async (req, res) => {
+  const { text, rating = 5 } = req.body;
+  if (!text || !String(text).trim()) {
+    return res.status(400).json({ message: 'O texto da avaliação é obrigatório.' });
+  }
+
+  const db = await readDb();
+  const product = db.products.find((item) => item.id === req.params.id);
+  if (!product) {
+    return res.status(404).json({ message: 'Produto não encontrado.' });
+  }
+
+  const review = {
+    id: `rev-${Date.now()}`,
+    author: req.user.name || req.user.propertyOrCompany || 'Produtor Rural',
+    authorEmail: req.user.email,
+    text: String(text).trim().slice(0, 600),
+    rating: Math.min(5, Math.max(0, Number(rating) || 5))
+  };
+
+  product.comments = product.comments || [];
+  product.comments.unshift(review);
+  product.reviewsCount = product.comments.length;
+  product.rating = parseFloat((product.comments.reduce((acc, c) => acc + Number(c.rating || 0), 0) / product.reviewsCount).toFixed(1));
+
+  await writeDb(db);
+  res.status(201).json({ review, rating: product.rating, reviewsCount: product.reviewsCount });
+});
+
+app.delete('/api/products/:id/reviews/:reviewId', authenticate, async (req, res) => {
+  const db = await readDb();
+  const product = db.products.find((item) => item.id === req.params.id);
+  if (!product) {
+    return res.status(404).json({ message: 'Produto não encontrado.' });
+  }
+
+  product.comments = product.comments || [];
+  const review = product.comments.find((c) => c.id === req.params.reviewId);
+  if (!review) {
+    return res.status(404).json({ message: 'Avaliação não encontrada.' });
+  }
+
+  if (req.user.role !== 'ADMIN' && review.authorEmail !== req.user.email) {
+    return res.status(403).json({ message: 'Você só pode excluir as suas próprias avaliações.' });
+  }
+
+  product.comments = product.comments.filter((c) => c.id !== req.params.reviewId);
+  product.reviewsCount = product.comments.length;
+  product.rating = product.reviewsCount
+    ? parseFloat((product.comments.reduce((acc, c) => acc + Number(c.rating || 0), 0) / product.reviewsCount).toFixed(1))
+    : 0;
+
+  await writeDb(db);
+  res.status(204).end();
+});
   await writeDb(db);
   res.status(201).json(product);
 });

@@ -1,4 +1,4 @@
-﻿import { AuthService } from './auth.js';
+﻿﻿﻿import { AuthService } from './auth.js';
 import { OrderTracker } from './tracker.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
 import { buildDefaultProducts, calculateCartSummary, validateCouponCode, COUPON_RULES, VALID_COUPONS } from '../services/commerce.js';
@@ -6,7 +6,7 @@ import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from 
 import { buildProductDraft } from '../services/catalog.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getToken, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createOrder, createProduct, loadProducts, loginUser, registerUser } from '../services/api.js';
+import { createOrder, createProduct, deleteProduct as deleteProductApi, loadProducts, loginUser, registerUser, updateStore, addReview, deleteReview } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -17,6 +17,7 @@ const ICON_PATHS = {
   profile: '<circle cx="12" cy="8.2" r="3.8"/><path d="M4.5 20.5c.6-4 3.4-6 7.5-6s6.9 2 7.5 6z"/>',
   support: '<path d="M20.5 11.6a7.9 7.9 0 0 1-8 7.9 8.6 8.6 0 0 1-3.2-.6L4.5 20l1.2-3.8a7.6 7.6 0 0 1-1.2-4.6 7.9 7.9 0 0 1 16 0z"/><path d="M8.8 11.6h.01M12 11.6h.01M15.2 11.6h.01" stroke-width="2.1"/>',
   cart: '<path d="M2.5 3.5H5l2.3 11.6a1.6 1.6 0 0 0 1.6 1.3h8.7a1.6 1.6 0 0 0 1.6-1.3L21 7.2H5.7"/><circle cx="9.4" cy="20" r="1.5"/><circle cx="17.4" cy="20" r="1.5"/>',
+  store: '<path d="M3.4 9.6l1.4-4.4a1.3 1.3 0 0 1 1.2-.9h12a1.3 1.3 0 0 1 1.2.9l1.4 4.4"/><path d="M3.4 9.6h17.2"/><path d="M4.6 9.6v9.2a1.3 1.3 0 0 0 1.3 1.3h12.2a1.3 1.3 0 0 0 1.3-1.3V9.6"/><path d="M9 20.1v-4.2a1.2 1.2 0 0 1 1.2-1.2h3.6a1.2 1.2 0 0 1 1.2 1.2v4.2" opacity=".6"/>',
   search: '<circle cx="10.8" cy="10.8" r="6.8"/><path d="M20.5 20.5l-4.6-4.6"/><path d="M8 10.8a2.8 2.8 0 0 1 2.8-2.8" opacity=".45"/>',
   pin: '<path d="M12 21.2S5.2 15.8 5.2 10a6.8 6.8 0 0 1 13.6 0c0 5.8-6.8 11.2-6.8 11.2z"/><circle cx="12" cy="9.8" r="2.4"/>',
   box: '<path d="M3.2 7.4L12 3l8.8 4.4v9.2L12 21l-8.8-4.4z"/><path d="M3.2 7.4L12 11.8l8.8-4.4M12 21v-9.2M7.6 5.2l8.8 4.4" opacity=".5"/>',
@@ -63,12 +64,13 @@ const state = {
   selectedProduct: null,
   newRatingStar: 5,
   user: initialUser,
-  products: [], // Catálogo vazio - produtos serão adicionados pelos vendedores
+  products: getProducts() || [],
   cart: [],
   orders: [],
   appliedCoupon: null,
   coins: 350,
   profileSection: null,
+  storeEditor: null,
   paymentMethod: 'pix',
   creditInstallments: 1,
   financeFilter: 'ALL',
@@ -714,13 +716,20 @@ window.handleProductImageUpload = function(event) {
   reader.readAsDataURL(file);
 };
 window.deleteProduct = function(productId) {
-  if (confirm('Deseja realmente excluir este produto do catálogo?')) {
-    state.products = state.products.filter(p => p.id !== productId);
-    persistProducts();
-    state.selectedProduct = null;
-    showToast('Produto excluído com sucesso.', 'success');
-    renderApp();
-  }
+  if (!confirm('Deseja realmente excluir este produto do catálogo?')) return;
+
+  state.products = state.products.filter(p => p.id !== productId);
+  persistProducts();
+  state.selectedProduct = null;
+  showToast('Produto excluído com sucesso.', 'success');
+  renderApp();
+
+  // Sincroniza a exclusão no servidor (produtos salvos em db.json)
+  deleteProductApi(productId)
+    .catch((error) => {
+      console.warn('Não foi possível excluir no servidor:', error.message);
+      showToast('O produto foi removido aqui, mas pode reaparecer ao recarregar.', 'error');
+    });
 };
 
 window.toggleProfileSection = function(section) {
@@ -1053,9 +1062,7 @@ window.handleLogout = function() {
 function renderNavbar(cartCount = 0) {
   return `
     <nav style="background: #FFFFFF; border-bottom: 1px solid #E0EBE2; padding: 14px 18px; color: #163d27; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-      <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="navigateTo('catalog')">
-        <img src="assets/logo.svg" alt="AgroTech" style="width: 38px; height: auto; cursor: pointer; flex-shrink: 0;" />
-      </div>
+      <img src="assets/logo.svg" alt="AgroTech" style="width: 52px; height: auto; cursor: pointer; flex-shrink: 0;" onclick="navigateTo('catalog')" />
 
       <div style="display: flex; align-items: center; gap: 10px;">
         <div onclick="navigateTo('profile')" style="cursor: pointer; width: 44px; height: 44px; border-radius: 12px; background: #EEF9F0; border: 1px solid #C8E6C9; display: flex; align-items: center; justify-content: center; color: #1B5E20;">
@@ -1077,15 +1084,28 @@ function renderSellFab() {
 }
 
 function renderBottomNav() {
+  // A aba "Minha Loja" só aparece quando o usuário tem itens à venda
+  const myItems = state.user && state.user.email
+    ? state.products.filter(p => p.ownerEmail === state.user.email)
+    : [];
+  const showStoreTab = myItems.length > 0;
+
+  const tabStyle = (isActive) => `border-radius: 14px; background: ${isActive ? '#EAF7EE' : 'transparent'}; color: ${isActive ? '#163D27' : '#6C8574'}; border: ${isActive ? '1px solid rgba(46,125,50,0.12)' : '1px solid transparent'}; cursor:pointer; font-size:11px; font-family: inherit; font-weight: ${isActive ? '700' : '600'}; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; min-width: 70px; padding: 8px 10px;`;
+
   return `
     <div style="background: rgba(255,255,255,0.96); border-top: 1px solid rgba(26,79,45,0.06); display: flex; justify-content: space-around; padding: 10px 12px 14px; flex-shrink: 0; z-index: 10;">
-      <button onclick="navigateTo('catalog')" style="border-radius: 14px; background: ${state.activeScreen === 'catalog' ? '#EAF7EE' : 'transparent'}; color: ${state.activeScreen === 'catalog' ? '#163D27' : '#6C8574'}; border: ${state.activeScreen === 'catalog' ? '1px solid rgba(46,125,50,0.12)' : '1px solid transparent'}; cursor:pointer; font-size:11px; font-family: inherit; font-weight: ${state.activeScreen === 'catalog' ? '700' : '600'}; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; min-width: 70px; padding: 8px 10px;">
+      <button onclick="navigateTo('catalog')" style="${tabStyle(state.activeScreen === 'catalog')}">
         <span style="display: inline-flex;">${icon('catalog', 19)}</span>Catálogo
       </button>
-      <button onclick="navigateTo('finance')" style="border-radius: 14px; background: ${state.activeScreen === 'finance' ? '#EAF7EE' : 'transparent'}; color: ${state.activeScreen === 'finance' ? '#163D27' : '#6C8574'}; border: ${state.activeScreen === 'finance' ? '1px solid rgba(46,125,50,0.12)' : '1px solid transparent'}; cursor:pointer; font-size:11px; font-family: inherit; font-weight: ${state.activeScreen === 'finance' ? '700' : '600'}; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; min-width: 70px; padding: 8px 10px;">
+      ${showStoreTab ? `
+      <button onclick="navigateTo('mystore')" style="${tabStyle(state.activeScreen === 'mystore')}">
+        <span style="display: inline-flex;">${icon('store', 19)}</span>Minha Loja
+      </button>
+      ` : ''}
+      <button onclick="navigateTo('finance')" style="${tabStyle(state.activeScreen === 'finance')}">
         <span style="display: inline-flex;">${icon('finance', 19)}</span>Financeiro
       </button>
-      <button onclick="navigateTo('support')" style="border-radius: 14px; background: ${state.activeScreen === 'support' ? '#EAF7EE' : 'transparent'}; color: ${state.activeScreen === 'support' ? '#163D27' : '#6C8574'}; border: ${state.activeScreen === 'support' ? '1px solid rgba(46,125,50,0.12)' : '1px solid transparent'}; cursor:pointer; font-size:11px; font-family: inherit; font-weight: ${state.activeScreen === 'support' ? '700' : '600'}; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; min-width: 70px; padding: 8px 10px;">
+      <button onclick="navigateTo('support')" style="${tabStyle(state.activeScreen === 'support')}">
         <span style="display: inline-flex;">${icon('support', 19)}</span>Suporte
       </button>
     </div>
@@ -1106,8 +1126,11 @@ function renderRegisterScreen() {
 
   return `
     <div style="flex: 1; padding: 32px 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; background: #F4FBF7;">
+      <div style="text-align: center; margin-bottom: 8px;">
+        <img src="assets/logo.svg" alt="AgroTech" style="width: 120px; height: auto;" />
+      </div>
       <div style="text-align: left; margin-bottom: 4px;">
-        <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 24px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.5px;">
+        <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 24px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.5px;">
           ${isLogin ? 'Bem-vindo de volta' : 'Crie sua conta AgroTech'}
         </h2>
         <p style="font-size: 13px; color: #388E3C; line-height: 1.4;">
@@ -1201,7 +1224,7 @@ function renderCatalogScreen() {
         <div style="position: relative; z-index: 2; padding: 18px 16px 14px; display: flex; flex-direction: column; gap: 12px; height: 100%; justify-content: space-between;">
           <div>
             <span style="background: #2E7D32; color: #FFFFFF; font-size: 10px; font-weight: 800; padding: 4px 9px; border-radius: 6px; letter-spacing: 0.6px; display: inline-block;">SAFRA 2026/2027 • MERCADO DIRETO DO CAMPO</span>
-            <h4 style="font-family: 'Fraunces', serif; margin: 8px 0 4px; font-size: 17px; font-weight: 700; color: #FFFFFF; line-height: 1.25;">Sementes Certificadas, Adubos & Maquinário</h4>
+            <h4 style="font-family: 'Outfit', sans-serif;; margin: 8px 0 4px; font-size: 17px; font-weight: 700; color: #FFFFFF; line-height: 1.25;">Sementes Certificadas, Adubos & Maquinário</h4>
             <p style="font-size: 11px; opacity: 0.95; margin: 0; color: #F1F8E9; line-height: 1.4;">Frete Grátis Fazenda em compras acima de R$ 800 com seguro rural e laudo agronômico garantido.</p>
           </div>
 
@@ -1234,7 +1257,7 @@ function renderCatalogScreen() {
       ` : ''}
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-        <h3 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 18px; font-weight: 700; margin: 0;">Catálogo de Insumos</h3>
+        <h3 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 18px; font-weight: 700; margin: 0;">Catálogo de Insumos</h3>
         <span style="font-size: 11px; color: #388E3C; font-weight: 600;">${filtered.length} anúncios ativos</span>
       </div>
 
@@ -1288,7 +1311,7 @@ function renderCatalogScreen() {
 
             <div>
               <span style="font-size: 11px; color: #388E3C; font-weight: 700;">PRODUTOR: ${state.selectedProduct.sellerName || 'Fazenda Parceira AgroTech'}</span>
-              <h3 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 20px; font-weight: 700; line-height: 1.3; margin: 4px 0 0;">${state.selectedProduct.name}</h3>
+              <h3 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 20px; font-weight: 700; line-height: 1.3; margin: 4px 0 0;">${state.selectedProduct.name}</h3>
               <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px;">
                 <p style="font-size: 22px; font-weight: 800; color: #2E7D32; margin: 0;">
                   R$ ${Number(state.selectedProduct.price).toFixed(2)}
@@ -1398,7 +1421,7 @@ function renderSellScreen() {
         <div style="display: flex; align-items: center; gap: 12px;">
           <button onclick="navigateTo('catalog')" style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #2E7D32;">←</button>
           <div>
-            <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Anunciar Lote ou Insumo</h2>
+            <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Anunciar Lote ou Insumo</h2>
             <p style="font-size: 11px; color: #388E3C; margin: 2px 0 0;">Mercado direto entre produtores rurais</p>
           </div>
         </div>
@@ -1497,7 +1520,7 @@ function renderCartScreen() {
   return `
     <div style="flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; background: #F4FBF7;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-weight: 700; margin: 0;">Carrinho de Compras</h2>
+        <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-weight: 700; margin: 0;">Carrinho de Compras</h2>
         <span style="font-size: 12px; color: #388E3C; font-weight: 600;">${state.cart.reduce((s, i) => s + i.quantity, 0)} item(ns)</span>
       </div>
 
@@ -1604,7 +1627,7 @@ function renderPaymentScreen() {
     <div style="flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; background: #F4FBF7;">
       <div style="display: flex; align-items: center; gap: 12px;">
         <button onclick="navigateTo('cart')" style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #2E7D32;">←</button>
-        <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-weight: 700; margin: 0;">Forma de Pagamento</h2>
+        <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-weight: 700; margin: 0;">Forma de Pagamento</h2>
       </div>
 
       <div style="background: #FFFFFF; padding: 16px; border-radius: 20px; border: 1px solid #C8E6C9; display: flex; justify-content: space-between; align-items: center;">
@@ -1722,7 +1745,7 @@ function renderFinanceScreen() {
 
   return `
     <div style="flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; background: #F4FBF7;">
-      <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-weight: 700; margin: 0;">Gestão Financeira</h2>
+      <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-weight: 700; margin: 0;">Gestão Financeira</h2>
 
       <div style="background: #1B5E20; color: white; padding: 20px; border-radius: 20px; text-align: center;">
         <span style="font-size: 12px; opacity: 0.9; font-weight: 500;">Saldo Atual da Fazenda</span>
@@ -1808,6 +1831,241 @@ function renderFinanceScreen() {
   `;
 }
 
+// --- TELA DA MINHA LOJA (anúncios do produtor logado) ---
+function renderMyStoreScreen() {
+  const isLoggedIn = state.user && state.user.email && state.user.email.trim() !== '';
+  const myProducts = state.products.filter(p => p.ownerEmail === state.user.email);
+  const storeName = state.user.propertyOrCompany || state.user.name || 'Minha Loja';
+  const totalValue = myProducts.reduce((sum, p) => sum + (Number(p.price) * Number(p.stock || 1)), 0);
+  const totalStock = myProducts.reduce((sum, p) => sum + Number(p.stock || 0), 0);
+
+  return `
+    <div style="flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; background: #F4FBF7;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button onclick="navigateTo('profile')" style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #2E7D32;">←</button>
+        <div>
+          <h2 style="font-family: 'Outfit', sans-serif; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Minha Loja</h2>
+          <p style="font-size: 11px; color: #388E3C; margin: 2px 0 0;">Anúncios publicados por você</p>
+        </div>
+      </div>
+
+      ${!isLoggedIn ? `
+        <div style="background: #FFFFFF; padding: 36px 20px; text-align: center; border-radius: 20px; border: 1px solid #C8E6C9; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+          <p style="color: #1B5E20; font-size: 15px; font-weight: 700; margin: 0;">Entre para ver sua loja</p>
+          <p style="color: #388E3C; font-size: 12px; margin: 0;">Você precisa estar logado como produtor ou vendedor.</p>
+          <button onclick="navigateTo('cart')" style="background: #2E7D32; color: #FFFFFF; border: none; padding: 12px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 13px; margin-top: 8px;">Fazer Login</button>
+        </div>
+      ` : `
+      <div style="background: #1B5E20; color: #FFFFFF; border-radius: 20px;">
+        <div style="height: 96px; border-radius: 20px 20px 0 0; background: linear-gradient(135deg, #1B5E20, #2E7D32); overflow: hidden;">
+          ${state.user.storeCoverImage ? `<img src="${state.user.storeCoverImage}" alt="Capa da loja" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+        </div>
+        <div style="padding: 14px 18px 18px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: -48px;">
+            <div style="width: 72px; height: 72px; border-radius: 16px; background: rgba(255,255,255,0.2); border: 3px solid #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+              ${state.user.storeProfileImage ? `<img src="${state.user.storeProfileImage}" alt="Perfil" style="width: 100%; height: 100%; object-fit: cover;">` : '🏪'}
+            </div>
+            <div style="margin-top: 52px;">
+              <button onclick="openStoreEditor()" style="background: #FFFFFF; color: #1B5E20; border: none; padding: 8px 14px; border-radius: 10px; font-weight: 700; font-size: 12px; cursor: pointer; white-space: nowrap;">✏️ Editar</button>
+            </div>
+          </div>
+          <div style="margin-top: 10px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; margin: 0; line-height: 1.3; word-break: break-word;">${storeName}</h3>
+            <p style="font-size: 11px; opacity: 0.85; margin-top: 3px;">${myProducts.length} anúncio(s) ativo(s)</p>
+          </div>
+        </div>
+        ${state.user.storeBio || state.user.storePhone || state.user.storeLocation || state.user.storeHours ? `
+        <div style="padding: 0 18px 16px; font-size: 12px; opacity: 0.95; display: flex; flex-direction: column; gap: 4px;">
+          ${state.user.storeLocation ? `<span>📍 ${state.user.storeLocation}</span>` : ''}
+          ${state.user.storePhone ? `<span>📞 ${state.user.storePhone}</span>` : ''}
+          ${state.user.storeHours ? `<span>🕗 ${state.user.storeHours}</span>` : ''}
+          ${state.user.storeBio ? `<span style="opacity: 0.9; line-height: 1.4; margin-top: 2px;">${state.user.storeBio}</span>` : ''}
+        </div>
+        ` : ''}
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 1; background: #FFFFFF; padding: 14px; border-radius: 16px; border: 1px solid #C8E6C9; text-align: center;">
+          <p style="font-size: 10px; color: #388E3C; font-weight: 700; text-transform: uppercase; margin: 0;">Valor em catálogo</p>
+          <p style="font-size: 16px; font-weight: 800; color: #2E7D32; margin: 4px 0 0;">R$ ${totalValue.toFixed(2)}</p>
+        </div>
+        <div style="flex: 1; background: #FFFFFF; padding: 14px; border-radius: 16px; border: 1px solid #C8E6C9; text-align: center;">
+          <p style="font-size: 10px; color: #388E3C; font-weight: 700; text-transform: uppercase; margin: 0;">Estoque total</p>
+          <p style="font-size: 16px; font-weight: 800; color: #2E7D32; margin: 4px 0 0;">${totalStock} un.</p>
+        </div>
+      </div>
+
+      ${myProducts.length === 0 ? `
+        <div style="background: #FFFFFF; padding: 36px 20px; text-align: center; border-radius: 20px; border: 1px solid #C8E6C9; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+          <span style="color: #A5D6A7; display: inline-flex;">${icon('box', 40)}</span>
+          <p style="color: #1B5E20; font-size: 15px; font-weight: 700; margin: 0;">Sua loja está vazia</p>
+          <p style="color: #388E3C; font-size: 12px; margin: 0; max-width: 280px;">Publique seu primeiro anúncio e comece a vender para outros produtores.</p>
+          <button onclick="navigateTo('sell')" style="background: #2E7D32; color: #FFFFFF; border: none; padding: 12px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 13px; margin-top: 8px;">+ Criar Anúncio</button>
+        </div>
+      ` : `
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${myProducts.map(p => `
+            <div style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 16px; padding: 12px; display: flex; gap: 12px; align-items: center;">
+              <div onclick="openProductDetail('${p.id}')" style="width: 64px; height: 64px; border-radius: 12px; background: ${p.imageBg || '#E8F5E9'}; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; flex-shrink: 0;">
+                ${p.image ? `<img src="${p.image}" alt="${p.name}" style="width: 100%; height: 100%; object-fit: cover;">` : `<span style="font-size: 28px;">${p.imageEmoji || '📦'}</span>`}
+              </div>
+              <div onclick="openProductDetail('${p.id}')" style="flex: 1; cursor: pointer; overflow: hidden;">
+                <p style="font-size: 13px; font-weight: 700; color: #1B5E20; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.name}</p>
+                <p style="font-size: 12px; color: #2E7D32; font-weight: 700; margin-top: 2px;">R$ ${Number(p.price).toFixed(2)} / ${p.unit || 'unidade'}</p>
+                <p style="font-size: 10px; color: #388E3C; margin-top: 2px;">Estoque: ${p.stock || 0} ${p.unit || 'unidades'} • ${p.location || 'Sem local'}</p>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;">
+                <button onclick="navigateTo('sell')" title="Editar/Republicar" style="background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; padding: 6px 10px; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer;">Novo</button>
+                <button onclick="deleteProduct('${p.id}')" title="Excluir anúncio" style="background: #FFEBEE; border: 1px solid #FFCDD2; color: #C62828; padding: 6px 10px; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer;">Excluir</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <button onclick="navigateTo('sell')" style="width: 100%; background: #2E7D32; color: #FFFFFF; border: none; padding: 14px; border-radius: 14px; font-weight: 700; cursor: pointer; font-size: 14px;">+ Publicar Novo Anúncio</button>
+      `}
+      `}
+    </div>
+  `;
+}
+
+// --- EDITOR DA LOJA (capa, perfil e dados) ---
+window.openStoreEditor = function() {
+  state.storeEditor = {
+    open: true,
+    name: state.user.name || '',
+    propertyOrCompany: state.user.propertyOrCompany || '',
+    storeProfileImage: state.user.storeProfileImage || '',
+    storeCoverImage: state.user.storeCoverImage || '',
+    storeBio: state.user.storeBio || '',
+    storePhone: state.user.storePhone || '',
+    storeLocation: state.user.storeLocation || '',
+    storeHours: state.user.storeHours || ''
+  };
+  renderApp();
+};
+
+window.closeStoreEditor = function() {
+  state.storeEditor = null;
+  renderApp();
+};
+
+window.updateStoreField = function(field, value) {
+  if (state.storeEditor) {
+    state.storeEditor[field] = value;
+  }
+};
+
+window.handleStoreImagePick = function(field, inputId) {
+  const input = document.getElementById(inputId);
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('Imagem muito grande. Escolha um arquivo de até 2 MB.', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    updateStoreField(field, reader.result);
+    const preview = document.getElementById(inputId + 'Preview');
+    if (preview) preview.src = reader.result;
+    showToast('Imagem carregada. Salve para aplicar.', 'success');
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveStore = async function() {
+  if (!state.storeEditor) return;
+  const form = state.storeEditor;
+  if (!form.name || !form.name.trim()) {
+    showToast('Informe o seu nome.', 'error');
+    return;
+  }
+  try {
+    const response = await updateStore({
+      name: form.name,
+      propertyOrCompany: form.propertyOrCompany,
+      storeProfileImage: form.storeProfileImage || '',
+      storeCoverImage: form.storeCoverImage || '',
+      storeBio: form.storeBio || '',
+      storePhone: form.storePhone || '',
+      storeLocation: form.storeLocation || '',
+      storeHours: form.storeHours || ''
+    });
+    state.user = { ...state.user, ...response.user };
+    persistUser();
+    state.storeEditor = null;
+    showToast('Loja atualizada com sucesso!', 'success');
+    renderApp();
+  } catch (error) {
+    showToast(error.message || 'Não foi possível salvar a loja.', 'error');
+  }
+};
+
+function renderStoreEditor() {
+  const f = state.storeEditor;
+  if (!f || !f.open) return '';
+  const inputStyle = 'width: 100%; padding: 11px 12px; border: 1px solid #C8E6C9; border-radius: 10px; font-size: 13px; background: #F4FBF7; color: #1B5E20; box-sizing: border-box; outline: none; font-family: inherit;';
+  const labelStyle = 'font-size: 11px; font-weight: 700; color: #1B5E20; display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.3px;';
+
+  return `
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px;" onclick="if(event.target === this) closeStoreEditor()">
+      <div style="background: #FFFFFF; border-radius: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-family: 'Outfit', sans-serif; color: #1B5E20; font-size: 18px; font-weight: 700; margin: 0;">Editar minha loja</h3>
+          <button onclick="closeStoreEditor()" style="background: #F4FBF7; border: 1px solid #C8E6C9; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 14px; color: #2E7D32;">✕</button>
+        </div>
+
+        <div style="display: flex; gap: 14px;">
+          <div style="text-align: center;">
+            <img id="storeProfilePreview" src="${f.storeProfileImage || ''}" alt="" style="width: 72px; height: 72px; border-radius: 16px; object-fit: cover; background: #E8F5E9; border: 2px solid #C8E6C9; ${f.storeProfileImage ? '' : 'display: none;'}">
+            <label style="display: ${f.storeProfileImage ? 'none' : 'flex'}; width: 72px; height: 72px; border-radius: 16px; background: #E8F5E9; border: 2px dashed #A5D6A7; align-items: center; justify-content: center; font-size: 26px; cursor: pointer;" onclick="document.getElementById('storeProfileInput').click()">🏪</label>
+            <button onclick="document.getElementById('storeProfileInput').click()" style="background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; padding: 4px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer; margin-top: 6px;">Perfil</button>
+            <input type="file" id="storeProfileInput" accept="image/*" style="display: none;" onchange="handleStoreImagePick('storeProfileImage', 'storeProfileInput')">
+          </div>
+          <div style="flex: 1; text-align: center;">
+            <img id="storeCoverPreview" src="${f.storeCoverImage || ''}" alt="" style="width: 100%; height: 72px; border-radius: 12px; object-fit: cover; border: 2px solid #C8E6C9; ${f.storeCoverImage ? '' : 'display: none;'}">
+            <button onclick="document.getElementById('storeCoverInput').click()" style="width: 100%; background: #E8F5E9; border: 2px dashed #A5D6A7; color: #1B5E20; padding: 24px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; cursor: pointer; ${f.storeCoverImage ? 'display: none;' : ''}" id="storeCoverPlaceholder">🖼️ Imagem de capa</button>
+            <input type="file" id="storeCoverInput" accept="image/*" style="display: none;" onchange="handleStoreImagePick('storeCoverImage', 'storeCoverInput')">
+          </div>
+        </div>
+
+        <div>
+          <label style="${labelStyle}">Seu nome</label>
+          <input value="${(f.name || '').replace(/"/g, '&quot;')}" oninput="updateStoreField('name', this.value)" style="${inputStyle}">
+        </div>
+        <div>
+          <label style="${labelStyle}">Nome da loja / propriedade</label>
+          <input value="${(f.propertyOrCompany || '').replace(/"/g, '&quot;')}" oninput="updateStoreField('propertyOrCompany', this.value)" style="${inputStyle}">
+        </div>
+        <div>
+          <label style="${labelStyle}">Localização</label>
+          <input value="${(f.storeLocation || '').replace(/"/g, '&quot;')}" placeholder="Ex.: Arcos, MG" oninput="updateStoreField('storeLocation', this.value)" style="${inputStyle}">
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label style="${labelStyle}">Telefone</label>
+            <input value="${(f.storePhone || '').replace(/"/g, '&quot;')}" placeholder="(00) 00000-0000" oninput="updateStoreField('storePhone', this.value)" style="${inputStyle}">
+          </div>
+          <div style="flex: 1;">
+            <label style="${labelStyle}">Horário</label>
+            <input value="${(f.storeHours || '').replace(/"/g, '&quot;')}" placeholder="Ex.: 8h às 18h" oninput="updateStoreField('storeHours', this.value)" style="${inputStyle}">
+          </div>
+        </div>
+        <div>
+          <label style="${labelStyle}">Descrição da loja</label>
+          <textarea maxlength="500" placeholder="Conte sobre sua produção, especialidades e diferenciais..." oninput="updateStoreField('storeBio', this.value)" style="${inputStyle} min-height: 80px; resize: vertical;">${f.storeBio || ''}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 4px;">
+          <button onclick="closeStoreEditor()" style="flex: 1; background: #FFFFFF; border: 1px solid #C8E6C9; color: #2E7D32; padding: 12px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 13px;">Cancelar</button>
+          <button onclick="saveStore()" style="flex: 1; background: #2E7D32; border: none; color: #FFFFFF; padding: 12px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 13px;">Salvar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // --- TELA DE PERFIL ---
 function renderProfileScreen() {
   const isLoggedIn = state.user && state.user.email && state.user.email.trim() !== '';
@@ -1819,11 +2077,11 @@ function renderProfileScreen() {
 
       <div style="margin-bottom: 2px;">
         <p style="font-size: 12px; color: #388E3C; margin-bottom: 2px; font-weight: 600; letter-spacing: 0.3px;">GERENCIAMENTO</p>
-        <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 26px; font-weight: 700; margin: 0;">Olá, ${userName.split(' ')[0]}</h2>
+        <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 26px; font-weight: 700; margin: 0;">Olá, ${userName.split(' ')[0]}</h2>
       </div>
 
       <div style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 20px; padding: 18px; display: flex; align-items: center; gap: 16px;">
-        <div style="width: 52px; height: 52px; background: #2E7D32; color: #FFFFFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; font-family: 'Fraunces', serif; flex-shrink: 0;">
+        <div style="width: 52px; height: 52px; background: #2E7D32; color: #FFFFFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; font-family: 'Outfit', sans-serif;; flex-shrink: 0;">
           ${userInitial}
         </div>
         <div style="overflow: hidden;">
@@ -1947,7 +2205,7 @@ function renderFavoritesScreen() {
       <div style="display: flex; align-items: center; gap: 12px;">
         <button onclick="navigateTo('profile')" style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #2E7D32;">←</button>
         <div>
-          <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Meus Favoritos</h2>
+          <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Meus Favoritos</h2>
           <p style="font-size: 11px; color: #388E3C; margin: 2px 0 0;">${favorites.length} produto(s) salvos</p>
         </div>
       </div>
@@ -1988,7 +2246,7 @@ function renderSupportScreen() {
         <div style="display: flex; align-items: center; gap: 12px;">
           <button onclick="navigateTo('catalog')" style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #2E7D32;">←</button>
           <div>
-            <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Suporte 24h</h2>
+            <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Suporte 24h</h2>
             <p style="font-size: 11px; color: #388E3C; margin: 2px 0 0;">Assistente Virtual & Agrônomos de Plantão</p>
           </div>
         </div>
@@ -2046,7 +2304,7 @@ function renderOrdersScreen() {
         <div style="display: flex; align-items: center; gap: 12px;">
           <button onclick="navigateTo('catalog')" style="background: #FFFFFF; border: 1px solid #C8E6C9; border-radius: 10px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #2E7D32;">←</button>
           <div>
-            <h2 style="font-family: 'Fraunces', serif; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Meus Pedidos</h2>
+            <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 22px; font-weight: 700; margin: 0;">Meus Pedidos</h2>
             <p style="font-size: 11px; color: #388E3C; margin: 2px 0 0;">Rastreamento em 4 estágios em tempo real</p>
           </div>
         </div>
@@ -2074,7 +2332,7 @@ function renderOrdersScreen() {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #E8F5E9; padding-bottom: 12px;">
                   <div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-family: 'Fraunces', serif; font-size: 16px; font-weight: 700; color: #1B5E20;">${order.id}</span>
+                      <span style="font-family: 'Outfit', sans-serif;; font-size: 16px; font-weight: 700; color: #1B5E20;">${order.id}</span>
                       ${isLive ? `
                         <span style="background: #E8F5E9; color: #2E7D32; border: 1px solid #81C784; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
                           <span style="width: 6px; height: 6px; border-radius: 50%; background: #2E7D32; display: inline-block;"></span>
@@ -2198,6 +2456,7 @@ function renderApp() {
   else if (state.activeScreen === 'cart') screenHTML = renderCartScreen();
   else if (state.activeScreen === 'payment') screenHTML = renderPaymentScreen();
   else if (state.activeScreen === 'finance') screenHTML = renderFinanceScreen();
+  else if (state.activeScreen === 'mystore') screenHTML = renderMyStoreScreen();
   else if (state.activeScreen === 'profile') screenHTML = renderProfileScreen();
   else if (state.activeScreen === 'favorites') screenHTML = renderFavoritesScreen();
   else if (state.activeScreen === 'support') screenHTML = renderSupportScreen();
@@ -2214,7 +2473,7 @@ function renderApp() {
     if (state.activeScreen === 'register') {
       mainContent.innerHTML = screenHTML;
     } else {
-      mainContent.innerHTML = screenHTML + (state.activeScreen === 'sell' ? '' : renderSellFab()) + renderBottomNav();
+      mainContent.innerHTML = screenHTML + (state.activeScreen === 'sell' ? '' : renderSellFab()) + renderBottomNav() + renderStoreEditor();
     }
     enableDragToScroll();
   }
@@ -2275,6 +2534,17 @@ function safeInitApp() {
       mainContent.innerHTML = renderFallbackScreen(`Erro: ${error.message}`);
     }
   }
+
+  // Sincroniza o catálogo com o servidor (produtos salvos em db.json)
+  loadProducts()
+    .then((products) => {
+      if (Array.isArray(products)) {
+        state.products = products;
+        persistProducts();
+        renderApp();
+      }
+    })
+    .catch((error) => console.warn('Não foi possível sincronizar o catálogo:', error.message));
 }
 
 // Inicializar aplicação
