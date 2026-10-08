@@ -50,3 +50,19 @@ export async function createOrder(payload) {
 export async function loadOrders() {
   return apiRequest('/orders');
 }
+
+export async function updateStore(payload) {
+  return apiRequest('/auth/store', { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function deleteProduct(id) {
+  return apiRequest(`/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function addReview(productId, payload) {
+  return apiRequest(`/products/${encodeURIComponent(productId)}/reviews`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function deleteReview(productId, reviewId) {
+  return apiRequest(`/products/${encodeURIComponent(productId)}/reviews/${encodeURIComponent(reviewId)}`, { method: 'DELETE' });
+}
