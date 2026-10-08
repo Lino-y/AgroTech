@@ -7,7 +7,7 @@ export function getProductCategoryStyle(category = 'Outros') {
     Outros: { emoji: '📦', bg: '#F4FBF5' }
   };
 
-  return styles[category] || styles.Outros;
+  return Object.hasOwn(styles, category) ? styles[category] : styles.Outros;
 }
 
 export function buildProductDraft({

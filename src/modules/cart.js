@@ -1,7 +1,5 @@
 import { COUPON_RULES } from '../services/commerce.js';
 
-export const CART_COUPONS = COUPON_RULES;
-
 export class CartEngine {
   constructor(initialCart = []) {
     this.cart = [...initialCart];

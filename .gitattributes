@@ -1,0 +1,2 @@
+# Scripts sh dos git hooks quebram com CRLF no Git Bash; mantém LF em qualquer SO.
+.githooks/* text eol=lf

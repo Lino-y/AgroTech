@@ -1,0 +1,7 @@
+#!/bin/sh
+# Conventional Commits para qualquer ferramenta (mesmo padrão de .claude/hooks/conventional-commit.js).
+msg=$(head -n1 "$1")
+echo "$msg" | grep -qE '^(Merge |Revert "|fixup! |squash! )' && exit 0
+echo "$msg" | grep -qE '^(feat|fix|docs|refactor|perf|test|chore|build|ci|style|revert)(\([A-Za-z0-9_.-]+\))?!?: .+' && exit 0
+echo "[commit-msg] Mensagem fora do Conventional Commits: \"$msg\" (ex.: feat(api): descreve a mudança)" >&2
+exit 1

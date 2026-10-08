@@ -1,0 +1,15 @@
+# AgroTech agent rules
+
+Read `AGENTS.md`, `README.md`, `docs/setup.md` and `docs/agents/architecture.md`
+before changing code. Follow the repository's spec-first flow and use the
+existing JavaScript/Express architecture; do not introduce a framework,
+bundler, database, ORM or dependency without an explicit decision.
+
+Before implementation, inspect the real callers and contracts. New or changed
+API behavior updates `.ai/specs/05-openapi-spec.md`; new business rules need a
+test in `tests/`; changes under `src/`, `server.js` or `index.html` update a
+spec/task or explain `Spec: n/a — <reason>`.
+
+Use Conventional Commits, never commit or push directly to `main`, and run
+`npm run verify` before handing work off. Treat user input as untrusted and
+keep tenant/user authorization enforced on the server.
