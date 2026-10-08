@@ -237,7 +237,58 @@ window.setNewRatingStar = function(starCount) {
   renderApp();
 };
 
-window.submitReview = function(event) {
+window.submitReview = async function(event) {
+  event.preventDefault();
+  const input = document.getElementById('reviewText');
+  const text = input ? input.value.trim() : '';
+  const rating = state.newRatingStar || 5;
+
+  if (!text) {
+    showToast('Escreva sua avaliação antes de enviar.', 'error');
+    return;
+  }
+
+  const productId = state.selectedProduct.id;
+
+  try {
+    const result = await addReview(productId, { text, rating });
+    state.selectedProduct.comments = [{ ...result.review }, ...(state.selectedProduct.comments || [])];
+    state.selectedProduct.rating = result.rating;
+    state.selectedProduct.reviewsCount = result.reviewsCount;
+    persistProducts();
+    showToast('Avaliação publicada!', 'success');
+    renderApp();
+  } catch (error) {
+    showToast(error.message || 'Não foi possível publicar a avaliação.', 'error');
+  }
+};
+
+window.deleteReview = async function(reviewId) {
+  if (!confirm('Deseja realmente excluir esta avaliação?')) return;
+
+  const productId = state.selectedProduct ? state.selectedProduct.id : null;
+  if (!productId) return;
+
+  try {
+    await deleteReviewApi(productId, reviewId);
+    const product = state.products.find(p => p.id === productId);
+    if (product) {
+      product.comments = (product.comments || []).filter(c => c.id !== reviewId);
+      product.reviewsCount = product.comments.length;
+      product.rating = product.reviewsCount
+        ? parseFloat((product.comments.reduce((acc, c) => acc + Number(c.rating || 0), 0) / product.reviewsCount).toFixed(1))
+        : 0;
+      if (state.selectedProduct && state.selectedProduct.id === productId) {
+        state.selectedProduct = product;
+      }
+      persistProducts();
+    }
+    showToast('Avaliação excluída.', 'success');
+    renderApp();
+  } catch (error) {
+    showToast(error.message || 'Não foi possível excluir a avaliação.', 'error');
+  }
+};
   event.preventDefault();
   const commentText = document.getElementById('reviewText').value.trim();
   if (!commentText || !state.selectedProduct) return;
