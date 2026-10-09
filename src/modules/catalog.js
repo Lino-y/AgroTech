@@ -1,12 +1,12 @@
-﻿﻿﻿import { AuthService } from './auth.js';
+﻿﻿import { AuthService } from './auth.js';
 import { OrderTracker } from './tracker.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
 import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
 import { buildSupportReply } from '../services/support.js';
-import { getProducts, getToken, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createOrder, createProduct, deleteProduct as deleteProductApi, loadProducts, loginUser, registerUser, updateStore, addReview, deleteReview } from '../services/api.js';
+import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
+import { createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -84,7 +84,10 @@ const state = {
     { sender: 'bot', text: 'Olá! Sou o assistente AgroTech, disponível 24 horas por dia. Como posso ajudar você hoje?' }
   ],
   // Armazena a tela que o usuário tentou acessar antes do login
-  pendingScreen: null
+  pendingScreen: null,
+  // Estados de carregamento e erro para produtos da API
+  loadingProducts: false,
+  productsError: null
 };
 
 window.state = state;
@@ -289,6 +292,8 @@ window.deleteReview = async function(reviewId) {
     showToast(error.message || 'Não foi possível excluir a avaliação.', 'error');
   }
 };
+
+window.addComment = function(event) {
   event.preventDefault();
   const commentText = document.getElementById('reviewText').value.trim();
   if (!commentText || !state.selectedProduct) return;
@@ -463,6 +468,7 @@ function getTechnicalDetails(category, prompt) {
 }
 
 // --- FUNÇÃO PARA GERAR DESCRIÇÃO CRIATIVA DE MARKETING ---
+// eslint-disable-next-line complexity
 function generateCreativeDescription(name, category, prompt, price, unit, stock, location) {
   const lowerPrompt = prompt.toLowerCase();
   const city = location ? location.split(' - ')[0] : 'nossa fazenda';
@@ -1168,6 +1174,7 @@ function renderBottomNav() {
   `;
 }
 
+// eslint-disable-next-line max-lines-per-function
 function renderRegisterScreen() {
   const isLogin = state.authMode === 'login';
   const pendingScreenNames = {
@@ -1262,6 +1269,7 @@ function renderRegisterScreen() {
   `;
 }
 
+// eslint-disable-next-line max-lines-per-function, complexity
 function renderCatalogScreen() {
   // Categorias derivadas apenas dos produtos já postados
   const existingCategories = [...new Set(state.products.map(p => p.category).filter(Boolean))];
@@ -1316,6 +1324,23 @@ function renderCatalogScreen() {
         <h3 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 18px; font-weight: 700; margin: 0;">Catálogo de Insumos</h3>
         <span style="font-size: 11px; color: #388E3C; font-weight: 600;">${filtered.length} anúncios ativos</span>
       </div>
+
+      ${state.loadingProducts ? `
+      <div style="background: #E8F5E9; border: 1px solid #C8E6C9; border-radius: 12px; padding: 16px; text-align: center;">
+        <div style="color: #2E7D32; font-weight: 600; margin-bottom: 8px;">⏳ Carregando catálogo da API...</div>
+        <div style="width: 40px; height: 4px; background: #C8E6C9; border-radius: 2px; margin: 0 auto; overflow: hidden;">
+          <div style="height: 100%; background: #2E7D32; animation: progress 1.5s infinite; width: 30%;"></div>
+        </div>
+        <style>@keyframes progress { 0% { margin-left: 0; } 100% { margin-left: 70%; } }</style>
+      </div>
+      ` : ''}
+
+      ${state.productsError ? `
+      <div style="background: #FFEBEE; border: 1px solid #EF5350; border-radius: 12px; padding: 16px;">
+        <div style="color: #C62828; font-weight: 600; margin-bottom: 8px;">❌ ${state.productsError}</div>
+        <button onclick="window.retryLoadProducts()" style="background: #2E7D32; color: #FFFFFF; border: none; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">Tentar Novamente</button>
+      </div>
+      ` : ''}
 
       <div id="productList" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
         ${filtered.map(p => `
@@ -2022,7 +2047,7 @@ window.handleStoreImagePick = function(field, inputId) {
   }
   const reader = new FileReader();
   reader.onload = () => {
-    updateStoreField(field, reader.result);
+    window.updateStoreField(field, reader.result);
     const preview = document.getElementById(inputId + 'Preview');
     if (preview) preview.src = reader.result;
     showToast('Imagem carregada. Salve para aplicar.', 'success');
@@ -2591,17 +2616,35 @@ function safeInitApp() {
     }
   }
 
-  // Sincroniza o catálogo com o servidor (produtos salvos em db.json)
+  // Carrega o catálogo do servidor (produtos salvos em db.json)
+  loadAndSyncProducts();
+}
+
+function loadAndSyncProducts() {
+  state.loadingProducts = true;
+  state.productsError = null;
+
   loadProducts()
     .then((products) => {
       if (Array.isArray(products)) {
         state.products = products;
         persistProducts();
-        renderApp();
+      } else {
+        state.productsError = 'Formato inválido de dados recebidos da API';
       }
+      state.loadingProducts = false;
+      renderApp();
     })
-    .catch((error) => console.warn('Não foi possível sincronizar o catálogo:', error.message));
+    .catch((error) => {
+      state.productsError = error.message || 'Falha ao carregar produtos da API';
+      state.loadingProducts = false;
+      renderApp();
+    });
 }
+
+window.retryLoadProducts = function() {
+  loadAndSyncProducts();
+};
 
 // Inicializar aplicação
 console.log('AgroTech iniciando...');

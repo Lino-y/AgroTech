@@ -155,3 +155,47 @@ test('o total do pedido é calculado no servidor, com o preço do catálogo', as
   assert.equal((await api('POST', '/api/orders', { items: [{ id: '1', quantity: 0 }] }, token)).status, 400);
   assert.equal((await api('POST', '/api/orders', { items: [] }, token)).status, 400);
 });
+test('GET /api/products retorna array de produtos', async () => {
+  const res = await api('GET', '/api/products');
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body));
+  assert.ok(res.body.length > 0);
+  assert.ok(res.body[0].id);
+  assert.ok(res.body[0].name);
+  assert.ok(res.body[0].price !== undefined);
+  assert.ok(res.body[0].category);
+});
+
+test('novo anúncio criado por vendedor aparece no GET /api/products', async () => {
+  const { token } = await newUser();
+  const initialCatalog = (await api('GET', '/api/products')).body;
+  const initialCount = initialCatalog.length;
+
+  const newProduct = {
+    name: 'Novo Milho Híbrido',
+    price: 450,
+    unit: 'kg',
+    category: 'Grãos',
+    location: 'Mato Grosso do Sul - BR',
+    description: 'Sementes híbridas de alta qualidade com excelente produtividade',
+    imageUrl: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=900&q=80'
+  };
+
+  const createRes = await api('POST', '/api/products', newProduct, token);
+  assert.equal(createRes.status, 201);
+  assert.ok(createRes.body.id);
+
+  const updatedCatalog = (await api('GET', '/api/products')).body;
+  assert.equal(updatedCatalog.length, initialCount + 1);
+
+  const createdProduct = updatedCatalog.find((p) => p.id === createRes.body.id);
+  assert.ok(createdProduct);
+  assert.equal(createdProduct.name, newProduct.name);
+  assert.equal(createdProduct.price, newProduct.price);
+});
+
+test('GET /api/products vazio quando não há produtos', async () => {
+  const res = await api('GET', '/api/products');
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body));
+});
