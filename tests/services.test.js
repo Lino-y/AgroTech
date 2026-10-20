@@ -24,6 +24,7 @@ const { buildSupportReply } = await import('../src/services/support.js');
 const { loadCatalog } = await import('../src/services/catalog-load.js');
 const api = await import('../src/services/api.js');
 const { getToken, getUser, removeToken, setToken, setUser } = await import('../src/services/storage.js');
+const { syncCatalog } = await import('../src/modules/catalog-sync.js');
 
 test('cálculo do carrinho aplica cupom de desconto corretamente', () => {
   const cart = [
@@ -286,4 +287,44 @@ test('cada função da API chama a rota e o método que o server.js declara', as
     const [url, options] = fetchMock.mock.calls.at(-1).arguments;
     assert.equal(`${options.method || 'GET'} ${url}`, route);
   }
+});
+
+// Fluxo da carga do catálogo na tela (issue #15): toda mudança de estado é redesenhada.
+test('carga do catálogo mostra "carregando" antes da resposta e esconde o erro anterior', async () => {
+  const state = { products: [], loadingProducts: false, productsError: 'Erro da tentativa anterior' };
+  const renders = [];
+  let respond;
+  const done = syncCatalog(state, {
+    load: () => new Promise((resolve) => { respond = resolve; }),
+    persist: () => {},
+    render: () => renders.push({ loading: state.loadingProducts, error: state.productsError })
+  });
+  assert.deepEqual(renders, [{ loading: true, error: null }]);
+  respond([{ id: '1' }]);
+  await done;
+  assert.deepEqual(renders, [{ loading: true, error: null }, { loading: false, error: null }]);
+  assert.deepEqual(state.products, [{ id: '1' }]);
+});
+
+test('falha da API na carga mantém o catálogo atual e mostra o erro', async () => {
+  const state = { products: [{ id: 'cache' }], loadingProducts: false, productsError: null };
+  let persisted = false;
+  await syncCatalog(state, {
+    load: () => Promise.reject(new Error('Servidor fora do ar')),
+    persist: () => { persisted = true; },
+    render: () => {}
+  });
+  assert.deepEqual(state, { products: [{ id: 'cache' }], loadingProducts: false, productsError: 'Servidor fora do ar' });
+  assert.equal(persisted, false);
+});
+
+test('falha ao gravar o cache do catálogo vira aviso na tela', async () => {
+  const state = { products: [], loadingProducts: false, productsError: null };
+  await syncCatalog(state, {
+    load: async () => [{ id: '1' }],
+    persist: () => { throw new Error('Armazenamento cheio'); },
+    render: () => {}
+  });
+  assert.equal(state.productsError, 'Armazenamento cheio');
+  assert.equal(state.loadingProducts, false);
 });
