@@ -8,7 +8,7 @@ a mesma regra dos blueprints (`.ai/templates/blueprint-template.md`).
 |---|---|---|---|
 | Design tokens CSS | RNF01 | 🟡 | tokens em `src/styles/tokens.css:1`, mas `src/modules/catalog.js` não usa nenhum `var(--...)` (cores hex soltas) |
 | Estrutura SPA e roteamento simples | RNF02 | 🟡 | `renderApp` em `src/modules/catalog.js:2187`; sem teste |
-| Catálogo compartilhado carregado pela API | RF02 | ✅ | carga em `src/modules/catalog.js:2624` via `src/services/catalog-load.js:10` (sucesso, vazio e falha em `tests/services.test.js:225`); anúncio novo aparece no GET (`tests/api.test.js:169`) |
+| Catálogo compartilhado carregado pela API | RF02 | ✅ | carga em `src/modules/catalog-sync.js:12` (carregando, sucesso e erro em `tests/services.test.js:293`) com o desfecho de `src/services/catalog-load.js:10` (sucesso, vazio e falha em `tests/services.test.js:228`); anúncio novo aparece no GET (`tests/api.test.js:169`) |
 | Cálculo do carrinho e criação do pedido | RF03, RF04 | ✅ | regras em `src/services/commerce.js:47` (`tests/services.test.js:25`); total calculado no servidor (`tests/api.test.js:144`) |
 | Meios de pagamento (Pix, cartão em 6x, boleto) | RF04 | 🟡 | só na tela (`src/modules/catalog.js:1623`); pagamento simulado, sem teste |
 | Dashboard financeiro ligado ao histórico de compras | RF01 | 🟡 | a compra soma em `state.finance` (`src/modules/catalog.js:854`); gráfico em `src/components/FinanceChart.js:7`; sem teste |
@@ -19,8 +19,8 @@ a mesma regra dos blueprints (`.ai/templates/blueprint-template.md`).
 ## Divergências encontradas (07/10/2026)
 
 - Catálogo: resolvido, a tela carrega o catálogo pela API (PR #13, issue #4; ver
-  a linha RF02 acima). Achado na revisão (20/10/2026): anúncio publicado sem
-  conexão fica só no navegador e some na próxima carga bem-sucedida
-  (`src/modules/catalog.js:744`, `src/modules/catalog.js:2632`).
+  a linha RF02 acima). O anúncio publicado sem conexão, que ficava só no
+  navegador e sumia na próxima carga, deixou de existir: sem conexão o anúncio
+  não é publicado e o vendedor continua no formulário (issue #17).
 - Cupons: valem a partir do valor mínimo (inclusive), mas o texto da tela diz
   "acima de R$ X". Decidir qual dos dois está certo.

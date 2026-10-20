@@ -22,6 +22,9 @@ const { OrderTracker, TRACKING_STAGES } = await import('../src/modules/tracker.j
 const { SupportBot } = await import('../src/modules/support.js');
 const { buildSupportReply } = await import('../src/services/support.js');
 const { loadCatalog } = await import('../src/services/catalog-load.js');
+const api = await import('../src/services/api.js');
+const { getToken, getUser, removeToken, setToken, setUser } = await import('../src/services/storage.js');
+const { syncCatalog } = await import('../src/modules/catalog-sync.js');
 
 test('cálculo do carrinho aplica cupom de desconto corretamente', () => {
   const cart = [
@@ -237,4 +240,91 @@ test('falha da API vira erro recuperável e mantém os produtos que a tela já m
   // Sem mensagem, a tela esconderia o aviso e o botão "Tentar Novamente".
   assert.deepEqual(await loadCatalog(fail(new Error(''))), { productsError: 'Falha ao carregar produtos da API' });
   assert.deepEqual(await loadCatalog(async () => ({ message: 'oops' })), { productsError: 'Formato inválido de dados recebidos da API' });
+});
+
+test('sem conexão, a API devolve aviso em português em vez do erro do navegador', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => {
+    throw new TypeError('Failed to fetch');
+  });
+  await assert.rejects(api.apiRequest('/products'), { message: 'Sem conexão com o servidor. Verifique a internet e tente de novo.' });
+});
+
+test('apiRequest manda o token salvo e devolve o JSON; resposta 204 vira null', async (t) => {
+  setToken('tok-123');
+  t.after(removeToken);
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response('{"ok":true}', { status: 200 }));
+  assert.deepEqual(await api.apiRequest('/products'), { ok: true });
+  assert.equal(fetchMock.mock.calls[0].arguments[1].headers.Authorization, 'Bearer tok-123');
+  fetchMock.mock.mockImplementation(async () => new Response(null, { status: 204 }));
+  assert.equal(await api.apiRequest('/products/1', { method: 'DELETE' }), null);
+});
+
+test('apiRequest: 401 encerra a sessão salva e repassa a mensagem do servidor', async (t) => {
+  setToken('tok-123');
+  setUser({ email: 'produtor@agrotech.dev' });
+  t.mock.method(globalThis, 'fetch', async () => new Response('{"message":"Sessão expirada"}', { status: 401 }));
+  await assert.rejects(api.apiRequest('/orders'), { message: 'Sessão expirada' });
+  assert.equal(getToken(), null);
+  assert.equal(getUser(), null);
+});
+
+test('cada função da API chama a rota e o método que o server.js declara', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response('{}', { status: 200 }));
+  const routes = [
+    [() => api.loadProducts(), 'GET /api/products'],
+    [() => api.registerUser({}), 'POST /api/auth/register'],
+    [() => api.loginUser({}), 'POST /api/auth/login'],
+    [() => api.createProduct({}), 'POST /api/products'],
+    [() => api.createOrder({}), 'POST /api/orders'],
+    [() => api.loadOrders(), 'GET /api/orders'],
+    [() => api.updateStore({}), 'PUT /api/auth/store'],
+    [() => api.deleteProduct('lote 1'), 'DELETE /api/products/lote%201'],
+    [() => api.addReview('p1', {}), 'POST /api/products/p1/reviews'],
+    [() => api.deleteReview('p1', 'r1'), 'DELETE /api/products/p1/reviews/r1']
+  ];
+  for (const [call, route] of routes) {
+    await call();
+    const [url, options] = fetchMock.mock.calls.at(-1).arguments;
+    assert.equal(`${options.method || 'GET'} ${url}`, route);
+  }
+});
+
+// Fluxo da carga do catálogo na tela (issue #15): toda mudança de estado é redesenhada.
+test('carga do catálogo mostra "carregando" antes da resposta e esconde o erro anterior', async () => {
+  const state = { products: [], loadingProducts: false, productsError: 'Erro da tentativa anterior' };
+  const renders = [];
+  let respond;
+  const done = syncCatalog(state, {
+    load: () => new Promise((resolve) => { respond = resolve; }),
+    persist: () => {},
+    render: () => renders.push({ loading: state.loadingProducts, error: state.productsError })
+  });
+  assert.deepEqual(renders, [{ loading: true, error: null }]);
+  respond([{ id: '1' }]);
+  await done;
+  assert.deepEqual(renders, [{ loading: true, error: null }, { loading: false, error: null }]);
+  assert.deepEqual(state.products, [{ id: '1' }]);
+});
+
+test('falha da API na carga mantém o catálogo atual e mostra o erro', async () => {
+  const state = { products: [{ id: 'cache' }], loadingProducts: false, productsError: null };
+  let persisted = false;
+  await syncCatalog(state, {
+    load: () => Promise.reject(new Error('Servidor fora do ar')),
+    persist: () => { persisted = true; },
+    render: () => {}
+  });
+  assert.deepEqual(state, { products: [{ id: 'cache' }], loadingProducts: false, productsError: 'Servidor fora do ar' });
+  assert.equal(persisted, false);
+});
+
+test('falha ao gravar o cache do catálogo vira aviso na tela', async () => {
+  const state = { products: [], loadingProducts: false, productsError: null };
+  await syncCatalog(state, {
+    load: async () => [{ id: '1' }],
+    persist: () => { throw new Error('Armazenamento cheio'); },
+    render: () => {}
+  });
+  assert.equal(state.productsError, 'Armazenamento cheio');
+  assert.equal(state.loadingProducts, false);
 });

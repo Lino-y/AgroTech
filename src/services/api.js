@@ -9,6 +9,9 @@ export async function apiRequest(path, options = {}) {
       ...(options.headers || {})
     },
     ...options
+  }).catch((error) => {
+    // O fetch só rejeita quando a requisição não chega ao servidor (sem internet, servidor fora do ar).
+    throw new Error('Sem conexão com o servidor. Verifique a internet e tente de novo.', { cause: error });
   });
 
   if (!response.ok) {

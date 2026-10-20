@@ -1,10 +1,10 @@
 ﻿﻿import { AuthService } from './auth.js';
 import { OrderTracker } from './tracker.js';
+import { syncCatalog } from './catalog-sync.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
 import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
-import { loadCatalog } from '../services/catalog-load.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
 import { createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
@@ -88,7 +88,9 @@ const state = {
   pendingScreen: null,
   // Estados de carregamento e erro para produtos da API
   loadingProducts: false,
-  productsError: null
+  productsError: null,
+  // Termo da busca do catálogo: fica no estado para sobreviver ao redesenho da tela
+  searchTerm: ''
 };
 
 window.state = state;
@@ -212,6 +214,7 @@ window.applyCategoryFilter = function(category) {
 window.applySearchFilter = function() {
   const input = document.getElementById('searchInput');
   if (!input) return;
+  state.searchTerm = input.value;
   const term = input.value.toLowerCase();
 
   const productCards = document.querySelectorAll('.product-card');
@@ -734,18 +737,10 @@ window.handlePublishProduct = async function(event) {
     state.activeScreen = 'catalog';
     renderApp();
   } catch (error) {
-    // O servidor recusou (ex.: preço ou imagem inválidos): mostra o motivo e fica no formulário.
-    // Falha de rede chega como TypeError do fetch e cai no modo local abaixo.
-    if (!(error instanceof TypeError)) {
-      showToast(error.message, 'error');
-      return;
-    }
-    // Sem backend: mantém o anúncio localmente para não perder o trabalho
-    state.products.unshift(draft);
-    persistProducts();
-    showToast('Anúncio publicado (salvo localmente).', 'success');
-    state.activeScreen = 'catalog';
-    renderApp();
+    // Servidor recusou (ex.: preço ou imagem inválidos) ou não há conexão: mostra o motivo e fica no
+    // formulário, com os dados. Sem conexão o anúncio não é publicado (#17): guardá-lo só no navegador
+    // dava sucesso falso e ele sumia na próxima carga do catálogo.
+    showToast(error.message, 'error');
   }
 };
 
@@ -1307,7 +1302,7 @@ function renderCatalogScreen() {
       </div>
 
       <div style="position: relative; flex-shrink: 0;">
-        <input type="text" id="searchInput" oninput="applySearchFilter()" placeholder="Buscar insumos, sementes, máquinas, lotes..." style="width: 100%; padding: 13px 16px 13px 42px; border-radius: 14px; border: 1px solid #C8E6C9; font-size: 13px; background: #FFFFFF; outline: none; box-sizing: border-box;">
+        <input type="text" id="searchInput" value="${state.searchTerm.replace(/"/g, '&quot;')}" oninput="applySearchFilter()" placeholder="Buscar insumos, sementes, máquinas, lotes..." style="width: 100%; padding: 13px 16px 13px 42px; border-radius: 14px; border: 1px solid #C8E6C9; font-size: 13px; background: #FFFFFF; outline: none; box-sizing: border-box;">
         <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #6C8574; pointer-events: none; display: inline-flex;">${icon('search', 18)}</span>
       </div>
 
@@ -2558,6 +2553,8 @@ function renderApp() {
       mainContent.innerHTML = screenHTML + (state.activeScreen === 'sell' ? '' : renderSellFab()) + renderBottomNav() + renderStoreEditor();
     }
     enableDragToScroll();
+    // A busca filtra os cards no DOM: reaplica o termo salvo depois de redesenhar (#15).
+    window.applySearchFilter();
   }
 }
 
@@ -2622,25 +2619,7 @@ function safeInitApp() {
 }
 
 function loadAndSyncProducts() {
-  state.loadingProducts = true;
-  state.productsError = null;
-
-  loadCatalog(loadProducts)
-    .then(({ products, productsError }) => {
-      state.productsError = productsError;
-      if (products) {
-        state.products = products;
-        persistProducts();
-      }
-    })
-    // A falha da API já chega em productsError; aqui sobra erro ao gravar o cache (ex.: localStorage cheio).
-    .catch((error) => {
-      state.productsError = error.message;
-    })
-    .finally(() => {
-      state.loadingProducts = false;
-      renderApp();
-    });
+  syncCatalog(state, { load: loadProducts, persist: persistProducts, render: renderApp });
 }
 
 window.retryLoadProducts = function() {
