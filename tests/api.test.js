@@ -167,7 +167,7 @@ test('GET /api/products retorna array de produtos', async () => {
 });
 
 test('novo anúncio criado por vendedor aparece no GET /api/products', async () => {
-  const { token } = await newUser();
+  const { token } = await newUser({ role: 'VENDEDOR' });
   const initialCatalog = (await api('GET', '/api/products')).body;
   const initialCount = initialCatalog.length;
 
@@ -192,10 +192,4 @@ test('novo anúncio criado por vendedor aparece no GET /api/products', async () 
   assert.ok(createdProduct);
   assert.equal(createdProduct.name, newProduct.name);
   assert.equal(createdProduct.price, newProduct.price);
-});
-
-test('GET /api/products vazio quando não há produtos', async () => {
-  const res = await api('GET', '/api/products');
-  assert.equal(res.status, 200);
-  assert.ok(Array.isArray(res.body));
 });
