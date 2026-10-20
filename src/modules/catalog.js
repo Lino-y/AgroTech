@@ -734,18 +734,10 @@ window.handlePublishProduct = async function(event) {
     state.activeScreen = 'catalog';
     renderApp();
   } catch (error) {
-    // O servidor recusou (ex.: preço ou imagem inválidos): mostra o motivo e fica no formulário.
-    // Falha de rede chega como TypeError do fetch e cai no modo local abaixo.
-    if (!(error instanceof TypeError)) {
-      showToast(error.message, 'error');
-      return;
-    }
-    // Sem backend: mantém o anúncio localmente para não perder o trabalho
-    state.products.unshift(draft);
-    persistProducts();
-    showToast('Anúncio publicado (salvo localmente).', 'success');
-    state.activeScreen = 'catalog';
-    renderApp();
+    // Servidor recusou (ex.: preço ou imagem inválidos) ou não há conexão: mostra o motivo e fica no
+    // formulário, com os dados. Sem conexão o anúncio não é publicado (#17): guardá-lo só no navegador
+    // dava sucesso falso e ele sumia na próxima carga do catálogo.
+    showToast(error.message, 'error');
   }
 };
 

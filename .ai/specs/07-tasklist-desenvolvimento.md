@@ -19,8 +19,8 @@ a mesma regra dos blueprints (`.ai/templates/blueprint-template.md`).
 ## Divergências encontradas (07/10/2026)
 
 - Catálogo: resolvido, a tela carrega o catálogo pela API (PR #13, issue #4; ver
-  a linha RF02 acima). Achado na revisão (20/10/2026): anúncio publicado sem
-  conexão fica só no navegador e some na próxima carga bem-sucedida
-  (`src/modules/catalog.js:744`, `src/modules/catalog.js:2632`).
+  a linha RF02 acima). O anúncio publicado sem conexão, que ficava só no
+  navegador e sumia na próxima carga, deixou de existir: sem conexão o anúncio
+  não é publicado e o vendedor continua no formulário (issue #17).
 - Cupons: valem a partir do valor mínimo (inclusive), mas o texto da tela diz
   "acima de R$ X". Decidir qual dos dois está certo.
