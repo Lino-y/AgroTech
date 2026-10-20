@@ -4,6 +4,7 @@ import { renderFinanceChart } from '../components/FinanceChart.js';
 import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
+import { loadCatalog } from '../services/catalog-load.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
 import { createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
@@ -2624,19 +2625,19 @@ function loadAndSyncProducts() {
   state.loadingProducts = true;
   state.productsError = null;
 
-  loadProducts()
-    .then((products) => {
-      if (Array.isArray(products)) {
+  loadCatalog(loadProducts)
+    .then(({ products, productsError }) => {
+      state.productsError = productsError;
+      if (products) {
         state.products = products;
         persistProducts();
-      } else {
-        state.productsError = 'Formato inválido de dados recebidos da API';
       }
-      state.loadingProducts = false;
-      renderApp();
     })
+    // A falha da API já chega em productsError; aqui sobra erro ao gravar o cache (ex.: localStorage cheio).
     .catch((error) => {
-      state.productsError = error.message || 'Falha ao carregar produtos da API';
+      state.productsError = error.message;
+    })
+    .finally(() => {
       state.loadingProducts = false;
       renderApp();
     });

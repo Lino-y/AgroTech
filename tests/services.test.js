@@ -21,6 +21,7 @@ const { AuthService } = await import('../src/modules/auth.js');
 const { OrderTracker, TRACKING_STAGES } = await import('../src/modules/tracker.js');
 const { SupportBot } = await import('../src/modules/support.js');
 const { buildSupportReply } = await import('../src/services/support.js');
+const { loadCatalog } = await import('../src/services/catalog-load.js');
 
 test('cálculo do carrinho aplica cupom de desconto corretamente', () => {
   const cart = [
@@ -218,4 +219,22 @@ test('e-mail sem ponto no domínio é inválido', () => {
 test('adicionar produto nulo não altera o carrinho', () => {
   const cart = [{ id: 'p1', price: 50, quantity: 1 }];
   assert.equal(addProductToCart(cart, null), cart);
+});
+
+// Carga do catálogo pela API (issue #4): o que a tela recebe em cada desfecho.
+test('catálogo da API: sucesso troca os produtos da tela, sem erro', async () => {
+  const products = [{ id: '1', name: 'Milho Híbrido' }];
+  assert.deepEqual(await loadCatalog(async () => products), { products, productsError: null });
+});
+
+test('catálogo da API vazio esvazia a tela em vez de manter o cache local', async () => {
+  assert.deepEqual(await loadCatalog(async () => []), { products: [], productsError: null });
+});
+
+test('falha da API vira erro recuperável e mantém os produtos que a tela já mostra', async () => {
+  const fail = (error) => () => Promise.reject(error);
+  assert.deepEqual(await loadCatalog(fail(new Error('Servidor fora do ar'))), { productsError: 'Servidor fora do ar' });
+  // Sem mensagem, a tela esconderia o aviso e o botão "Tentar Novamente".
+  assert.deepEqual(await loadCatalog(fail(new Error(''))), { productsError: 'Falha ao carregar produtos da API' });
+  assert.deepEqual(await loadCatalog(async () => ({ message: 'oops' })), { productsError: 'Formato inválido de dados recebidos da API' });
 });
