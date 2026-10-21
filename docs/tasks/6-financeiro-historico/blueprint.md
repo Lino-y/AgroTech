@@ -17,12 +17,12 @@ mas só uma vez no card de saídas (`src/modules/catalog.js:916`).
 
 | ID | Critério | Como verificar | Status | Evidência |
 |----|----------|-----------------|--------|-----------|
-| CA01 | Compra aprovada aparece no histórico financeiro | teste de API: o pedido criado aparece em `GET /api/finance/entries` do comprador (saída) e do vendedor (entrada); navegador | 🔴 | |
-| CA02 | Recarregar não apaga lançamentos válidos | teste de API: lançamento manual continua no GET depois de outra gravação no banco; navegador: recarregar a página e reabrir o financeiro | 🔴 | |
-| CA03 | Totais e gráfico usam a mesma fonte | teste unitário: a soma das barras é o total dos cards em cada período | 🔴 | |
-| CA04 | Filtros por período e tipo mantêm totais coerentes | teste unitário: o período recorta cards, gráfico e extrato; o tipo recorta o extrato, que soma o card do mesmo tipo | 🔴 | |
-| CA05 | Usuários não acessam lançamentos de outra conta | teste de API: terceiro recebe `[]`, lançamento manual só volta para o dono, 401 sem token; teste da carga: resposta atrasada de outra sessão não sobrescreve o extrato | 🔴 | |
-| CA06 | Testes cobrem vazio, receita e filtro | `tests/finance.test.js` | 🔴 | |
+| CA01 | Compra aprovada aparece no histórico financeiro | teste de API: o pedido criado aparece em `GET /api/finance/entries` do comprador (saída) e do vendedor (entrada); navegador | ✅ | pedido grava `createdAt` (`server.js:551`); extrato em `server.js:574` pela regra de `src/services/finance.js:42`; tela busca ao abrir (`src/modules/catalog.js:146`); teste `tests/finance.test.js:222` |
+| CA02 | Recarregar não apaga lançamentos válidos | teste de API: lançamento manual continua no GET depois de outra gravação no banco; navegador: recarregar a página e reabrir o financeiro | ✅ | lançamento manual gravado (`server.js:581`, pela tela em `src/modules/catalog.js:906`); `readDb` e `ensureDbFile` preservam a lista (`server.js:222`, `server.js:203`); teste `tests/finance.test.js:243` |
+| CA03 | Totais e gráfico usam a mesma fonte | teste unitário: a soma das barras é o total dos cards em cada período | ✅ | totais somados das barras em `src/services/finance.js:74`; tela usa um resumo só (`src/modules/catalog.js:1770`, gráfico em `src/modules/catalog.js:1804`); teste `tests/finance.test.js:60` |
+| CA04 | Filtros por período e tipo mantêm totais coerentes | teste unitário: o período recorta cards, gráfico e extrato; o tipo recorta o extrato, que soma o card do mesmo tipo | ✅ | filtros em `src/services/finance.js:74`; chips em `src/modules/catalog.js:1751`; teste `tests/finance.test.js:60` |
+| CA05 | Usuários não acessam lançamentos de outra conta | teste de API: terceiro recebe `[]`, lançamento manual só volta para o dono, 401 sem token; teste da carga: resposta atrasada de outra sessão não sobrescreve o extrato | ✅ | filtro por e-mail da sessão em `src/services/finance.js:42` (`server.js:574`); tela exige login (`src/modules/catalog.js:132`), carga isolada (`src/modules/finance-sync.js:12`), sair limpa o extrato (`src/modules/catalog.js:1049`); testes `tests/finance.test.js:222`, `tests/finance.test.js:243`, `tests/finance.test.js:148` |
+| CA06 | Testes cobrem vazio, receita e filtro | `tests/finance.test.js` | ✅ | vazio `tests/finance.test.js:23`, receita `tests/finance.test.js:35`, filtro `tests/finance.test.js:60` |
 
 Status: ✅ feito · 🟡 parcial · ⚠️ divergente · 🔴 não feito.
 
@@ -124,15 +124,13 @@ Status: ✅ feito · 🟡 parcial · ⚠️ divergente · 🔴 não feito.
 
 ## 5. Must have
 
-- [ ] `GET` e `POST /api/finance/entries`, com validação e só a conta da sessão.
-- [ ] `createdAt` no pedido novo e lista `financeEntries` preservada pelo `readDb`.
-- [ ] `buildFinanceEntries` e `summarizeFinance` em `src/services/finance.js`.
-- [ ] `syncFinance` em `src/modules/finance-sync.js`.
-- [ ] Tela financeira lendo o extrato do servidor, com filtro de período e de tipo.
-- [ ] Testes em `tests/finance.test.js`.
-- [ ] Contrato em `.ai/specs/05-openapi-spec.md`, lista nova em
-  `.ai/specs/06-schema-banco-de-dados.md` e linha RF01 de
-  `.ai/specs/07-tasklist-desenvolvimento.md`.
+- [x] `GET` e `POST /api/finance/entries`, com validação e só a conta da sessão: `server.js:574`, `server.js:581` (`tests/finance.test.js:222`, `tests/finance.test.js:260`).
+- [x] `createdAt` no pedido novo e lista `financeEntries` preservada pelo banco: `server.js:551`, `server.js:203`, `server.js:222` (`tests/finance.test.js:243`).
+- [x] `buildFinanceEntries` e `summarizeFinance`: `src/services/finance.js:42`, `src/services/finance.js:74` (`tests/finance.test.js:35`, `tests/finance.test.js:60`, `tests/finance.test.js:100`).
+- [x] `syncFinance`: `src/modules/finance-sync.js:12` (`tests/finance.test.js:125`, `tests/finance.test.js:148`).
+- [x] Tela financeira lendo o extrato do servidor, com filtro de período e de tipo: `src/modules/catalog.js:1770`, chips com tokens em `src/styles/ui.css:208` (conferido no Chrome headless; funções da API em `src/services/api.js:57`, `tests/finance.test.js:158`).
+- [x] Testes: `tests/finance.test.js:23` a `tests/finance.test.js:260`.
+- [x] Contrato em `.ai/specs/05-openapi-spec.md`, lista nova em `.ai/specs/06-schema-banco-de-dados.md:5` e linha RF01 em `.ai/specs/07-tasklist-desenvolvimento.md:14`.
 
 ## 6. Nice to have
 
@@ -161,3 +159,12 @@ na seção abaixo, nunca é resolvida em silêncio.
 - Referências de linha de `catalog.js` em `docs/agents/architecture.md` e na tasklist já
   estavam defasadas antes desta mudança (ex.: `renderApp` citado na linha 2187, que hoje
   está na 2517).
+- Achado no TDD: `GET` numa rota `/api/...` que não existe devolve o `index.html` com 200
+  (o `app.get('*')` do fim do `server.js` pega tudo), em vez de 404. Fora do escopo.
+- O id do pedido é `AGT-` com 5 dígitos aleatórios (`server.js:542` em `8d3f86d`) e pode
+  repetir; o id do lançamento derivado (`compra-AGT-…`, `venda-AGT-…`) repete junto. Fora
+  do escopo.
+- A tela financeira ficou abaixo de 80 linhas e o lint caiu de 19 para 18 avisos. O teto do
+  `lint:budget` (19, no `package.json`) não foi mexido para não conflitar com outras branches.
+- O resto da tela financeira continua com cor hex inline (dívida antiga do RNF01); só os
+  chips e os avisos novos usam tokens.

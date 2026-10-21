@@ -10,15 +10,15 @@ Regras que valem para todas as rotas:
 - Autenticação por `Authorization: Bearer <JWT>` (validade de 7 dias, payload
   `{ sub, email, role }`). Token ausente ou inválido: 401. Perfil sem
   permissão: 403.
-- Texto enviado pelo usuário (nome, empresa, campos do produto) é gravado com
-  HTML escapado (`<` vira `&lt;` etc.), porque o front monta as telas com
-  `innerHTML`.
+- Texto enviado pelo usuário (nome, empresa, campos do produto, descrição do
+  lançamento financeiro) é gravado com HTML escapado (`<` vira `&lt;` etc.),
+  porque o front monta as telas com `innerHTML`.
 
 ```yaml
 openapi: 3.0.0
 info:
   title: AgroTech API
-  version: 1.1.0
+  version: 1.2.0
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -67,7 +67,8 @@ components:
       properties:
         id: { type: string, example: AGT-12345 }
         ownerEmail: { type: string }
-        date: { type: string }
+        date: { type: string, description: 'texto exibido na tela de pedidos (ex.: "Hoje")' }
+        createdAt: { type: string, format: date-time, description: 'quando o pedido foi criado; pedido gravado antes da issue #6 não tem' }
         status: { type: string }
         statusStep: { type: integer, minimum: 1, maximum: 4 }
         trackingCode: { type: string }
@@ -83,6 +84,19 @@ components:
         timeline:
           type: array
           items: { type: object, properties: { title: { type: string }, time: { type: string }, completed: { type: boolean } } }
+    FinanceEntry:
+      type: object
+      description: >-
+        Lançamento do extrato financeiro da conta. COMPRA = pedido da conta (saída, pelo total do
+        pedido); VENDA = itens dos produtos da conta num pedido de outra conta (entrada, preço x
+        quantidade, sem cupom nem frete); MANUAL = lançamento digitado pela conta.
+      properties:
+        id: { type: string, example: compra-AGT-12345 }
+        type: { type: string, enum: [INCOME, EXPENSE] }
+        source: { type: string, enum: [COMPRA, VENDA, MANUAL] }
+        title: { type: string }
+        amount: { type: number, exclusiveMinimum: 0 }
+        date: { type: string, format: date-time, nullable: true, description: 'null em pedido antigo sem data real (gravado só com "Hoje")' }
 paths:
   /api/health:
     get:
@@ -194,6 +208,31 @@ paths:
       responses:
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
         '400': { description: 'lista vazia, produto fora do catálogo ou quantidade inválida' }
+        '401': { description: 'sem token ou token inválido' }
+  /api/finance/entries:
+    get:
+      summary: Extrato financeiro da conta da sessão, do mais recente ao mais antigo (ADMIN também vê só o dele)
+      security: [{ bearer: [] }]
+      responses:
+        '200': { description: 'lançamentos', content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/FinanceEntry' } } } } }
+        '401': { description: 'sem token ou token inválido' }
+    post:
+      summary: Registra um lançamento manual na conta da sessão
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, amount, type]
+              properties:
+                title: { type: string, maxLength: 120, description: 'cortado em 120 caracteres' }
+                amount: { type: number, exclusiveMinimum: 0 }
+                type: { type: string, enum: [INCOME, EXPENSE] }
+      responses:
+        '201': { description: 'lançamento criado (source MANUAL)', content: { application/json: { schema: { $ref: '#/components/schemas/FinanceEntry' } } } }
+        '400': { description: 'descrição vazia, valor que não é maior que zero ou tipo fora da lista' }
         '401': { description: 'sem token ou token inválido' }
   /api/admin/summary:
     get:

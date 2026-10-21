@@ -2,6 +2,6 @@
   "issueNumber": 6,
   "slug": "financeiro-historico",
   "branch": "feat/6-financeiro-historico",
-  "phase": "blueprint",
+  "phase": "validacao",
   "ship": { "pr": null }
 }
