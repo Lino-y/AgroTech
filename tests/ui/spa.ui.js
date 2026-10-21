@@ -51,9 +51,9 @@ test('navegação principal troca de tela sem recarregar a página', { skip: ski
   await page.close();
 });
 
-test('sem login, carrinho, pagamento e anúncio levam ao login; ao entrar, abre a tela pedida', { skip: skipReason }, async () => {
+test('sem login, carrinho, pagamento, anúncio e financeiro levam ao login; ao entrar, abre a tela pedida', { skip: skipReason }, async () => {
   const page = await app.open();
-  for (const screen of ['cart', 'payment', 'sell']) {
+  for (const screen of ['cart', 'payment', 'sell', 'finance']) {
     await page.evaluate(`navigateTo('${screen}')`);
     assert.deepEqual(await page.evaluate('[state.activeScreen, state.authMode, state.pendingScreen]'), ['register', 'login', screen]);
     assert.equal(await page.evaluate(HEADING), 'Bem-vindo de volta', `${screen} abriu sem login`);
