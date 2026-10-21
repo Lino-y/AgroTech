@@ -1588,10 +1588,10 @@ function renderSellScreen() {
 function renderCartScreen() {
   const totals = getCartTotals();
   const couponsList = [
-    { code: 'AGRO10', label: '10% OFF', desc: 'Compras acima de R$ 150', min: 150 },
-    { code: 'FRETEGRATIS', label: 'Frete Grátis', desc: 'Compras acima de R$ 400', min: 400 },
-    { code: 'NOVOCLIENTE', label: 'R$ 25 OFF', desc: 'Compras acima de R$ 100', min: 100 },
-    { code: 'COLHEITA20', label: '20% OFF', desc: 'Compras acima de R$ 800', min: 800 }
+    { code: 'AGRO10', label: '10% OFF', desc: 'Compras a partir de R$ 150', min: 150 },
+    { code: 'FRETEGRATIS', label: 'Frete Grátis', desc: 'Compras a partir de R$ 400', min: 400 },
+    { code: 'NOVOCLIENTE', label: 'R$ 25 OFF', desc: 'Compras a partir de R$ 100', min: 100 },
+    { code: 'COLHEITA20', label: '20% OFF', desc: 'Compras a partir de R$ 800', min: 800 }
   ];
 
   return `

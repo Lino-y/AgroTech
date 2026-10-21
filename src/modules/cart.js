@@ -42,7 +42,7 @@ export class CartEngine {
 
     const subtotal = this.cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
     if (subtotal < rule.min) {
-      return { valid: false, message: `Válido em compras acima de R$ ${rule.min.toFixed(2)}. Subtotal atual: R$ ${subtotal.toFixed(2)}.` };
+      return { valid: false, message: `Válido em compras a partir de R$ ${rule.min.toFixed(2)}. Subtotal atual: R$ ${subtotal.toFixed(2)}.` };
     }
     return { valid: true, coupon: upper, rule };
   }

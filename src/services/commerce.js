@@ -10,10 +10,10 @@
 
 /** @type {Record<string, CouponRule>} */
 export const COUPON_RULES = {
-  AGRO10: { type: 'percent', value: 0.10, min: 150, description: '10% OFF acima de R$ 150' },
-  FRETEGRATIS: { type: 'free_shipping', min: 400, description: 'Frete Grátis acima de R$ 400' },
-  NOVOCLIENTE: { type: 'fixed', value: 25, min: 100, description: 'R$ 25 OFF acima de R$ 100' },
-  COLHEITA20: { type: 'percent', value: 0.20, min: 800, description: '20% OFF acima de R$ 800' }
+  AGRO10: { type: 'percent', value: 0.10, min: 150, description: '10% OFF a partir de R$ 150' },
+  FRETEGRATIS: { type: 'free_shipping', min: 400, description: 'Frete Grátis a partir de R$ 400' },
+  NOVOCLIENTE: { type: 'fixed', value: 25, min: 100, description: 'R$ 25 OFF a partir de R$ 100' },
+  COLHEITA20: { type: 'percent', value: 0.20, min: 800, description: '20% OFF a partir de R$ 800' }
 };
 
 /**
