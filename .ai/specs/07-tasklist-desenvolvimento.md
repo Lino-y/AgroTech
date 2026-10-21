@@ -14,7 +14,7 @@ a mesma regra dos blueprints (`.ai/templates/blueprint-template.md`).
 | Dashboard financeiro ligado ao histórico de compras | RF01 | 🟡 | a compra soma em `state.finance` (`src/modules/catalog.js:854`); gráfico em `src/components/FinanceChart.js:7`; sem teste |
 | Rastreamento em 4 estágios (OrderTracker) | RF05 | ✅ | `src/modules/tracker.js:8` (`tests/services.test.js:137`) |
 | Chatbot 24h com árvore de decisão e transferência humana | RF06 | ✅ | `src/modules/support.js:1` e `src/services/support.js:1` (`tests/services.test.js:83`, `tests/services.test.js:166`) |
-| Drag-to-scroll nos carrosséis no desktop | RNF03 | 🟡 | `src/modules/catalog.js:2235`; sem teste |
+| Drag-to-scroll nos carrosséis no desktop | RNF03 | ✅ | `enableDragToScroll` em `src/modules/catalog.js:2561`, registrado a cada render em `src/modules/catalog.js:2555`; o arraste não vira clique (`src/modules/catalog.js:2599`) e o foco do teclado mostra o chip inteiro (`src/modules/catalog.js:2606`, contorno em `src/styles/ui.css:204`). No Chrome headless em viewport de desktop (`npm run test:ui`): direção do arraste em `tests/ui/drag-scroll.ui.js:54`, sem clique indevido em `tests/ui/drag-scroll.ui.js:69`, teclado em `tests/ui/drag-scroll.ui.js:97` e toque em `tests/ui/drag-scroll.ui.js:111` |
 
 ## Divergências encontradas (07/10/2026)
 

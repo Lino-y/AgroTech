@@ -2564,9 +2564,12 @@ function enableDragToScroll() {
     let isDown = false;
     let startX = 0;
     let scrollLeft = 0;
+    // Mais de 5px de movimento com o botão apertado é arraste, não clique (#9).
+    let dragged = false;
 
     container.addEventListener('mousedown', (e) => {
       isDown = true;
+      dragged = false;
       container.classList.add('is-dragging');
       startX = e.pageX - container.offsetLeft;
       scrollLeft = container.scrollLeft;
@@ -2587,7 +2590,21 @@ function enableDragToScroll() {
       e.preventDefault();
       const x = e.pageX - container.offsetLeft;
       const walk = (x - startX) * 1.5;
+      if (Math.abs(x - startX) > 5) dragged = true;
       container.scrollLeft = scrollLeft - walk;
+    });
+
+    // Soltar o arraste em cima de um chip dispara click nele: engole esse click antes do onclick.
+    // detail 0 é Enter/Espaço do teclado, que nunca vem de arraste.
+    container.addEventListener('click', (e) => {
+      if (!dragged || e.detail === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+
+    // Foco pelo teclado mostra o chip inteiro: o Chrome não rola o chip que já aparece em parte.
+    container.addEventListener('focusin', (e) => {
+      if (e.target.matches(':focus-visible')) e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   });
 }
