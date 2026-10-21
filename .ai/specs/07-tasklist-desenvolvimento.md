@@ -22,5 +22,12 @@ a mesma regra dos blueprints (`.ai/templates/blueprint-template.md`).
   a linha RF02 acima). O anúncio publicado sem conexão, que ficava só no
   navegador e sumia na próxima carga, deixou de existir: sem conexão o anúncio
   não é publicado e o vendedor continua no formulário (issue #17).
-- Cupons: valem a partir do valor mínimo (inclusive), mas o texto da tela diz
-  "acima de R$ X". Decidir qual dos dois está certo.
+- Cupons: resolvido (issue #10), vale a regra inclusiva já aplicada no código e
+  agora explícita na RF03 (`src/services/commerce.js:32`, limite exato em
+  `tests/services.test.js:205`). Os textos que diziam "acima de R$ X" passaram a
+  "a partir de R$ X": regras (`src/services/commerce.js:13`), mensagem do
+  `CartEngine` (`src/modules/cart.js:45`) e chatbot (`src/services/support.js:31`),
+  com teste em `tests/coupons.test.js:11`, `tests/coupons.test.js:17` e
+  `tests/coupons.test.js:26`; lista de cupons da tela em
+  `src/modules/catalog.js:1591` (sem teste). "Acima de R$ 800,00" ficou só para o
+  frete grátis automático.
