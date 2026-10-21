@@ -17,16 +17,28 @@ const TEXT = 'document.body.innerText';
 // Clica como o usuário: no botão pelo texto visível, ou no ícone (sem texto) pelo seletor.
 const clickText = (page, text) => page.evaluate(`[...document.querySelectorAll('button')].find((el) => el.textContent.trim() === ${JSON.stringify(text)}).click()`);
 const clickOn = (page, selector) => page.evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+// Entra pelo ícone do carrinho com o usuário de exemplo do banco descartável (João Silva).
+async function loginFromCart(page) {
+  await clickOn(page, `nav [onclick="navigateTo('cart')"]`);
+  await page.evaluate(`(() => {
+    document.getElementById('loginEmail').value = 'demo@agrotech.com.br';
+    document.getElementById('loginPassword').value = 'demo123';
+    document.querySelector('#main-content form button[type="submit"]').click();
+  })()`);
+  await page.waitFor(`state.activeScreen === 'cart' && ${HEADING} === 'Carrinho de Compras'`);
+}
 
 test('navegação principal troca de tela sem recarregar a página', { skip: skipReason }, async () => {
   const page = await app.open();
   // Marca no window: se a página recarregar, o window é outro e a marca some.
   await page.evaluate('window.__mesmaPagina = true');
+  // Entra antes: o Financeiro passa a exigir login com a #6, e logado o teste vale com ou sem ela.
+  await loginFromCart(page);
   const steps = [
     [() => clickText(page, 'Financeiro'), 'Gestão Financeira'],
     [() => clickText(page, 'Suporte'), 'Suporte 24h'],
     [() => clickText(page, 'Catálogo'), 'Catálogo de Insumos'],
-    [() => clickOn(page, `nav [onclick="navigateTo('profile')"]`), 'Olá, Produtor'],
+    [() => clickOn(page, `nav [onclick="navigateTo('profile')"]`), 'Olá, João'],
     [() => clickOn(page, 'nav img[alt="AgroTech"]'), 'Catálogo de Insumos']
   ];
   for (const [go, heading] of steps) {
@@ -48,15 +60,9 @@ test('sem login, carrinho, pagamento e anúncio levam ao login; ao entrar, abre 
     await clickText(page, 'Continuar sem login');
     assert.equal(await page.evaluate('state.activeScreen'), 'catalog');
   }
-  // Pelo ícone do carrinho, entrando com o usuário de exemplo do banco descartável.
-  await clickOn(page, `nav [onclick="navigateTo('cart')"]`);
-  await page.evaluate(`(() => {
-    document.getElementById('loginEmail').value = 'demo@agrotech.com.br';
-    document.getElementById('loginPassword').value = 'demo123';
-    document.querySelector('#main-content form button[type="submit"]').click();
-  })()`);
+  // Pelo ícone do carrinho, entrando com o usuário de exemplo: abre a tela pedida, sem navegação.
+  await loginFromCart(page);
   assert.deepEqual(page.navigations, [], 'o login pediu navegação (envio do form ou reload)');
-  await page.waitFor(`state.activeScreen === 'cart' && ${HEADING} === 'Carrinho de Compras'`);
   assert.deepEqual(page.errors, []);
   await page.close();
 });
