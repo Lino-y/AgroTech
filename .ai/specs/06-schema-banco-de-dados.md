@@ -2,8 +2,10 @@
 
 > **Status: alvo, não implementado.** Hoje os dados vivem no arquivo
 > `src/data/db.json`, criado pelo `server.js` a partir do `defaultDb` no
-> primeiro uso, com três listas: `users`, `products` e `orders`. O formato
-> atual de cada objeto está no contrato da API (`.ai/specs/05-openapi-spec.md`).
+> primeiro uso, com quatro listas: `users`, `products`, `orders` e
+> `financeEntries` (lançamentos manuais do financeiro:
+> `{ id, ownerEmail, type, title, amount, createdAt }`). O formato atual de cada
+> objeto está no contrato da API (`.ai/specs/05-openapi-spec.md`).
 
 ```sql
 CREATE TABLE users (
