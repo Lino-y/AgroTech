@@ -62,6 +62,7 @@ estado inicial, apague o arquivo e reinicie o servidor.
 |---|---|
 | Testes do app (`tests/`), incluindo os de API, que sobem o `server.js` numa porta livre com um banco temporário (`DATA_FILE`) | `npm test` |
 | Testes com barreira de cobertura nativa do Node (linhas 88%, branches 68%, funções 85%) | `npm run test:coverage` |
+| Testes de tela no Chrome headless (navegação sem reload, login, catálogo vazio e com erro, drag-to-scroll dos carrosséis), fora do `npm test` e do `verify` | `npm run test:ui` |
 | Lint (ESLint, com alerta de função grande ou complexa) | `npm run lint` |
 | Lint com orçamento: os 19 avisos legados são aceitos, avisos novos falham | `npm run lint:budget` |
 | Tipos (JSDoc nos arquivos com `// @ts-check`) | `npm run typecheck` |
@@ -78,3 +79,25 @@ estado inicial, apague o arquivo e reinicie o servidor.
 - A checagem de tipos vale para os arquivos que começam com `// @ts-check`
   (hoje `src/services/cart.js` e `src/services/commerce.js`). Arquivo novo em
   `src/services/` entra do mesmo jeito (`docs/agents/architecture.md`).
+
+### Testes de tela (`npm run test:ui`)
+
+- Ficam em `tests/ui/*.ui.js`, nome que o `node --test` padrão não procura:
+  por isso não entram no `npm test`, na cobertura nem no `npm run verify`.
+  Rode antes de abrir PR que mexa em tela, navegação ou carrossel.
+- Precisam de Chrome ou Edge. O script procura nos caminhos de instalação
+  padrão do Windows, do macOS e do Linux; fora deles, aponte o executável em
+  `CHROME_PATH`. Sem navegador, os testes aparecem como pulados (`skipped`) e
+  o comando termina com sucesso.
+- Cada arquivo sobe o `server.js` numa porta livre com banco temporário
+  (`DATA_FILE`, nunca o `src/data/db.json`) e o Chrome headless com perfil
+  temporário, controlado pelo DevTools Protocol com o WebSocket nativo do Node
+  22, sem dependência nova. Cada teste abre a SPA numa aba com `localStorage`
+  limpo, e a internet fica bloqueada (fontes e fotos externas não carregam).
+  A base comum é `tests/ui/browser.js`.
+- Conferido em 20/10/2026 no Windows 11, com Chrome 155 e com Edge (via
+  `CHROME_PATH`).
+
+```bash
+CHROME_PATH="/caminho/do/chrome" npm run test:ui   # só se o navegador estiver fora do caminho padrão
+```

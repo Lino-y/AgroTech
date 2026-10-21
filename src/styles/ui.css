@@ -242,3 +242,10 @@ textarea:focus {
 .finance-status.is-error {
   color: var(--danger);
 }
+
+/* Foco do teclado visível nos chips (o reset de button:focus acima tira o outline); por dentro
+   do chip, porque o carrossel corta o que passa da borda. */
+.drag-scroll-container button:focus-visible {
+  outline: 2px solid var(--text) !important;
+  outline-offset: -2px;
+}

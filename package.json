@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=88 --test-coverage-branches=68 --test-coverage-functions=85",
+    "test:ui": "node --test --test-timeout=60000 \"tests/ui/*.ui.js\"",
     "lint": "eslint .",
     "lint:budget": "eslint . --max-warnings=19",
     "typecheck": "tsc -p jsconfig.json",
