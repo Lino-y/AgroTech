@@ -199,6 +199,16 @@ textarea:focus {
   cursor: grabbing;
 }
 
+/* Barra animada do indicador "Carregando catálogo da API..." (renderCatalogScreen) */
+.loading-bar {
+  animation: progress 1.5s infinite;
+}
+
+@keyframes progress {
+  0% { margin-left: 0; }
+  100% { margin-left: 70%; }
+}
+
 /* Financeiro: chips de filtro (período e tipo) e avisos do extrato */
 .finance-chips {
   display: flex;

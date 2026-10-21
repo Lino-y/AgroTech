@@ -28,7 +28,7 @@ export function buildSupportReply(userText = '', user = {}) {
 
   if (lower.includes('frete') || lower.includes('envio') || lower.includes('grátis') || lower.includes('gratis')) {
     return {
-      text: '📦 Frete Grátis disponível automaticamente em pedidos acima de R$ 800,00 ou com o cupom FRETEGRATIS em compras acima de R$ 400,00.',
+      text: '📦 Frete Grátis disponível automaticamente em pedidos acima de R$ 800,00 ou com o cupom FRETEGRATIS em compras a partir de R$ 400,00.',
       nextScreen: null,
       isHuman: false
     };
@@ -36,7 +36,7 @@ export function buildSupportReply(userText = '', user = {}) {
 
   if (lower.includes('cupom') || lower.includes('desconto') || lower.includes('promocional')) {
     return {
-      text: '🏷️ Cupons ativos hoje: AGRO10 (10% OFF), FRETEGRATIS, NOVOCLIENTE (R$ 25 OFF) e COLHEITA20 (20% OFF acima de R$ 800).',
+      text: '🏷️ Cupons ativos hoje: AGRO10 (10% OFF), FRETEGRATIS, NOVOCLIENTE (R$ 25 OFF) e COLHEITA20 (20% OFF a partir de R$ 800).',
       nextScreen: null,
       isHuman: false
     };

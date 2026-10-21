@@ -419,13 +419,9 @@ function getTechnicalDetails(category, prompt) {
   return allLines.join('\n');
 }
 
-// --- FUNÇÃO PARA GERAR DESCRIÇÃO CRIATIVA DE MARKETING ---
-// eslint-disable-next-line complexity
-function generateCreativeDescription(name, category, prompt, price, unit, stock, location) {
+// Extrai palavras-chave de qualidade/valor do prompt (até 3) para a descrição criativa
+function extractQualityPhrase(prompt) {
   const lowerPrompt = prompt.toLowerCase();
-  const city = location ? location.split(' - ')[0] : 'nossa fazenda';
-
-  // Extrai palavras-chave de qualidade/valor do prompt
   const qualityKeywords = [];
   if (/selecionad[ao]|escolhid[ao]|premium|especial|gourmet|artesanal/.test(lowerPrompt)) qualityKeywords.push('selecionados com rigor');
   if (/m[ãa]o|manual|artesanal/.test(lowerPrompt)) qualityKeywords.push('colhidos/processados à mão');
@@ -436,9 +432,15 @@ function generateCreativeDescription(name, category, prompt, price, unit, stock,
   if (/tradicional|herança|família|avô|pai|geração/.test(lowerPrompt)) qualityKeywords.push('tradição familiar');
   if (/sustentável|regenerativo|carbono|preservação/.test(lowerPrompt)) qualityKeywords.push('agricultura regenerativa');
 
-  const qualityPhrase = qualityKeywords.length
+  return qualityKeywords.length
     ? qualityKeywords.slice(0, 3).join(', ')
     : 'qualidade comprovada';
+}
+
+// --- FUNÇÃO PARA GERAR DESCRIÇÃO CRIATIVA DE MARKETING ---
+function generateCreativeDescription(name, category, prompt, price, unit, stock, location) {
+  const city = location ? location.split(' - ')[0] : 'nossa fazenda';
+  const qualityPhrase = extractQualityPhrase(prompt);
 
   // Templates criativos por categoria
   const templates = {
@@ -1106,7 +1108,6 @@ function renderBottomNav() {
   `;
 }
 
-// eslint-disable-next-line max-lines-per-function
 function renderRegisterScreen() {
   const isLogin = state.authMode === 'login';
   const pendingScreenNames = {
@@ -1150,7 +1151,13 @@ function renderRegisterScreen() {
         </button>
       ` : ''}
 
-      ${!isLogin ? `
+      ${!isLogin ? renderRegisterForm() : renderLoginForm()}
+    </div>
+  `;
+}
+
+function renderRegisterForm() {
+  return `
         <form onsubmit="handleRegister(event)" style="background: #FFFFFF; padding: 22px; border-radius: 20px; border: 1px solid rgba(200,230,201,0.8); display: flex; flex-direction: column; gap: 14px;">
           <div>
             <label style="font-size: 12px; font-weight: 600; color: #1B5E20; display: block; margin-bottom: 6px; letter-spacing: 0.2px;">TIPO DE PERFIL</label>
@@ -1182,7 +1189,11 @@ function renderRegisterScreen() {
 
           <button type="submit" style="width: 100%; background: #2E7D32; color: #FFFFFF; border: none; padding: 15px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 14px; margin-top: 6px; letter-spacing: 0.3px; box-shadow: none !important; text-shadow: none !important; filter: none !important;">Cadastrar Conta</button>
         </form>
-      ` : `
+      `;
+}
+
+function renderLoginForm() {
+  return `
         <form onsubmit="handleLogin(event)" style="background: #FFFFFF; padding: 22px; border-radius: 20px; border: 1px solid rgba(200,230,201,0.8); display: flex; flex-direction: column; gap: 14px;">
           <div>
             <label style="font-size: 12px; font-weight: 600; color: #1B5E20; display: block; margin-bottom: 6px; letter-spacing: 0.2px;">E-MAIL</label>
@@ -1196,12 +1207,9 @@ function renderRegisterScreen() {
 
           <button type="submit" style="width: 100%; background: #2E7D32; color: #FFFFFF; border: none; padding: 15px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 14px; margin-top: 6px; letter-spacing: 0.3px; box-shadow: none !important; text-shadow: none !important; filter: none !important;">Entrar no Sistema</button>
         </form>
-      `}
-    </div>
-  `;
+      `;
 }
 
-// eslint-disable-next-line max-lines-per-function, complexity
 function renderCatalogScreen() {
   // Categorias derivadas apenas dos produtos já postados
   const existingCategories = [...new Set(state.products.map(p => p.category).filter(Boolean))];
@@ -1261,9 +1269,8 @@ function renderCatalogScreen() {
       <div style="background: #E8F5E9; border: 1px solid #C8E6C9; border-radius: 12px; padding: 16px; text-align: center;">
         <div style="color: #2E7D32; font-weight: 600; margin-bottom: 8px;">⏳ Carregando catálogo da API...</div>
         <div style="width: 40px; height: 4px; background: #C8E6C9; border-radius: 2px; margin: 0 auto; overflow: hidden;">
-          <div style="height: 100%; background: #2E7D32; animation: progress 1.5s infinite; width: 30%;"></div>
+          <div class="loading-bar" style="height: 100%; background: #2E7D32; width: 30%;"></div>
         </div>
-        <style>@keyframes progress { 0% { margin-left: 0; } 100% { margin-left: 70%; } }</style>
       </div>
       ` : ''}
 
@@ -1275,7 +1282,16 @@ function renderCatalogScreen() {
       ` : ''}
 
       <div id="productList" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-        ${filtered.map(p => `
+        ${filtered.map(renderCatalogCard).join('')}
+      </div>
+    </div>
+
+    ${state.selectedProduct ? renderProductDetail() : ''}
+  `;
+}
+
+function renderCatalogCard(p) {
+  return `
           <div class="product-card" data-title="${p.name}" data-category="${p.category}" style="background: #FFFFFF; border-radius: 16px; padding: 12px; border: 1px solid rgba(200,230,201,0.8); display: flex; flex-direction: column; justify-content: space-between; gap: 10px; transition: transform 0.2s;">
             <div onclick="openProductDetail('${p.id}')" style="cursor: pointer;">
               <div style="background: ${p.imageBg || '#E8F5E9'}; height: 100px; border-radius: 12px; display: flex; justify-content: center; align-items: center; border: 1px solid rgba(200,230,201,0.5); overflow: hidden; position: relative;">
@@ -1302,11 +1318,11 @@ function renderCatalogScreen() {
               <button onclick="addToCart('${p.id}')" style="width: 100%; background: #2E7D32; color: #FFFFFF; border: none; padding: 9px; border-radius: 9px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s; margin-top: 6px;">+ Adicionar</button>
             </div>
           </div>
-        `).join('')}
-      </div>
-    </div>
+        `;
+}
 
-    ${state.selectedProduct ? `
+function renderProductDetail() {
+  return `
       <div onclick="closeProductDetail()" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(27,94,32,0.45); backdrop-filter: blur(3px); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;">
         <div onclick="event.stopPropagation()" style="background: #FFFFFF; border-radius: 24px; width: 100%; max-width: 440px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #C8E6C9;">
           <div style="padding: 16px 20px; border-bottom: 1px solid #E8F5E9; display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; flex-shrink: 0;">
@@ -1363,7 +1379,20 @@ function renderCatalogScreen() {
               <p style="font-size: 12px; color: #388E3C; line-height: 1.5; margin: 0;">${state.selectedProduct.description || 'Anúncio sem descrição detalhada cadastrada pelo produtor.'}</p>
             </div>
 
-            <!-- FAVORITO + CONTATO DIRETO COM O ANUNCIANTE -->
+            ${renderProductInteractions()}
+          </div>
+
+          <div style="padding: 14px 20px; border-top: 1px solid #C8E6C9; background: #FFFFFF; flex-shrink: 0;">
+            <button onclick="addToCart('${state.selectedProduct.id}'); closeProductDetail();" style="width: 100%; background: #2E7D32; color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 700; cursor: pointer; font-size: 14px;">+ Adicionar ao Carrinho (R$ ${Number(state.selectedProduct.price).toFixed(2)})</button>
+          </div>
+        </div>
+      </div>
+    `;
+}
+
+// Favoritar, falar com o produtor, excluir o próprio anúncio, avaliar e ler as avaliações
+function renderProductInteractions() {
+  return `<!-- FAVORITO + CONTATO DIRETO COM O ANUNCIANTE -->
             <div style="display: flex; gap: 8px;">
               <button onclick="toggleFavorite('${state.selectedProduct.id}')" style="flex: 0 0 48px; background: ${(state.user.favorites || []).includes(state.selectedProduct.id) ? '#FBBF24' : '#FFFFFF'}; border: 1px solid ${(state.user.favorites || []).includes(state.selectedProduct.id) ? '#D9A441' : '#A5D6A7'}; color: ${(state.user.favorites || []).includes(state.selectedProduct.id) ? '#7A5A00' : '#1B5E20'}; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer;">★</button>
               <button onclick="showToast('Conectando ao WhatsApp do Produtor: (64) 99812-4420...', 'info')" style="flex: 1; background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -1413,16 +1442,7 @@ function renderCatalogScreen() {
                   </div>
                 `).join('')}
               </div>
-            </div>
-          </div>
-
-          <div style="padding: 14px 20px; border-top: 1px solid #C8E6C9; background: #FFFFFF; flex-shrink: 0;">
-            <button onclick="addToCart('${state.selectedProduct.id}'); closeProductDetail();" style="width: 100%; background: #2E7D32; color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 700; cursor: pointer; font-size: 14px;">+ Adicionar ao Carrinho (R$ ${Number(state.selectedProduct.price).toFixed(2)})</button>
-          </div>
-        </div>
-      </div>
-    ` : ''}
-  `;
+            </div>`;
 }
 
 // --- TELA DE ANÚNCIO / VENDER PRODUTO ---
@@ -1524,10 +1544,10 @@ function renderSellScreen() {
 function renderCartScreen() {
   const totals = getCartTotals();
   const couponsList = [
-    { code: 'AGRO10', label: '10% OFF', desc: 'Compras acima de R$ 150', min: 150 },
-    { code: 'FRETEGRATIS', label: 'Frete Grátis', desc: 'Compras acima de R$ 400', min: 400 },
-    { code: 'NOVOCLIENTE', label: 'R$ 25 OFF', desc: 'Compras acima de R$ 100', min: 100 },
-    { code: 'COLHEITA20', label: '20% OFF', desc: 'Compras acima de R$ 800', min: 800 }
+    { code: 'AGRO10', label: '10% OFF', desc: 'Compras a partir de R$ 150', min: 150 },
+    { code: 'FRETEGRATIS', label: 'Frete Grátis', desc: 'Compras a partir de R$ 400', min: 400 },
+    { code: 'NOVOCLIENTE', label: 'R$ 25 OFF', desc: 'Compras a partir de R$ 100', min: 100 },
+    { code: 'COLHEITA20', label: '20% OFF', desc: 'Compras a partir de R$ 800', min: 800 }
   ];
 
   return `
