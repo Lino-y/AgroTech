@@ -7,7 +7,7 @@ a mesma regra dos blueprints (`.ai/templates/blueprint-template.md`).
 | Item | Requisito | Status | Evidência |
 |---|---|---|---|
 | Design tokens CSS | RNF01 | 🟡 | tokens em `src/styles/tokens.css:1`, mas `src/modules/catalog.js` não usa nenhum `var(--...)` (cores hex soltas) |
-| Estrutura SPA e roteamento simples | RNF02 | 🟡 | `renderApp` em `src/modules/catalog.js:2187`; sem teste |
+| Estrutura SPA e roteamento simples | RNF02 | ✅ | `renderApp` em `src/modules/catalog.js:2517` e `navigateTo` em `src/modules/catalog.js:184` (login exigido em carrinho, pagamento e anúncio: `src/modules/catalog.js:186`); no Chrome headless (`npm run test:ui`, fora do `npm test`): troca de tela sem reload em `tests/ui/spa.ui.js:21`, tela protegida em `tests/ui/spa.ui.js:42`, catálogo vazio em `tests/ui/spa.ui.js:64` e com erro em `tests/ui/spa.ui.js:77`. A largura mobile-first (360–430px) do RNF02 não tem teste |
 | Catálogo compartilhado carregado pela API | RF02 | ✅ | carga em `src/modules/catalog-sync.js:12` (carregando, sucesso e erro em `tests/services.test.js:293`) com o desfecho de `src/services/catalog-load.js:10` (sucesso, vazio e falha em `tests/services.test.js:228`); anúncio novo aparece no GET (`tests/api.test.js:169`) |
 | Cálculo do carrinho e criação do pedido | RF03, RF04 | ✅ | regras em `src/services/commerce.js:47` (`tests/services.test.js:25`); total calculado no servidor (`tests/api.test.js:144`) |
 | Meios de pagamento (Pix, cartão em 6x, boleto) | RF04 | 🟡 | só na tela (`src/modules/catalog.js:1623`); pagamento simulado, sem teste |
