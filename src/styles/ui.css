@@ -198,3 +198,13 @@ textarea:focus {
 .drag-scroll-container.is-dragging {
   cursor: grabbing;
 }
+
+/* Barra animada do indicador "Carregando catálogo da API..." (renderCatalogScreen) */
+.loading-bar {
+  animation: progress 1.5s infinite;
+}
+
+@keyframes progress {
+  0% { margin-left: 0; }
+  100% { margin-left: 70%; }
+}
