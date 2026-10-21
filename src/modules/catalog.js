@@ -1,13 +1,15 @@
 ﻿﻿import { AuthService } from './auth.js';
 import { OrderTracker } from './tracker.js';
 import { syncCatalog } from './catalog-sync.js';
+import { syncFinance } from './finance-sync.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
 import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
+import { summarizeFinance } from '../services/finance.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
+import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadFinanceEntries, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -75,12 +77,9 @@ const state = {
   paymentMethod: 'pix',
   creditInstallments: 1,
   financeFilter: 'ALL',
-  finance: {
-    income: 0,
-    expenses: 0,
-    chartData: [],
-    transactions: []
-  },
+  financePeriod: 6,
+  // Extrato da conta, vindo de GET /api/finance/entries (src/modules/finance-sync.js).
+  finance: { entries: [], loading: false, error: null },
   chatMessages: [
     { sender: 'bot', text: 'Olá! Sou o assistente AgroTech, disponível 24 horas por dia. Como posso ajudar você hoje?' }
   ],
@@ -97,58 +96,6 @@ window.state = state;
 
 function getCartTotals() {
   return calculateCartSummary(state.cart, state.appliedCoupon);
-}
-
-function syncFinanceChartData() {
-  // Gráfico 100% baseado em dados reais: transações registradas + pedidos do app.
-  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const now = new Date();
-  const buckets = [];
-
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    buckets.push({
-      key: `${d.getFullYear()}-${d.getMonth()}`,
-      month: monthNames[d.getMonth()],
-      income: 0,
-      expense: 0
-    });
-  }
-
-  const byKey = new Map(buckets.map(b => [b.key, b]));
-
-  // Pedidos reais feitos no app = saídas
-  state.orders.forEach(order => {
-    const date = parseOrderDate(order.date);
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (byKey.has(key)) byKey.get(key).expense += Number(order.total || 0);
-  });
-
-  // Lançamentos manuais do usuário = entradas/saídas reais
-  state.finance.transactions.forEach(tx => {
-    const amount = Number(tx.amount || 0);
-    if (!amount) return;
-    const date = parseOrderDate(tx.date);
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (!byKey.has(key)) return;
-    if (tx.type === 'INCOME') byKey.get(key).income += amount;
-    else byKey.get(key).expense += amount;
-  });
-
-  state.finance.chartData = buckets;
-}
-
-function parseOrderDate(raw) {
-  // Formatos usados: "Hoje", "15/Set/2026", "15/Set às 09:30"
-  if (!raw || raw === 'Hoje') return new Date();
-  const match = String(raw).match(/(\d{1,2})\/([A-Za-zÀ-ÿ]{3})\/(\d{4})/);
-  if (match) {
-    const monthNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    const idx = monthNames.indexOf(match[2].toLowerCase().slice(0, 3));
-    if (idx >= 0) return new Date(Number(match[3]), idx, Number(match[1]));
-  }
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
 function persistProducts() {
@@ -178,12 +125,11 @@ function showToast(message, type = 'info') {
   }, 2600);
 }
 
-syncFinanceChartData();
-
 // --- NAVEGAÇÃO E LÓGICAS ---
 window.navigateTo = function(screen) {
-  // Telas que requerem autenticação: apenas compra (carrinho/pagamento) e anúncio de produto
-  const authRequiredScreens = ['cart', 'payment', 'sell'];
+  // Telas que requerem autenticação: compra (carrinho/pagamento), anúncio de produto e o
+  // financeiro, que mostra o extrato da conta
+  const authRequiredScreens = ['cart', 'payment', 'sell', 'finance'];
 
   // Verifica se o usuário está logado (tem email preenchido)
   const isLoggedIn = state.user && state.user.email && state.user.email.trim() !== '';
@@ -196,6 +142,8 @@ window.navigateTo = function(screen) {
     state.authMode = 'login'; // Por padrão mostra login, usuário pode alternar para registro
   } else {
     state.activeScreen = screen;
+    // Extrato sempre buscado ao abrir a tela: compra aprovada e lançamento novo já aparecem.
+    if (screen === 'finance') loadFinance();
   }
 
   renderApp();
@@ -915,16 +863,7 @@ window.processPayment = async function(event) {
 
     state.orders.unshift(newOrder);
     state.coins += Math.round(totals.total / 10); // 1 moeda a cada R$ 10
-    state.finance.expenses += totals.total;
-    state.finance.transactions.unshift({
-      id: Date.now(),
-      title: `📦 Compra no App (${newOrder.id})`,
-      amount: totals.total,
-      type: 'EXPENSE',
-      date: 'Hoje'
-    });
-
-    syncFinanceChartData();
+    // A compra entra no financeiro pelo servidor (GET /api/finance/entries), na próxima abertura da tela.
 
     showToast(`Pagamento de R$ ${totals.total.toFixed(2)} aprovado!`, 'success');
     state.cart = [];
@@ -936,8 +875,19 @@ window.processPayment = async function(event) {
   }
 };
 
+function loadFinance() {
+  return syncFinance(state, { load: loadFinanceEntries, render: renderApp });
+}
+
+window.retryLoadFinance = loadFinance;
+
 window.setFinanceFilter = function(filter) {
   state.financeFilter = filter;
+  renderApp();
+};
+
+window.setFinancePeriod = function(months) {
+  state.financePeriod = Number(months);
   renderApp();
 };
 
@@ -955,37 +905,21 @@ window.setTransactionType = function(type) {
   });
 };
 
-window.handleAddTransaction = function(event) {
+window.handleAddTransaction = async function(event) {
   event.preventDefault();
   const title = document.getElementById('txTitle').value.trim();
   const amount = parseFloat(document.getElementById('txAmount').value);
   const type = document.getElementById('txType').value;
 
   if (title && amount > 0) {
-    if (type === 'INCOME') {
-      state.finance.income += amount;
-      state.finance.transactions.unshift({
-        id: Date.now(),
-        title: `Venda: ${title}`,
-        amount,
-        type: 'INCOME',
-        date: 'Hoje'
-      });
-    } else {
-      state.finance.expenses += amount;
-      state.finance.transactions.unshift({
-        id: Date.now(),
-        title: `💸 ${title}`,
-        amount,
-        type: 'EXPENSE',
-        date: 'Hoje'
-      });
+    try {
+      await createFinanceEntry({ title, amount, type });
+      showToast('Lançamento registrado com sucesso!', 'success');
+      loadFinance();
+    } catch (error) {
+      // O formulário continua preenchido para tentar de novo.
+      showToast(error.message || 'Não foi possível registrar o lançamento.', 'error');
     }
-
-    syncFinanceChartData();
-
-    showToast('Lançamento registrado com sucesso!', 'success');
-    renderApp();
   }
 };
 
@@ -1071,10 +1005,10 @@ window.handleRegister = async function(event) {
     // Redireciona para a tela pendente ou catálogo
     const targetScreen = state.pendingScreen || 'catalog';
     state.pendingScreen = null;
-    state.activeScreen = targetScreen;
 
     showToast('Conta criada com sucesso!', 'success');
-    renderApp();
+    // Pela navegação, que também carrega o extrato quando o financeiro é a tela pendente.
+    window.navigateTo(targetScreen);
   } catch (error) {
     showToast(error.message || 'Não foi possível criar sua conta.', 'error');
   }
@@ -1097,10 +1031,10 @@ window.handleLogin = async function(event) {
     // Redireciona para a tela pendente ou catálogo
     const targetScreen = state.pendingScreen || 'catalog';
     state.pendingScreen = null;
-    state.activeScreen = targetScreen;
 
     showToast('Login realizado com sucesso!', 'success');
-    renderApp();
+    // Pela navegação, que também carrega o extrato quando o financeiro é a tela pendente.
+    window.navigateTo(targetScreen);
   } catch (error) {
     showToast(error.message || 'Não foi possível entrar.', 'error');
   }
@@ -1113,6 +1047,8 @@ window.handleLogout = function() {
     state.activeScreen = 'catalog';
     state.authMode = 'register';
     state.pendingScreen = null;
+    // O extrato é da conta que saiu: não fica na memória da aba para a próxima.
+    state.finance = { entries: [], loading: false, error: null };
     removeUser();
     removeToken();
     renderApp();
@@ -1828,49 +1764,64 @@ function renderPaymentScreen() {
   `;
 }
 
+const FINANCE_PERIODS = [[1, 'Mês atual'], [3, '3 meses'], [6, '6 meses']];
+const FINANCE_TYPES = [['ALL', 'Todas'], ['INCOME', 'Vendas (+ Entradas)'], ['EXPENSE', 'Compras (- Saídas)']];
+
+// Chips de filtro do financeiro (período e tipo); o visual fica em src/styles/ui.css.
+function renderFinanceChips(options, current, handler) {
+  return options.map(([value, label]) => `
+    <button class="finance-chip${value === current ? ' is-active' : ''}" aria-pressed="${value === current}" onclick="${handler}('${value}')">${label}</button>
+  `).join('');
+}
+
+// Extrato carregando, com erro ou vazio; '' quando há lançamento para listar.
+function renderFinanceStatus(count) {
+  if (state.finance.loading) return '<p class="finance-status">Carregando lançamentos...</p>';
+  if (state.finance.error) {
+    return `<p class="finance-status is-error">${state.finance.error}</p>
+      <button class="finance-chip" style="align-self: center;" onclick="retryLoadFinance()">Tentar novamente</button>`;
+  }
+  return count ? '' : '<p class="finance-status">Nenhum lançamento encontrado para este filtro.</p>';
+}
+
 function renderFinanceScreen() {
-  const balance = state.finance.income - state.finance.expenses;
   const currentFilter = state.financeFilter || 'ALL';
-
-  const filteredTransactions = state.finance.transactions.filter(item => {
-    if (currentFilter === 'INCOME') return item.type === 'INCOME';
-    if (currentFilter === 'EXPENSE') return item.type === 'EXPENSE';
-    return true;
-  });
-
-  const totalAppOrdersCost = state.orders.reduce((sum, ord) => sum + Number(ord.total || 0), 0);
+  // Cards, gráfico e extrato saem do mesmo resumo (src/services/finance.js).
+  const { income, expense, balance, chart, entries, purchases } = summarizeFinance(state.finance.entries, { months: state.financePeriod, type: currentFilter });
 
   return `
     <div style="flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; background: #F4FBF7;">
       <h2 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-weight: 700; margin: 0;">Gestão Financeira</h2>
 
+      <div class="finance-chips" role="group" aria-label="Período">${renderFinanceChips(FINANCE_PERIODS, state.financePeriod, 'setFinancePeriod')}</div>
+
       <div style="background: #1B5E20; color: white; padding: 20px; border-radius: 20px; text-align: center;">
-        <span style="font-size: 12px; opacity: 0.9; font-weight: 500;">Saldo Atual da Fazenda</span>
+        <span style="font-size: 12px; opacity: 0.9; font-weight: 500;">Saldo do Período</span>
         <h3 style="font-size: 26px; font-weight: 700; margin-top: 4px; letter-spacing: -0.5px;">R$ ${balance.toFixed(2)}</h3>
       </div>
 
       <div style="display: flex; gap: 12px;">
         <div style="flex: 1; background: #EAF7EE; padding: 16px 14px; border-radius: 18px; border: 1px solid rgba(46,125,50,0.18); display: flex; flex-direction: column; gap: 8px;">
           <p style="font-size: 10px; color: #2E7D32; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; margin: 0;">Vendas (Entradas)</p>
-          <p style="font-weight: 800; color: #163D27; font-size: 16px; margin: 0;">+ R$ ${state.finance.income.toFixed(2)}</p>
+          <p style="font-weight: 800; color: #163D27; font-size: 16px; margin: 0;">+ R$ ${income.toFixed(2)}</p>
         </div>
         <div style="flex: 1; background: #FFF1F3; padding: 16px 14px; border-radius: 18px; border: 1px solid rgba(201,52,65,0.14); display: flex; flex-direction: column; gap: 8px;">
           <p style="font-size: 10px; color: #C62828; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; margin: 0;">Compras (Saídas)</p>
-          <p style="font-weight: 800; color: #6B1E2B; font-size: 16px; margin: 0;">- R$ ${state.finance.expenses.toFixed(2)}</p>
+          <p style="font-weight: 800; color: #6B1E2B; font-size: 16px; margin: 0;">- R$ ${expense.toFixed(2)}</p>
         </div>
       </div>
 
       <div style="background: #FFFFFF; border-radius: 18px; border: 1px solid #C8E6C9; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;">
         <div>
           <span style="font-size: 11px; font-weight: 700; color: #1B5E20; text-transform: uppercase; letter-spacing: 0.5px;">Compras na AgroTech</span>
-          <p style="font-size: 16px; font-weight: 800; color: #2E7D32; margin: 4px 0 0;">${state.orders.length} pedido(s) • R$ ${totalAppOrdersCost.toFixed(2)}</p>
+          <p style="font-size: 16px; font-weight: 800; color: #2E7D32; margin: 4px 0 0;">${purchases.count} pedido(s) • R$ ${purchases.total.toFixed(2)}</p>
         </div>
         <button onclick="navigateTo('orders')" style="background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; padding: 8px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer;">
           Ver Pedidos ➔
         </button>
       </div>
 
-      ${renderFinanceChart(state.finance.chartData)}
+      ${renderFinanceChart(chart)}
 
       <div style="background: #FFFFFF; padding: 18px; border-radius: 20px; border: 1px solid #C8E6C9;">
         <h4 style="font-size: 13px; color: #1B5E20; font-weight: 700; margin-bottom: 12px;">Registrar Nova Operação Manual</h4>
@@ -1891,30 +1842,20 @@ function renderFinanceScreen() {
 
       <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h4 style="font-size: 15px; color: #1B5E20; font-weight: 700; margin: 0;">Extrato do Mês</h4>
-          <span style="font-size: 11px; color: #388E3C;">${filteredTransactions.length} lançamentos</span>
+          <h4 style="font-size: 15px; color: #1B5E20; font-weight: 700; margin: 0;">Extrato do Período</h4>
+          <span style="font-size: 11px; color: #388E3C;">${entries.length} lançamentos</span>
         </div>
 
-        <div class="drag-scroll-container" data-drag-scroll="true" style="display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none;">
-          <button onclick="setFinanceFilter('ALL')" style="background: ${currentFilter === 'ALL' ? '#2E7D32' : '#FFFFFF'}; color: ${currentFilter === 'ALL' ? '#FFFFFF' : '#1B5E20'}; border: 1px solid ${currentFilter === 'ALL' ? '#2E7D32' : '#C8E6C9'}; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer;">
-            Todas
-          </button>
-          <button onclick="setFinanceFilter('INCOME')" style="background: ${currentFilter === 'INCOME' ? '#2E7D32' : '#FFFFFF'}; color: ${currentFilter === 'INCOME' ? '#FFFFFF' : '#1B5E20'}; border: 1px solid ${currentFilter === 'INCOME' ? '#2E7D32' : '#C8E6C9'}; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer;">
-            Vendas (+ Entradas)
-          </button>
-          <button onclick="setFinanceFilter('EXPENSE')" style="background: ${currentFilter === 'EXPENSE' ? '#2E7D32' : '#FFFFFF'}; color: ${currentFilter === 'EXPENSE' ? '#FFFFFF' : '#1B5E20'}; border: 1px solid ${currentFilter === 'EXPENSE' ? '#2E7D32' : '#C8E6C9'}; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer;">
-            Compras (- Saídas)
-          </button>
+        <div class="drag-scroll-container" data-drag-scroll="true" role="group" aria-label="Tipo" style="display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none;">
+          ${renderFinanceChips(FINANCE_TYPES, currentFilter, 'setFinanceFilter')}
         </div>
 
         <div style="background: #FFFFFF; border-radius: 20px; border: 1px solid #C8E6C9; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px;">
-          ${filteredTransactions.length === 0 ? `
-            <p style="text-align: center; color: #9E9E9E; font-size: 12px; margin: 10px 0;">Nenhum lançamento encontrado nesta categoria.</p>
-          ` : filteredTransactions.map(item => `
+          ${renderFinanceStatus(entries.length) || entries.map(item => `
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E8F5E9; padding-bottom: 10px; font-size: 13px;">
               <div>
                 <p style="font-weight: 600; color: #1B5E20; margin: 0;">${item.title}</p>
-                <span style="font-size: 10px; color: #388E3C;">${item.date}</span>
+                <span style="font-size: 10px; color: #388E3C;">${new Date(item.date).toLocaleDateString('pt-BR')}</span>
               </div>
               <span style="color: ${item.type === 'INCOME' ? '#2E7D32' : '#C62828'}; font-weight: 700;">
                 ${item.type === 'INCOME' ? '+' : '-'} R$ ${Number(item.amount).toFixed(2)}

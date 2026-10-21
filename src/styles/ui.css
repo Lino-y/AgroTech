@@ -208,3 +208,37 @@ textarea:focus {
   0% { margin-left: 0; }
   100% { margin-left: 70%; }
 }
+
+/* Financeiro: chips de filtro (período e tipo) e avisos do extrato */
+.finance-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.finance-chip {
+  background: var(--white);
+  color: var(--forest-800);
+  border: 1px solid var(--leaf-300);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.finance-chip.is-active {
+  background: var(--forest-700);
+  color: var(--white);
+  border-color: var(--forest-700);
+}
+
+.finance-status {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 10px 0;
+}
+
+.finance-status.is-error {
+  color: var(--danger);
+}

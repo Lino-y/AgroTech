@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { getProductCategoryStyle } from './src/services/catalog.js';
 import { calculateCartSummary } from './src/services/commerce.js';
+import { buildFinanceEntries } from './src/services/finance.js';
 
 dotenv.config();
 
@@ -132,7 +133,9 @@ const defaultDb = {
         { title: 'Chegada na Fazenda', time: 'Previsão: 18/Set', completed: false }
       ]
     }
-  ]
+  ],
+  // Lançamentos manuais do financeiro: { id, ownerEmail, type, title, amount, createdAt }.
+  financeEntries: []
 };
 
 const signToken = (user) => jwt.sign(
@@ -196,7 +199,8 @@ async function ensureDbFile() {
     const normalizedDb = {
       users: normalizeDbUsers(parsed.users || defaultDb.users),
       products: parsed.products || defaultDb.products,
-      orders: parsed.orders || defaultDb.orders
+      orders: parsed.orders || defaultDb.orders,
+      financeEntries: parsed.financeEntries || []
     };
 
     if (JSON.stringify(normalizedDb) !== raw) {
@@ -214,7 +218,8 @@ async function readDb() {
   return {
     users: normalizeDbUsers(parsed.users || []),
     products: parsed.products || defaultDb.products,
-    orders: parsed.orders || defaultDb.orders
+    orders: parsed.orders || defaultDb.orders,
+    financeEntries: parsed.financeEntries || []
   };
 }
 
@@ -542,6 +547,8 @@ app.post('/api/orders', authenticate, async (req, res) => {
     id: `AGT-${Math.floor(10000 + Math.random() * 90000)}`,
     ownerEmail: req.user.email,
     date: 'Hoje',
+    // Data real do pedido: o financeiro recorta por mês (o `date` acima é só texto da tela).
+    createdAt: new Date().toISOString(),
     status: 'Pedido Confirmado',
     statusStep: 1,
     trackingCode: `BR-AGRO-${Math.floor(100000 + Math.random() * 900000)}-X`,
@@ -560,6 +567,37 @@ app.post('/api/orders', authenticate, async (req, res) => {
   db.orders.unshift(order);
   await writeDb(db);
   res.status(201).json(order);
+});
+
+// Extrato financeiro da conta da sessão, inclusive para o ADMIN (o total da plataforma fica em
+// /api/admin/summary): compras, vendas dos produtos dela e lançamentos manuais.
+app.get('/api/finance/entries', authenticate, async (req, res) => {
+  const db = await readDb();
+  res.json(buildFinanceEntries(db, req.user.email));
+});
+
+const FINANCE_ENTRY_TYPES = ['INCOME', 'EXPENSE'];
+
+app.post('/api/finance/entries', authenticate, async (req, res) => {
+  const { title, amount, type } = req.body;
+  const amountValue = Number(amount);
+  if (!title || !String(title).trim() || !Number.isFinite(amountValue) || amountValue <= 0 || !FINANCE_ENTRY_TYPES.includes(type)) {
+    return res.status(400).json({ message: 'Lançamento inválido: informe a descrição, um valor maior que zero e o tipo INCOME ou EXPENSE.' });
+  }
+
+  const db = await readDb();
+  const entry = {
+    id: crypto.randomUUID(),
+    ownerEmail: req.user.email,
+    type,
+    title: cleanText(String(title).trim().slice(0, 120)),
+    amount: amountValue,
+    createdAt: new Date().toISOString()
+  };
+  db.financeEntries.unshift(entry);
+  await writeDb(db);
+  // Responde no mesmo formato do extrato (GET acima), pela mesma função.
+  res.status(201).json(buildFinanceEntries({ financeEntries: [entry] }, req.user.email)[0]);
 });
 
 app.get('/api/admin/summary', authenticate, requireAdmin, async (_, res) => {

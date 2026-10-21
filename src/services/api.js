@@ -54,6 +54,14 @@ export async function loadOrders() {
   return apiRequest('/orders');
 }
 
+export async function loadFinanceEntries() {
+  return apiRequest('/finance/entries');
+}
+
+export async function createFinanceEntry(payload) {
+  return apiRequest('/finance/entries', { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export async function updateStore(payload) {
   return apiRequest('/auth/store', { method: 'PUT', body: JSON.stringify(payload) });
 }
