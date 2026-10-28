@@ -5,7 +5,7 @@
  *   | { type: 'free_shipping', min: number, description: string }} CouponRule
  * @typedef {{ price?: number | string, quantity?: number | string }} CartLine
  * @typedef {{ subtotal: number, discount: number, shipping: number, total: number,
- *   freeShipping: boolean, hasCoupon: boolean }} CartSummary
+ *   freeShipping: boolean, freeShippingBySubtotal: boolean, hasCoupon: boolean }} CartSummary
  */
 
 /** @type {Record<string, CouponRule>} */
@@ -47,7 +47,10 @@ export function validateCouponCode(code, subtotal = 0) {
 export function calculateCartSummary(cart = [], appliedCoupon = null) {
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
   let discount = 0;
-  let freeShipping = subtotal > 800; // RF03: frete grátis acima de R$ 800,00
+  // RF03: frete grátis acima de R$ 800,00. É o que a tela anuncia como "compra acima de R$ 800";
+  // `freeShipping` também liga com o cupom FRETEGRATIS (issue #19).
+  const freeShippingBySubtotal = subtotal > 800;
+  let freeShipping = freeShippingBySubtotal;
 
   if (appliedCoupon && COUPON_RULES[appliedCoupon]) {
     const rule = COUPON_RULES[appliedCoupon];
@@ -73,6 +76,7 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
     shipping,
     total,
     freeShipping,
+    freeShippingBySubtotal,
     hasCoupon: Boolean(appliedCoupon)
   };
 }

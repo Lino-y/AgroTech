@@ -127,7 +127,7 @@ function showToast(message, type = 'info') {
     toast.remove();
   }, 2600);
 }
-
+window.showToast = showToast;
 // --- NAVEGAÇÃO E LÓGICAS ---
 window.navigateTo = function(screen) {
   // Telas que requerem autenticação: compra (carrinho/pagamento), anúncio de produto, e o
@@ -1643,8 +1643,8 @@ function renderCartScreen() {
           <div style="display: flex; justify-content: space-between; font-size: 13px; color: #388E3C;">
             <span>Frete Fazenda</span><span>${totals.shipping === 0 ? '<strong style="color: #2E7D32;">GRÁTIS</strong>' : `R$ ${totals.shipping.toFixed(2)}`}</span>
           </div>
-          ${totals.subtotal < 800 ? `
-            <span style="font-size: 10px; color: #689F38;">Dica: Frete grátis automático em compras a partir de R$ 800,00!</span>
+          ${!totals.freeShippingBySubtotal ? `
+            <span style="font-size: 10px; color: #689F38;">Dica: Frete grátis automático em compras acima de R$ 800,00!</span>
           ` : `
             <span style="font-size: 10px; color: #2E7D32; font-weight: 700;">🎉 Você ganhou frete grátis por compra acima de R$ 800!</span>
           `}
