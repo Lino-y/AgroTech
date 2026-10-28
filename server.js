@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import { getProductCategoryStyle } from './src/services/catalog.js';
 import { calculateCartSummary } from './src/services/commerce.js';
 import { buildFinanceEntries } from './src/services/finance.js';
+import { newOrderId, newProductId, newTrackingCode } from './src/services/ids.js';
 
 dotenv.config();
 
@@ -425,7 +426,7 @@ app.post('/api/products', authenticate, async (req, res) => {
 
   const db = await readDb();
   const product = {
-    id: String(Date.now()),
+    id: newProductId(),
     name: cleanText(name),
     price: priceValue,
     category: cleanText(category),
@@ -544,14 +545,14 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const { total } = calculateCartSummary(orderItems, typeof coupon === 'string' ? coupon.toUpperCase() : null);
 
   const order = {
-    id: `AGT-${Math.floor(10000 + Math.random() * 90000)}`,
+    id: newOrderId(),
     ownerEmail: req.user.email,
     date: 'Hoje',
     // Data real do pedido: o financeiro recorta por mês (o `date` acima é só texto da tela).
     createdAt: new Date().toISOString(),
     status: 'Pedido Confirmado',
     statusStep: 1,
-    trackingCode: `BR-AGRO-${Math.floor(100000 + Math.random() * 900000)}-X`,
+    trackingCode: newTrackingCode(),
     carrier: 'AgroExpress Logística Rural',
     estimatedDelivery: 'Em 3 a 5 dias úteis',
     total,
