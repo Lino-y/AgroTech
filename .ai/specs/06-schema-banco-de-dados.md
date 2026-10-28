@@ -5,7 +5,10 @@
 > primeiro uso, com quatro listas: `users`, `products`, `orders` e
 > `financeEntries` (lançamentos manuais do financeiro:
 > `{ id, ownerEmail, type, title, amount, createdAt }`). O formato atual de cada
-> objeto está no contrato da API (`.ai/specs/05-openapi-spec.md`).
+> objeto está no contrato da API (`.ai/specs/05-openapi-spec.md`). Ids novos
+> (issue #27): anúncio e lançamento em UUID, pedido em `AGT-` com 12
+> hexadecimais aleatórios; registro antigo mantém o id que tinha, sem migração.
+> Pedido novo não grava mais `date` (issue #25): a data real é o `createdAt`.
 
 ```sql
 CREATE TABLE users (

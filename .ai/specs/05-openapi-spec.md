@@ -19,7 +19,7 @@ Regras que valem para todas as rotas:
 openapi: 3.0.0
 info:
   title: AgroTech API
-  version: 1.2.0
+  version: 1.4.0
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -43,7 +43,7 @@ components:
     Product:
       type: object
       properties:
-        id: { type: string }
+        id: { type: string, description: 'UUID; anúncio gravado antes da issue #27 mantém o id que tinha (ex.: "1")' }
         name: { type: string }
         price: { type: number, exclusiveMinimum: 0 }
         category: { type: string }
@@ -66,13 +66,13 @@ components:
     Order:
       type: object
       properties:
-        id: { type: string, example: AGT-12345 }
+        id: { type: string, example: AGT-9F3A2C1B7D4E, description: 'AGT- e 12 hexadecimais aleatórios (48 bits); pedido gravado antes da issue #27 mantém o formato AGT-12345' }
         ownerEmail: { type: string }
-        date: { type: string, description: 'texto exibido na tela de pedidos (ex.: "Hoje")' }
-        createdAt: { type: string, format: date-time, description: 'quando o pedido foi criado; pedido gravado antes da issue #6 não tem' }
+        date: { type: string, description: 'só em pedido gravado antes da issue #25: data legível do seed ("15/Set/2026") ou "Hoje", que não é data real; pedido novo não tem' }
+        createdAt: { type: string, format: date-time, description: 'quando o pedido foi criado; a tela de pedidos mostra em dd/mm/aaaa. Pedido gravado antes da issue #6 não tem' }
         status: { type: string }
         statusStep: { type: integer, minimum: 1, maximum: 4 }
-        trackingCode: { type: string }
+        trackingCode: { type: string, example: BR-AGRO-9F3A2C1B7D4E-X, description: '12 hexadecimais aleatórios (48 bits); pedido antigo mantém o formato BR-AGRO-123456-X' }
         carrier: { type: string }
         estimatedDelivery: { type: string }
         total: { type: number, description: 'calculado no servidor (calculateCartSummary, src/services/commerce.js)' }
