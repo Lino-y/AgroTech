@@ -16,6 +16,37 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+
+// ponytail: Express 4 não captura rejeição de handler async. Sem isto, um erro de banco vira promise
+// rejeitada sem resposta e derruba o processo. Todo handler passa por aqui e o erro vai para o
+// tratador de erro (500). Teto: Express 5 faz isso sozinho; a troca de versão pede pedido explícito.
+const catchAsync = (handler) => (req, res, next) => {
+  try {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  } catch (error) {
+    next(error);
+  }
+};
+for (const method of ['get', 'post', 'put', 'delete']) {
+  const register = app[method].bind(app);
+  app[method] = (route, ...handlers) => (handlers.length ? register(route, ...handlers.map(catchAsync)) : register(route));
+}
+
+// Uma gravação por vez: a rota lê, altera e grava o db.json dentro da mesma vez, sem outra gravação
+// no meio (senão uma perde o que a outra gravou). A vez passa quando a resposta sai ou a conexão cai.
+// GET não entra na fila. Teto: um cliente que nunca termina a requisição trava a fila; um timeout de
+// requisição é o próximo passo se isso acontecer.
+let dbQueue = Promise.resolve();
+app.use((req, res, next) => {
+  if (req.method === 'GET' || !req.path.startsWith('/api')) return next();
+  const previous = dbQueue;
+  let done;
+  dbQueue = new Promise((resolve) => { done = resolve; });
+  res.once('finish', done);
+  res.once('close', done);
+  previous.then(next);
+});
+
 const PORT = Number(process.env.PORT || 3001);
 // Sem JWT_SECRET, segredo aleatório por processo — nunca um valor fixo no código, que está
 // no GitHub e deixaria qualquer um forjar token de admin. Custo: o login cai a cada reinício.
@@ -185,30 +216,11 @@ const normalizeDbUsers = (users = []) => {
 
 async function ensureDbFile() {
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
-
-  try {
-    await fs.access(dataFile);
-  } catch {
-    await fs.writeFile(dataFile, JSON.stringify(defaultDb, null, 2), 'utf8');
-    return;
-  }
-
-  try {
-    const raw = await fs.readFile(dataFile, 'utf8');
-    const parsed = JSON.parse(raw);
-    const normalizedDb = {
-      users: normalizeDbUsers(parsed.users || defaultDb.users),
-      products: parsed.products || defaultDb.products,
-      orders: parsed.orders || defaultDb.orders,
-      financeEntries: parsed.financeEntries || []
-    };
-
-    if (JSON.stringify(normalizedDb) !== raw) {
-      await fs.writeFile(dataFile, JSON.stringify(normalizedDb, null, 2), 'utf8');
-    }
-  } catch {
-    await fs.writeFile(dataFile, JSON.stringify(defaultDb, null, 2), 'utf8');
-  }
+  // Só cria o arquivo quando ele não existe. Nunca regrava um existente: se estiver corrompido, a
+  // leitura falha com erro (500) e o conteúdo fica intacto para conferir.
+  await fs.writeFile(dataFile, JSON.stringify(defaultDb, null, 2), { encoding: 'utf8', flag: 'wx' }).catch((error) => {
+    if (error.code !== 'EEXIST') throw error;
+  });
 }
 
 async function readDb() {
@@ -225,7 +237,11 @@ async function readDb() {
 
 async function writeDb(db) {
   await ensureDbFile();
-  await fs.writeFile(dataFile, JSON.stringify(db, null, 2), 'utf8');
+  // Grava num arquivo temporário e troca de uma vez: quem lê vê o arquivo antigo ou o novo, nunca
+  // um JSON pela metade.
+  const tmp = `${dataFile}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
+  await fs.rename(tmp, dataFile);
 }
 
 // Perfis que o próprio usuário pode escolher no cadastro; ADMIN nunca vem do corpo da requisição.
@@ -620,6 +636,13 @@ app.get('/api/admin/users', authenticate, requireAdmin, async (_, res) => {
 
 app.get('*', (_, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Erro de rota (ex.: db.json ilegível) vira 500 com { message }, sem derrubar o processo.
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  console.error('[agrotech]', error);
+  res.status(500).json({ message: 'Erro ao acessar os dados do servidor.' });
 });
 
 app.listen(PORT, () => {
