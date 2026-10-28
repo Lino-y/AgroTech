@@ -547,8 +547,7 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const order = {
     id: newOrderId(),
     ownerEmail: req.user.email,
-    date: 'Hoje',
-    // Data real do pedido: o financeiro recorta por mês (o `date` acima é só texto da tela).
+    // Data real do pedido: "Meus Pedidos" a mostra em dd/mm/aaaa e o financeiro recorta por mês.
     createdAt: new Date().toISOString(),
     status: 'Pedido Confirmado',
     statusStep: 1,

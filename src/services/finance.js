@@ -23,7 +23,7 @@ const monthKey = (date) => `${date.getFullYear()}-${date.getMonth()}`;
  * @param {Order} order
  * @returns {string | null}
  */
-function orderDate(order) {
+export function orderDate(order) {
   if (order.createdAt) return order.createdAt;
   const match = /^(\d{1,2})\/(\p{L}{3})\/(\d{4})$/u.exec(String(order.date));
   const month = match ? MONTHS.findIndex((name) => name.toLowerCase() === match[2].toLowerCase()) : -1;

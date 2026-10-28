@@ -2,14 +2,16 @@
 import { OrderTracker } from './tracker.js';
 import { syncCatalog } from './catalog-sync.js';
 import { syncFinance } from './finance-sync.js';
+import { syncOrders } from './orders-sync.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
 import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
 import { summarizeFinance } from '../services/finance.js';
+import { formatOrderDate } from '../services/orders.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadFinanceEntries, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
+import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -69,7 +71,8 @@ const state = {
   user: initialUser,
   products: getProducts() || [],
   cart: [],
-  orders: [],
+  // Pedidos da conta, vindos de GET /api/orders ao abrir "Meus Pedidos" (src/modules/orders-sync.js).
+  orders: { list: [], loading: false, error: null },
   appliedCoupon: null,
   coins: 350,
   profileSection: null,
@@ -127,9 +130,9 @@ function showToast(message, type = 'info') {
 
 // --- NAVEGAÇÃO E LÓGICAS ---
 window.navigateTo = function(screen) {
-  // Telas que requerem autenticação: compra (carrinho/pagamento), anúncio de produto e o
-  // financeiro, que mostra o extrato da conta
-  const authRequiredScreens = ['cart', 'payment', 'sell', 'finance'];
+  // Telas que requerem autenticação: compra (carrinho/pagamento), anúncio de produto, e o
+  // financeiro e os pedidos, que mostram dados da conta
+  const authRequiredScreens = ['cart', 'payment', 'sell', 'finance', 'orders'];
 
   // Verifica se o usuário está logado (tem email preenchido)
   const isLoggedIn = state.user && state.user.email && state.user.email.trim() !== '';
@@ -142,8 +145,9 @@ window.navigateTo = function(screen) {
     state.authMode = 'login'; // Por padrão mostra login, usuário pode alternar para registro
   } else {
     state.activeScreen = screen;
-    // Extrato sempre buscado ao abrir a tela: compra aprovada e lançamento novo já aparecem.
+    // Extrato e pedidos sempre buscados ao abrir a tela: compra aprovada e lançamento novo já aparecem.
     if (screen === 'finance') loadFinance();
+    if (screen === 'orders') loadMyOrders();
   }
 
   renderApp();
@@ -760,7 +764,7 @@ window.toggleFavorite = function(productId) {
 };
 
 window.buyAgain = function(orderId) {
-  const order = state.orders.find(o => o.id === orderId);
+  const order = state.orders.list.find(o => o.id === orderId);
   if (!order || !order.items || !order.items.length) {
     showToast('Nenhum item anterior para recomprar.', 'info');
     return;
@@ -852,7 +856,7 @@ window.processPayment = async function(event) {
   const totals = getCartTotals();
 
   try {
-    const newOrder = await createOrder({
+    await createOrder({
       items: state.cart.map(item => ({ ...item })),
       total: totals.total,
       trackingCode: `BR-AGRO-${Math.floor(100000 + Math.random() * 900000)}-X`,
@@ -861,15 +865,13 @@ window.processPayment = async function(event) {
       shipping: totals.shipping
     });
 
-    state.orders.unshift(newOrder);
     state.coins += Math.round(totals.total / 10); // 1 moeda a cada R$ 10
-    // A compra entra no financeiro pelo servidor (GET /api/finance/entries), na próxima abertura da tela.
+    // A compra entra em "Meus Pedidos" e no financeiro pelo servidor, que cada tela busca ao abrir.
 
     showToast(`Pagamento de R$ ${totals.total.toFixed(2)} aprovado!`, 'success');
     state.cart = [];
     state.appliedCoupon = null;
-    state.activeScreen = 'orders';
-    renderApp();
+    window.navigateTo('orders');
   } catch (error) {
     showToast(error.message || 'Não foi possível confirmar o pagamento.', 'error');
   }
@@ -942,13 +944,19 @@ window.sendChatMessage = function(customText) {
   renderApp();
 };
 
+function loadMyOrders() {
+  return syncOrders(state, { load: loadOrders, render: renderApp });
+}
+
+window.retryLoadOrders = loadMyOrders;
+
 window.activeTrackingTimers = window.activeTrackingTimers || {};
 
 window.simulateOrderStep = function(orderId) {
-  const index = state.orders.findIndex(o => o.id === orderId);
+  const index = state.orders.list.findIndex(o => o.id === orderId);
   if (index >= 0) {
-    const updated = orderTracker.advanceOrder(state.orders[index]);
-    state.orders[index] = updated;
+    const updated = orderTracker.advanceOrder(state.orders.list[index]);
+    state.orders.list[index] = updated;
     showToast(`Status atualizado: ${updated.status}`, 'success');
     renderApp();
   }
@@ -965,9 +973,9 @@ window.startOrderLiveTracking = function(orderId) {
 
   showToast(`Iniciando rastreamento dinâmico do pedido ${orderId}...`, 'info');
   window.activeTrackingTimers[orderId] = setInterval(() => {
-    const index = state.orders.findIndex(o => o.id === orderId);
+    const index = state.orders.list.findIndex(o => o.id === orderId);
     if (index >= 0) {
-      const currentOrder = state.orders[index];
+      const currentOrder = state.orders.list[index];
       const step = Number(currentOrder.statusStep || 1);
       if (step >= 4) {
         clearInterval(window.activeTrackingTimers[orderId]);
@@ -977,7 +985,7 @@ window.startOrderLiveTracking = function(orderId) {
         return;
       }
       const updated = orderTracker.advanceOrder(currentOrder);
-      state.orders[index] = updated;
+      state.orders.list[index] = updated;
       showToast(`Pedido ${orderId}: ${updated.status}`, 'success');
       renderApp();
     }
@@ -1047,8 +1055,9 @@ window.handleLogout = function() {
     state.activeScreen = 'catalog';
     state.authMode = 'register';
     state.pendingScreen = null;
-    // O extrato é da conta que saiu: não fica na memória da aba para a próxima.
+    // Extrato e pedidos são da conta que saiu: não ficam na memória da aba para a próxima.
     state.finance = { entries: [], loading: false, error: null };
+    state.orders = { list: [], loading: false, error: null };
     removeUser();
     removeToken();
     renderApp();
@@ -2328,6 +2337,15 @@ function renderSupportScreen() {
   `;
 }
 
+// "Meus Pedidos" carregando ou com erro (com "Tentar novamente"); '' quando a lista chegou.
+// O visual fica em src/styles/ui.css.
+function renderOrdersStatus() {
+  if (state.orders.loading) return '<p class="orders-status">Carregando pedidos...</p>';
+  if (!state.orders.error) return '';
+  return `<p class="orders-status is-error">${state.orders.error}</p>
+    <button class="orders-retry" onclick="retryLoadOrders()">Tentar novamente</button>`;
+}
+
 function renderOrdersScreen() {
   const stagesList = [
     { step: 1, title: 'Pedido Confirmado', desc: 'Pagamento recebido e aprovado' },
@@ -2347,11 +2365,11 @@ function renderOrdersScreen() {
           </div>
         </div>
         <span style="background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;">
-          ${state.orders.length} pedido(s)
+          ${state.orders.list.length} pedido(s)
         </span>
       </div>
 
-      ${state.orders.length === 0 ? `
+      ${renderOrdersStatus() || (state.orders.list.length === 0 ? `
         <div style="background: #FFFFFF; padding: 36px 20px; text-align: center; border-radius: 20px; border: 1px solid #C8E6C9; display: flex; flex-direction: column; align-items: center; gap: 12px;">
           <span style="color: #A5D6A7; display: inline-flex;">${icon('box', 36)}</span>
           <p style="color: #1B5E20; font-size: 15px; font-weight: 700; margin: 0;">Nenhum pedido encontrado</p>
@@ -2360,7 +2378,7 @@ function renderOrdersScreen() {
         </div>
       ` : `
         <div style="display: flex; flex-direction: column; gap: 16px;">
-          ${state.orders.map(order => {
+          ${state.orders.list.map(order => {
             const currentStep = Number(order.statusStep || (order.status.toLowerCase().includes('entregue') ? 4 : order.status.toLowerCase().includes('transporte') || order.status.toLowerCase().includes('saiu') ? 3 : order.status.toLowerCase().includes('separação') ? 2 : 1));
             const isLive = Boolean(window.activeTrackingTimers && window.activeTrackingTimers[order.id]);
 
@@ -2378,7 +2396,7 @@ function renderOrdersScreen() {
                         </span>
                       ` : ''}
                     </div>
-                    <span style="font-size: 11px; color: #388E3C; margin-top: 2px; display: block;">Data: ${order.date || 'Hoje'}</span>
+                    <span style="font-size: 11px; color: #388E3C; margin-top: 2px; display: block;">Data: ${formatOrderDate(order)}</span>
                   </div>
                   <div style="text-align: right;">
                     <span style="font-size: 15px; font-weight: 800; color: #2E7D32;">R$ ${Number(order.total || 0).toFixed(2)}</span>
@@ -2469,7 +2487,7 @@ function renderOrdersScreen() {
             `;
           }).join('')}
         </div>
-      `}
+      `)}
     </div>
   `;
 }
