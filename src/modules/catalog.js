@@ -124,7 +124,7 @@ function showToast(message, type = 'info') {
     toast.remove();
   }, 2600);
 }
-
+window.showToast = showToast;
 // --- NAVEGAÇÃO E LÓGICAS ---
 window.navigateTo = function(screen) {
   // Telas que requerem autenticação: compra (carrinho/pagamento), anúncio de produto e o
