@@ -64,7 +64,7 @@ export class CartEngine {
   calculateTotals() {
     const subtotal = this.cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
     let discount = 0;
-    let freeShipping = subtotal >= 800;
+    let freeShipping = subtotal > 800; // RF03: frete grátis acima de R$ 800,00
     let couponApplied = null;
 
     if (this.appliedCoupon) {
