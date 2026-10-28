@@ -7,21 +7,21 @@
 
 ## 1. Dor do usuário
 
-A tela financeira soma tudo em memória (`state.finance`, `src/modules/catalog.js:78`):
+A tela financeira soma tudo em memória (`state.finance`, `src/modules/catalog.js:81`):
 recarregar a página zera o saldo e o extrato, embora os pedidos estejam gravados no
 `db.json`. E os números não batem entre si: a compra entra duas vezes no gráfico, pelo
-pedido (`src/modules/catalog.js:121`) e pelo lançamento local (`src/modules/catalog.js:128`),
-mas só uma vez no card de saídas (`src/modules/catalog.js:918`).
+pedido (`src/modules/catalog.js:124`) e pelo lançamento local (`src/modules/catalog.js:131`),
+mas só uma vez no card de saídas (`src/modules/catalog.js:920`).
 
 ## 2. Critérios de aceite (rastreáveis)
 
 | ID | Critério | Como verificar | Status | Evidência |
 |----|----------|-----------------|--------|-----------|
-| CA01 | Compra aprovada aparece no histórico financeiro | teste de API: o pedido criado aparece em `GET /api/finance/entries` do comprador (saída) e do vendedor (entrada); navegador | ✅ | pedido grava `createdAt` (`server.js:551`); extrato em `server.js:574` pela regra de `src/services/finance.js:42`; tela busca ao abrir (`src/modules/catalog.js:146`); teste `tests/finance.test.js:222` |
-| CA02 | Recarregar não apaga lançamentos válidos | teste de API: lançamento manual continua no GET depois de outra gravação no banco; navegador: recarregar a página e reabrir o financeiro | ✅ | lançamento manual gravado (`server.js:581`, pela tela em `src/modules/catalog.js:908`); `readDb` e `ensureDbFile` preservam a lista (`server.js:222`, `server.js:203`); teste `tests/finance.test.js:243` |
-| CA03 | Totais e gráfico usam a mesma fonte | teste unitário: a soma das barras é o total dos cards em cada período | ✅ | totais somados das barras em `src/services/finance.js:74`; tela usa um resumo só (`src/modules/catalog.js:1790`, gráfico em `src/modules/catalog.js:1824`); teste `tests/finance.test.js:60` |
-| CA04 | Filtros por período e tipo mantêm totais coerentes | teste unitário: o período recorta cards, gráfico e extrato; o tipo recorta o extrato, que soma o card do mesmo tipo | ✅ | filtros em `src/services/finance.js:74`; chips em `src/modules/catalog.js:1771`; teste `tests/finance.test.js:60` |
-| CA05 | Usuários não acessam lançamentos de outra conta | teste de API: terceiro recebe `[]`, lançamento manual só volta para o dono, 401 sem token; teste da carga: resposta atrasada de outra sessão não sobrescreve o extrato | ✅ | filtro por e-mail da sessão em `src/services/finance.js:42` (`server.js:574`); tela exige login (`src/modules/catalog.js:132`), carga isolada (`src/modules/finance-sync.js:12`), sair limpa o extrato (`src/modules/catalog.js:1051`); testes `tests/finance.test.js:222`, `tests/finance.test.js:243`, `tests/finance.test.js:148` |
+| CA01 | Compra aprovada aparece no histórico financeiro | teste de API: o pedido criado aparece em `GET /api/finance/entries` do comprador (saída) e do vendedor (entrada); navegador | ✅ | pedido grava `createdAt` (`server.js:551`); extrato em `server.js:574` pela regra de `src/services/finance.js:42`; tela busca ao abrir (`src/modules/catalog.js:149`); teste `tests/finance.test.js:222` |
+| CA02 | Recarregar não apaga lançamentos válidos | teste de API: lançamento manual continua no GET depois de outra gravação no banco; navegador: recarregar a página e reabrir o financeiro | ✅ | lançamento manual gravado (`server.js:581`, pela tela em `src/modules/catalog.js:910`); `readDb` e `ensureDbFile` preservam a lista (`server.js:222`, `server.js:203`); teste `tests/finance.test.js:243` |
+| CA03 | Totais e gráfico usam a mesma fonte | teste unitário: a soma das barras é o total dos cards em cada período | ✅ | totais somados das barras em `src/services/finance.js:74`; tela usa um resumo só (`src/modules/catalog.js:1799`, gráfico em `src/modules/catalog.js:1833`); teste `tests/finance.test.js:60` |
+| CA04 | Filtros por período e tipo mantêm totais coerentes | teste unitário: o período recorta cards, gráfico e extrato; o tipo recorta o extrato, que soma o card do mesmo tipo | ✅ | filtros em `src/services/finance.js:74`; chips em `src/modules/catalog.js:1780`; teste `tests/finance.test.js:60` |
+| CA05 | Usuários não acessam lançamentos de outra conta | teste de API: terceiro recebe `[]`, lançamento manual só volta para o dono, 401 sem token; teste da carga: resposta atrasada de outra sessão não sobrescreve o extrato | ✅ | filtro por e-mail da sessão em `src/services/finance.js:42` (`server.js:574`); tela exige login (`src/modules/catalog.js:135`), carga isolada (`src/modules/finance-sync.js:12`), sair limpa o extrato (`src/modules/catalog.js:1059`); testes `tests/finance.test.js:222`, `tests/finance.test.js:243`, `tests/finance.test.js:148` |
 | CA06 | Testes cobrem vazio, receita e filtro | `tests/finance.test.js` | ✅ | vazio `tests/finance.test.js:23`, receita `tests/finance.test.js:35`, filtro `tests/finance.test.js:60` |
 
 Status: ✅ feito · 🟡 parcial · ⚠️ divergente · 🔴 não feito.
@@ -75,50 +75,50 @@ Status: ✅ feito · 🟡 parcial · ⚠️ divergente · 🔴 não feito.
   memória: cards, gráfico, extrato e o card "Compras na AgroTech" saem de
   `summarizeFinance` sobre a mesma lista, e os totais são a soma das barras do gráfico.
   Motivo: hoje são duas fontes (`state.finance` e `state.orders`) que divergem.
-  Ref: `src/modules/catalog.js:121`, `src/modules/catalog.js:128`,
-  `src/modules/catalog.js:1841`.
+  Ref: `src/modules/catalog.js:124`, `src/modules/catalog.js:131`,
+  `src/modules/catalog.js:1850`.
 - **Receita (entrada) = venda.** Item de pedido de outra conta cujo produto é da conta
   (cada item guarda a cópia do produto, com `ownerEmail`), pelo valor bruto
   preço × quantidade, mais o lançamento manual "Venda (Entrada)". Comprar o próprio
   produto não vira venda. Motivo: a tela chama a entrada de "Vendas (Entradas)" e o
   formulário de "Venda (Entrada)"; o RF01 separa Comprador de Vendedor; e qualquer conta
   pode anunciar. Teto: cupom e frete são do pedido e não descontam da receita do vendedor.
-  Ref: `src/modules/catalog.js:1854`, `src/modules/catalog.js:1883`,
+  Ref: `src/modules/catalog.js:1863`, `src/modules/catalog.js:1892`,
   `.ai/specs/02-requisitos-funcionais.md:3`, `server.js:538`, `server.js:398`.
 - **Despesa (saída) = compra da conta**, pelo total que o servidor calculou, mais a saída
   manual. Ref: `server.js:539`.
 - **Lançamento manual passa a ser gravado no servidor.** Hoje ele vive só em memória e
-  some ao recarregar, o que fere o CA02. Ref: `src/modules/catalog.js:958`.
+  some ao recarregar, o que fere o CA02. Ref: `src/modules/catalog.js:966`.
 - **Data do lançamento.** `createdAt` no pedido novo e no lançamento manual. Pedido
   antigo usa a data legível do seed ("15/Set/2026", mesma leitura de `parseOrderDate`).
   Pedido antigo gravado com "Hoje" não tem data real: fica fora do financeiro (só existe
   em banco local de desenvolvimento). Ref: `server.js:544`, `server.js:118`,
-  `src/modules/catalog.js:141`.
+  `src/modules/catalog.js:144`.
 - **Filtros.** Período: mês atual, 3 meses ou 6 meses (padrão 6, a janela que o gráfico
   já mostra). Tipo: Todas, Entradas, Saídas (os chips que já existem). O período recorta
   tudo; o tipo recorta só o extrato, para o saldo continuar sendo saldo. Só conta o
   lançamento cujo mês está no gráfico, então barras e cards batem por construção. Ficou
   de fora um período "tudo": janela maior que 6 meses pede gráfico com escala dinâmica.
-  Ref: `src/modules/catalog.js:108`, `src/modules/catalog.js:1835`,
-  `src/modules/catalog.js:1899`.
+  Ref: `src/modules/catalog.js:111`, `src/modules/catalog.js:1844`,
+  `src/modules/catalog.js:1908`.
 - **Isolamento.** O GET devolve só a conta da sessão, inclusive para o ADMIN: o total da
   plataforma já existe em `GET /api/admin/summary`. Na tela, o financeiro passa a exigir
   login (a mensagem já existe em `pendingScreenNames`), cada carga começa com o extrato
   vazio e uma resposta atrasada de carga anterior não sobrescreve a atual; sair da conta
-  limpa o extrato. Ref: `server.js:523`, `server.js:565`, `src/modules/catalog.js:186`,
-  `src/modules/catalog.js:1188`, `src/modules/catalog.js:1109`.
+  limpa o extrato. Ref: `server.js:523`, `server.js:565`, `src/modules/catalog.js:190`,
+  `src/modules/catalog.js:1197`, `src/modules/catalog.js:1118`.
 - **Carga na tela.** O extrato é buscado ao abrir a tela, sem cache, então compra aprovada
   e lançamento novo aparecem na abertura seguinte. Login com tela pendente passa por
-  `navigateTo`, para carregar também. Ref: `src/modules/catalog.js:184`,
-  `src/modules/catalog.js:1098`.
+  `navigateTo`, para carregar também. Ref: `src/modules/catalog.js:188`,
+  `src/modules/catalog.js:1107`.
 - **Estado no front.** `state.finance` vira `{ entries, loading, error }` e entra
   `state.financePeriod`. Saem `syncFinanceChartData`, `parseOrderDate` e o lançamento
-  local da compra. Ref: `src/modules/catalog.js:102`, `src/modules/catalog.js:141`,
-  `src/modules/catalog.js:181`, `src/modules/catalog.js:918`.
+  local da compra. Ref: `src/modules/catalog.js:105`, `src/modules/catalog.js:144`,
+  `src/modules/catalog.js:185`, `src/modules/catalog.js:920`.
 - **Estilo.** Os chips de período e de tipo usam uma classe com tokens em
   `src/styles/ui.css` (RNF01), sem cor hex nova. Os de tipo saem do estilo inline, o que
   também tira 9 ternários de `renderFinanceScreen`, já no limite do lint.
-  Ref: `src/styles/ui.css:1`, `src/modules/catalog.js:1899`.
+  Ref: `src/styles/ui.css:1`, `src/modules/catalog.js:1908`.
 - **Gráfico sem mudança.** `renderFinanceChart` já recebe `{ month, income, expense }`.
   Ref: `src/components/FinanceChart.js:7`.
 
@@ -128,16 +128,15 @@ Status: ✅ feito · 🟡 parcial · ⚠️ divergente · 🔴 não feito.
 - [x] `createdAt` no pedido novo e lista `financeEntries` preservada pelo banco: `server.js:551`, `server.js:203`, `server.js:222` (`tests/finance.test.js:243`).
 - [x] `buildFinanceEntries` e `summarizeFinance`: `src/services/finance.js:42`, `src/services/finance.js:74` (`tests/finance.test.js:35`, `tests/finance.test.js:60`, `tests/finance.test.js:100`).
 - [x] `syncFinance`: `src/modules/finance-sync.js:12` (`tests/finance.test.js:125`, `tests/finance.test.js:148`).
-- [x] Tela financeira lendo o extrato do servidor, com filtro de período e de tipo: `src/modules/catalog.js:1790`, chips com tokens em `src/styles/ui.css:218` (conferido no Chrome headless; funções da API em `src/services/api.js:57`, `tests/finance.test.js:158`).
+- [x] Tela financeira lendo o extrato do servidor, com filtro de período e de tipo: `src/modules/catalog.js:1799`, chips com tokens em `src/styles/ui.css:219` (conferido no Chrome headless; funções da API em `src/services/api.js:57`, `tests/finance.test.js:158`).
 - [x] Testes: `tests/finance.test.js:23` a `tests/finance.test.js:260`.
 - [x] Contrato em `.ai/specs/05-openapi-spec.md`, lista nova em `.ai/specs/06-schema-banco-de-dados.md:5` e linha RF01 em `.ai/specs/07-tasklist-desenvolvimento.md:14`.
 
 ## 6. Nice to have
 
 - [ ] Período "tudo" ou 12 meses, com gráfico de escala dinâmica.
-- [ ] "Meus Pedidos" carregado do servidor ao abrir o app (ver seção 8).
-- [ ] Data legível do pedido na tela de pedidos a partir de `createdAt` (hoje mostra
-  "Hoje" para sempre).
+- [x] "Meus Pedidos" carregado do servidor ao abrir a tela, na issue #25 (`src/modules/orders-sync.js:12`, `tests/orders.test.js:50`).
+- [x] Data legível do pedido a partir de `createdAt`, na issue #25 (`src/services/orders.js:11`, `tests/orders.test.js:36`).
 
 ## 7. Fonte de verdade em caso de divergência
 
@@ -155,7 +154,7 @@ na seção abaixo, nunca é resolvida em silêncio.
   produto.
 - `loadOrders` (`src/services/api.js:53`) nunca é chamado: "Meus Pedidos" só mostra os
   pedidos da sessão e esvazia ao recarregar. Fora do escopo; o card "Compras na AgroTech"
-  do financeiro passa a vir do extrato, e não de `state.orders`.
+  do financeiro passa a vir do extrato, e não de `state.orders`. Resolvido na #25 (`src/modules/orders-sync.js:12`).
 - Referências de linha de `catalog.js` em `docs/agents/architecture.md` e na tasklist já
   estavam defasadas antes desta mudança (ex.: `renderApp` citado na linha 2187, que hoje
   está na 2517).
