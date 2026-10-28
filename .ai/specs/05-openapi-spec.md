@@ -7,6 +7,7 @@ arquivo no mesmo PR (`docs/agents/architecture.md`).
 Regras que valem para todas as rotas:
 
 - Erro sempre como `{ "message": string }` com o status HTTP correspondente.
+- Falha de leitura ou gravação do `db.json` (ex.: arquivo corrompido) responde `500` com `{ "message": string }` em qualquer rota. O servidor não cai; o arquivo não é regravado (issue #39).
 - Autenticação por `Authorization: Bearer <JWT>` (validade de 7 dias, payload
   `{ sub, email, role }`). Token ausente ou inválido: 401. Perfil sem
   permissão: 403.
