@@ -48,9 +48,9 @@ referencial `mais-frota/apps/mobile-driver`.
 
 ## 5. Must have
 
-- [x] Cliente HTTP centralizado com token e timeout (`apps/mobile-spike/app/services/api.ts:30`) — testes `session.test.ts:26` e `:119`
-- [x] 401/403 encerra sessão local (`apps/mobile-spike/app/services/api.ts:55` + `apps/mobile-spike/app/services/storage.ts:37`) — testes `session.test.ts:65` e `:88`
-- [x] Storage de sessão isolado (`apps/mobile-spike/app/services/storage.ts:18`) — teste `session.test.ts:136`
+- [x] Cliente HTTP centralizado com token e timeout (`apps/mobile-spike/app/services/api.ts:30`) — testes `apps/mobile-spike/__tests__/session.test.ts:26` e `:119`
+- [x] 401/403 encerra sessão local (`apps/mobile-spike/app/services/api.ts:55` + `apps/mobile-spike/app/services/storage.ts:37`) — testes `apps/mobile-spike/__tests__/session.test.ts:65` e `:88`
+- [x] Storage de sessão isolado (`apps/mobile-spike/app/services/storage.ts:18`) — teste `apps/mobile-spike/__tests__/session.test.ts:136`
 - [x] Tela autenticada mínima (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`) consumindo `/api/auth/me` via `apps/mobile-spike/app/services/api.ts:73`
 - [x] Teste de sessão expirada (`apps/mobile-spike/__tests__/session.test.ts:65`)
 - [x] Decisão registrada na ADR-0001 (`docs/adr/0001-migracao-para-react-native.md:145` — seguir)
