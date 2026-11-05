@@ -152,21 +152,23 @@ entram após a aprovação). O que foi construído em `apps/mobile-spike/`, com
 TypeScript estrito (`apps/mobile-spike/tsconfig.json`) e testes nativos do
 Node (`node --experimental-strip-types --test`):
 
-- **API service centralizado** (`apps/mobile-spike/app/services/api.ts`):
+- **API service centralizado** (`apps/mobile-spike/app/services/api.ts:30`):
   anexa `Bearer` da sessão, timeout via `AbortController` nativo, erro tipado
-  (`ApiError`) e 401/403 chamam `clearSession` — espelha o padrão já provado
-  na web (`src/services/api.js:3`).
-- **Storage service** (`apps/mobile-spike/app/services/storage.ts`): sessão
-  isolada por trás de `setSecureStore`; token usa armazenamento seguro quando
-  disponível, fallback em memória para testes. Logout limpa memória e store.
-- **Tela autenticada mínima** (`apps/mobile-spike/app/screens/HomeScreen.tsx`):
-  consome `/api/auth/me` (`server.js:384`) sem acessar `fetch` nem storage
-  diretamente — a tela só reflete estados.
+  (`ApiError`, `api.ts:12`) e 401/403 chamam `clearSession` (`api.ts:55`) —
+  espelha o padrão já provado na web (`src/services/api.js:3`).
+- **Storage service** (`apps/mobile-spike/app/services/storage.ts:22`): sessão
+  isolada por trás de `setSecureStore` (`storage.ts:18`); token usa
+  armazenamento seguro quando disponível, fallback em memória para testes.
+  Logout limpa memória e store (`storage.ts:37`).
+- **Tela autenticada mínima** (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`):
+  consome `/api/auth/me` (`server.js:384`, via `api.ts:73`) sem acessar `fetch`
+  nem storage diretamente — a tela só reflete estados.
 - **Testes de sessão expirada e offline**
-  (`apps/mobile-spike/__tests__/session.test.ts`): token anexado, 401/403
-  encerram a sessão local, falha de rede preserva a sessão com erro tipado em
-  português (mesma regra da web, `src/services/api.js:11`) e timeout vira erro
-  de conexão.
+  (`apps/mobile-spike/__tests__/session.test.ts:26`): token anexado, 401/403
+  encerram a sessão local (`session.test.ts:65`, `:88`), falha de rede preserva
+  a sessão com erro tipado em português (`session.test.ts:101`; mesma regra da
+  web, `src/services/api.js:11`) e timeout vira erro de conexão
+  (`session.test.ts:119`).
 - **Política offline** (seção acima): nenhuma ação financeira no spike;
   catálogo/carrinho ficam para as Fases 1–3 com revalidação obrigatória.
 

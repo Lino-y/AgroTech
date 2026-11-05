@@ -15,11 +15,11 @@ referencial `mais-frota/apps/mobile-driver`.
 | ID | Critério | Como verificar | Status | Evidência |
 |----|----------|-----------------|--------|-----------|
 | CA01 | Spike executa em Android e iOS | `expo run:android\|ios` | 🟡 | Código pronto para Expo (`apps/mobile-spike/app/index.tsx`), mas instalar Expo antes do gate da ADR-0001 fere o próprio gate; build fica para a Fase 1 |
-| CA02 | Token é anexado e removido corretamente | teste do serviço | ✅ | `apps/mobile-spike/__tests__/session.test.ts` — "anexa o token..." e "401 encerra..." |
-| CA03 | 401 encerra a sessão local | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts` (401/403 → `clearSession`) + teste |
-| CA04 | TypeScript estrito e testes passam | `tsc -p` + `node --test` | ✅ | `apps/mobile-spike/tsconfig.json` (`strict`); 7/7 testes verdes |
-| CA05 | ADR registra seguir, ajustar ou cancelar | seção na ADR | ✅ | `docs/adr/0001-migracao-para-react-native.md` — "Resultado do spike": **seguir** |
-| CA06 | Política offline respeita a spec 08 | tabela da ADR | ✅ | Nenhuma ação financeira no spike; falha de rede preserva sessão com erro tipado (teste "sem rede...") |
+| CA02 | Token é anexado e removido corretamente | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:35` (Bearer) e `apps/mobile-spike/app/services/storage.ts:37` (clearSession) — teste: `apps/mobile-spike/__tests__/session.test.ts:26` |
+| CA03 | 401 encerra a sessão local | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:55` (401/403 → `clearSession`) — teste: `apps/mobile-spike/__tests__/session.test.ts:65` |
+| CA04 | TypeScript estrito e testes passam | `tsc -p` + `node --test` | ✅ | `apps/mobile-spike/tsconfig.json:5` (`"strict": true`); 7/7 testes verdes em `apps/mobile-spike/__tests__/session.test.ts:26-136` |
+| CA05 | ADR registra seguir, ajustar ou cancelar | seção na ADR | ✅ | `docs/adr/0001-migracao-para-react-native.md:145` — "Resultado do spike": **seguir** |
+| CA06 | Política offline respeita a spec 08 | tabela da ADR | ✅ | Nenhuma ação financeira no spike; falha de rede preserva sessão com erro tipado — teste `apps/mobile-spike/__tests__/session.test.ts:101` |
 
 ## 3. Contratos (antes do código)
 
@@ -48,13 +48,13 @@ referencial `mais-frota/apps/mobile-driver`.
 
 ## 5. Must have
 
-- [x] Cliente HTTP centralizado com token e timeout (`api.ts`) — teste: "anexa o token", "timeout aborta"
-- [x] 401/403 encerra sessão local (`api.ts` + `storage.ts`) — teste: "401 encerra", "403 também"
-- [x] Storage de sessão isolado (`storage.ts`) — teste: "storage: set/get/clear"
-- [x] Tela autenticada mínima (`HomeScreen.tsx`) consumindo `/api/auth/me`
-- [x] Teste de sessão expirada (`__tests__/session.test.ts`)
-- [x] Decisão registrada na ADR-0001 ("Resultado do spike": seguir)
-- [x] Status RN01–RN08 atualizado na spec 08
+- [x] Cliente HTTP centralizado com token e timeout (`apps/mobile-spike/app/services/api.ts:30`) — testes `session.test.ts:26` e `:119`
+- [x] 401/403 encerra sessão local (`apps/mobile-spike/app/services/api.ts:55` + `apps/mobile-spike/app/services/storage.ts:37`) — testes `session.test.ts:65` e `:88`
+- [x] Storage de sessão isolado (`apps/mobile-spike/app/services/storage.ts:18`) — teste `session.test.ts:136`
+- [x] Tela autenticada mínima (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`) consumindo `/api/auth/me` via `apps/mobile-spike/app/services/api.ts:73`
+- [x] Teste de sessão expirada (`apps/mobile-spike/__tests__/session.test.ts:65`)
+- [x] Decisão registrada na ADR-0001 (`docs/adr/0001-migracao-para-react-native.md:145` — seguir)
+- [x] Status RN01–RN08 atualizado na spec 08 (`.ai/specs/08-migracao-react-native.md:99-108`)
 
 ## 6. Nice to have
 
