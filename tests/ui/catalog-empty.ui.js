@@ -46,3 +46,62 @@ test('busca: o contador continua certo depois de a tela ser redesenhada', { skip
   assert.deepEqual(page.errors, []);
   await page.close();
 });
+
+// Mensagem de vazio da grade: 'catalog' (sem anúncio publicado), 'search' (busca sem resultado) ou
+// null. O botão de anunciar fica dentro dela, só para quem entrou.
+const EMPTY_KIND = "document.querySelector('[data-empty]')?.dataset.empty ?? null";
+const EMPTY_BUTTON = "document.querySelector('[data-empty] button')?.textContent.trim() ?? null";
+const TEXT = "document.querySelector('#main-content').innerText";
+const SUBMIT = "document.querySelector('#main-content form button[type=\"submit\"]').click()";
+
+test('catálogo sem anúncio mostra mensagem própria, sem o aviso de busca e sem botão para quem não entrou', { skip: skipReason }, async () => {
+  const page = await app.open({ products: { body: [] } });
+  const text = await page.evaluate(TEXT);
+  assert.match(text, /Nenhum anúncio publicado ainda/);
+  assert.doesNotMatch(text, /Nenhum anúncio encontrado/);
+  assert.equal(await page.evaluate(EMPTY_KIND), 'catalog');
+  assert.equal(await page.evaluate(EMPTY_BUTTON), null);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+test('quem entrou vê no catálogo vazio o botão para anunciar, que abre a tela de anúncio', { skip: skipReason }, async () => {
+  const page = await app.open({ products: { body: [] } });
+  await page.evaluate("navigateTo('sell')"); // sem login, leva ao login
+  await page.evaluate(`document.getElementById('loginEmail').value = 'demo@agrotech.com.br';
+    document.getElementById('loginPassword').value = 'demo123';
+    ${SUBMIT}`);
+  await page.waitFor("state.user && state.user.email === 'demo@agrotech.com.br'");
+  await page.evaluate("navigateTo('catalog')");
+  assert.equal(await page.evaluate(EMPTY_BUTTON), '+ Anunciar Meu Lote');
+  await page.evaluate("document.querySelector('[data-empty] button').click()");
+  assert.equal(await page.evaluate('state.activeScreen'), 'sell');
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+test('busca sem resultado mostra a mensagem de busca, e apagar o termo volta os cartões', { skip: skipReason }, async () => {
+  const page = await app.open({ products: { body: CATALOG } });
+  await type(page, 'xyz');
+  assert.equal(await page.evaluate(EMPTY_KIND), 'search');
+  const text = await page.evaluate(TEXT);
+  assert.match(text, /Nenhum anúncio encontrado/);
+  assert.doesNotMatch(text, /Nenhum anúncio publicado ainda/);
+  assert.equal(await page.evaluate(SHOWN), 0);
+  assert.equal(await page.evaluate(EMPTY_BUTTON), null);
+
+  await type(page, '');
+  assert.equal(await page.evaluate(EMPTY_KIND), null);
+  assert.equal(await page.evaluate(SHOWN), 3);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+test('falha da API não diz que o catálogo está vazio: mostra o erro', { skip: skipReason }, async () => {
+  const page = await app.open({ products: { status: 500, body: { message: 'Banco de dados indisponível' } } });
+  const text = await page.evaluate(TEXT);
+  assert.match(text, /Banco de dados indisponível/);
+  assert.doesNotMatch(text, /Nenhum anúncio publicado ainda|Nenhum anúncio encontrado/);
+  assert.equal(await page.evaluate(EMPTY_KIND), null);
+  await page.close();
+});

@@ -9,7 +9,8 @@ import { summarizeFinance } from '../services/finance.js';
 import { formatOrderDate } from '../services/orders.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
-import { filterCatalogProducts } from '../services/catalog-view.js';
+import { catalogEmptyKind, filterCatalogProducts } from '../services/catalog-view.js';
+import { renderCatalogEmptyState } from '../components/CatalogEmptyState.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
 import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
@@ -169,6 +170,18 @@ function catalogCountLabel(count) {
   return `${count} anúncios ativos`;
 }
 
+// Cartões da grade ou a mensagem de vazio (catálogo sem anúncio ou busca sem resultado).
+function renderCatalogList(visible) {
+  const kind = catalogEmptyKind({
+    total: state.products.length,
+    visible: visible.length,
+    loading: state.loadingProducts,
+    failed: Boolean(state.productsError)
+  });
+  if (kind) return renderCatalogEmptyState(kind, Boolean(state.user && state.user.email && state.user.email.trim() !== ''));
+  return visible.map(renderCatalogCard).join('');
+}
+
 window.applySearchFilter = function() {
   const input = document.getElementById('searchInput');
   if (!input) return;
@@ -176,7 +189,7 @@ window.applySearchFilter = function() {
   const visible = filterCatalogProducts(state.products, state.selectedCategory, state.searchTerm);
   // ponytail: refaz a grade inteira a cada tecla (sem re-render da tela); ok para catálogo pequeno
   document.getElementById('catalogCount').textContent = catalogCountLabel(visible.length);
-  document.getElementById('productList').innerHTML = visible.map(renderCatalogCard).join('');
+  document.getElementById('productList').innerHTML = renderCatalogList(visible);
 };
 
 window.openProductDetail = function(productId) {
@@ -1291,7 +1304,7 @@ function renderCatalogScreen() {
       ` : ''}
 
       <div id="productList" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-        ${filtered.map(renderCatalogCard).join('')}
+        ${renderCatalogList(filtered)}
       </div>
     </div>
 

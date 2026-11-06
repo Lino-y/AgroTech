@@ -2,7 +2,7 @@
 // contador de src/services/catalog-view.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterCatalogProducts } from '../src/services/catalog-view.js';
+import { catalogEmptyKind, filterCatalogProducts } from '../src/services/catalog-view.js';
 
 const products = [
   { name: 'Semente de Soja', category: 'Sementes' },
@@ -31,4 +31,15 @@ test('termo sem resultado devolve lista vazia', () => {
 
 test('categoria que não existe mais mostra tudo, como a tela já fazia', () => {
   assert.equal(filterCatalogProducts(products, 'Ferramentas', '').length, 4);
+});
+
+test('sem anúncio publicado a mensagem é a de catálogo vazio; com anúncios e nenhum visível, a de busca', () => {
+  assert.equal(catalogEmptyKind({ total: 0, visible: 0, loading: false, failed: false }), 'catalog');
+  assert.equal(catalogEmptyKind({ total: 4, visible: 0, loading: false, failed: false }), 'search');
+  assert.equal(catalogEmptyKind({ total: 4, visible: 2, loading: false, failed: false }), null);
+});
+
+test('enquanto carrega ou com falha na API, não diz que não há anúncio', () => {
+  assert.equal(catalogEmptyKind({ total: 0, visible: 0, loading: true, failed: false }), null);
+  assert.equal(catalogEmptyKind({ total: 0, visible: 0, loading: false, failed: true }), null);
 });
