@@ -1,4 +1,4 @@
-import { COUPON_RULES } from '../services/commerce.js';
+import { COUPON_RULES, calculateCartSummary, validateCouponCode } from '../services/commerce.js';
 
 export class CartEngine {
   constructor(initialCart = []) {
@@ -62,30 +62,18 @@ export class CartEngine {
   }
 
   calculateTotals() {
-    const subtotal = this.cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
-    let discount = 0;
-    let freeShipping = subtotal > 800; // RF03: frete grátis acima de R$ 800,00
-    let couponApplied = null;
-
-    if (this.appliedCoupon) {
-      const c = this.coupons[this.appliedCoupon];
-      if (c && subtotal >= c.min) {
-        couponApplied = this.appliedCoupon;
-        if (c.type === 'percent') discount = subtotal * c.value;
-        if (c.type === 'fixed') discount = Math.min(subtotal, c.value);
-        if (c.type === 'free_shipping') freeShipping = true;
-      }
-    }
-
-    const shipping = freeShipping || subtotal === 0 ? 0 : 35.00;
-    const total = Math.max(0, subtotal - discount) + shipping;
+    // Regra de frete e cupom mora só em calculateCartSummary (issue #43). O cupom só entra se
+    // validateCouponCode aceita no subtotal atual; senão o resumo sai sem desconto.
+    const subtotal = calculateCartSummary(this.cart).subtotal;
+    const { valid, coupon } = validateCouponCode(this.appliedCoupon, subtotal);
+    const summary = calculateCartSummary(this.cart, valid ? coupon : null);
     return {
-      subtotal,
-      discount,
-      shipping,
-      total,
-      freeShipping,
-      appliedCoupon: couponApplied
+      subtotal: summary.subtotal,
+      discount: summary.discount,
+      shipping: summary.shipping,
+      total: summary.total,
+      freeShipping: summary.freeShipping,
+      appliedCoupon: valid ? coupon : null
     };
   }
 }
