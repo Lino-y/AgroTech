@@ -16,7 +16,7 @@ referencial `mais-frota/apps/mobile-driver`.
 |----|----------|-----------------|--------|-----------|
 | CA01 | Spike executa em Android e iOS | `expo run:android\|ios` | 🟡 | Código pronto para Expo (`apps/mobile-spike/app/index.tsx`), mas instalar Expo antes do gate da ADR-0001 fere o próprio gate; build fica para a Fase 1 |
 | CA02 | Token é anexado e removido corretamente | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:35` (Bearer) e `apps/mobile-spike/app/services/storage.ts:37` (clearSession) — teste: `apps/mobile-spike/__tests__/session.test.ts:26` |
-| CA03 | 401 encerra a sessão local | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:55` (401/403 → `clearSession`) — teste: `apps/mobile-spike/__tests__/session.test.ts:65` |
+| CA03 | 401 encerra a sessão local | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:55` (401/403 → `clearSession`) — teste: `apps/mobile-spike/__tests__/session.test.ts:65` — revisão: falha de rede NÃO desloga (`session.test.ts:119`) |
 | CA04 | TypeScript estrito e testes passam | `tsc -p` + `node --test` | ✅ | `apps/mobile-spike/tsconfig.json:5` (`"strict": true`); 7/7 testes verdes em `apps/mobile-spike/__tests__/session.test.ts:26-136` |
 | CA05 | ADR registra seguir, ajustar ou cancelar | seção na ADR | ✅ | `docs/adr/0001-migracao-para-react-native.md:145` — "Resultado do spike": **seguir** |
 | CA06 | Política offline respeita a spec 08 | tabela da ADR | ✅ | Nenhuma ação financeira no spike; falha de rede preserva sessão com erro tipado — teste `apps/mobile-spike/__tests__/session.test.ts:101` |
@@ -71,3 +71,8 @@ resolvido em silêncio.
 
 - CORS aberto no `server.js:317` aceitará o cliente nativo sem restrição;
   sinalizado na ADR como risco para a Fase 4 (rollout).
+- **Revisão (spec-code-review):** a `HomeScreen.tsx` limpava a sessão em
+  qualquer erro, incluindo falha de rede — contrariava a política offline
+  (ADR: "falha de rede preserva a sessão") e o próprio teste. Corrigido:
+  só `ApiError` com status 401/403 desloga (`app/screens/HomeScreen.tsx:29-35`),
+  com teste novo cobrindo o status 0 de rede (`session.test.ts:119`).

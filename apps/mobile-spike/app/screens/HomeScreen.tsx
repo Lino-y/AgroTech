@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { loadMe, type Me } from './services/api';
+import { loadMe, ApiError, type Me } from './services/api';
 import { getSession, clearSession, type Session } from './services/storage';
 
 type ScreenState =
@@ -27,10 +27,12 @@ export function HomeScreen(): React.JSX.Element {
         const me = await loadMe();
         if (active) setState({ kind: 'authenticated', user: me.user });
       } catch (error) {
-        // 401 já limpou a sessão dentro do apiRequest; aqui só reflete a tela.
+        // Só 401/403 encerram a sessão (o apiRequest já limpou); falha de rede
+        // preserva a sessão (política offline da ADR-0001).
+        const expired = error instanceof ApiError && (error.status === 401 || error.status === 403);
         const message = error instanceof Error ? error.message : 'Erro inesperado.';
         if (active) {
-          await clearSession();
+          if (expired) await clearSession();
           setState({ kind: 'error', message });
         }
       }

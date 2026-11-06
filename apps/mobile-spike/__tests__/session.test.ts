@@ -116,6 +116,26 @@ test('sem rede: erro tipado em português, sessão preservada (não é 401)', as
   }
 });
 
+test('apiRequest devolve ApiError com o status na falha de rede (tela não desloga)', async () => {
+  const { api } = await freshServices();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new TypeError('Failed to fetch');
+  }) as typeof fetch;
+  try {
+    await assert.rejects(
+      api.apiRequest('/auth/me', { baseUrl: 'http://test' }),
+      (error: unknown) => {
+        assert.ok(error instanceof api.ApiError);
+        assert.equal((error as { status: number }).status, 0);
+        return true;
+      }
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('timeout aborta a requisição e vira erro de conexão', async () => {
   const { api } = await freshServices();
   const originalFetch = globalThis.fetch;
