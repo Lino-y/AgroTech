@@ -856,16 +856,13 @@ window.processPayment = async function(event) {
   const totals = getCartTotals();
 
   try {
-    await createOrder({
-      items: state.cart.map(item => ({ ...item })),
-      total: totals.total,
-      trackingCode: `BR-AGRO-${Math.floor(100000 + Math.random() * 900000)}-X`,
-      coupon: state.appliedCoupon,
-      paymentMethod: state.paymentMethod,
-      shipping: totals.shipping
+    // Só o que o servidor lê: preço, frete, total e rastreio saem do catálogo dele (POST /api/orders).
+    const newOrder = await createOrder({
+      items: state.cart.map(({ id, quantity }) => ({ id, quantity })),
+      coupon: state.appliedCoupon
     });
 
-    state.coins += Math.round(totals.total / 10); // 1 moeda a cada R$ 10
+    state.coins += Math.round(newOrder.total / 10); // 1 moeda a cada R$ 10, pelo total cobrado pelo servidor
     // A compra entra em "Meus Pedidos" e no financeiro pelo servidor, que cada tela busca ao abrir.
 
     showToast(`Pagamento de R$ ${totals.total.toFixed(2)} aprovado!`, 'success');
