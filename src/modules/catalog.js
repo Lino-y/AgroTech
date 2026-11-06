@@ -11,7 +11,7 @@ import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from 
 import { buildProductDraft } from '../services/catalog.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
+import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -220,55 +220,6 @@ window.submitReview = async function(event) {
   } catch (error) {
     showToast(error.message || 'Não foi possível publicar a avaliação.', 'error');
   }
-};
-
-window.deleteReview = async function(reviewId) {
-  if (!confirm('Deseja realmente excluir esta avaliação?')) return;
-
-  const productId = state.selectedProduct ? state.selectedProduct.id : null;
-  if (!productId) return;
-
-  try {
-    await deleteReviewApi(productId, reviewId);
-    const product = state.products.find(p => p.id === productId);
-    if (product) {
-      product.comments = (product.comments || []).filter(c => c.id !== reviewId);
-      product.reviewsCount = product.comments.length;
-      product.rating = product.reviewsCount
-        ? parseFloat((product.comments.reduce((acc, c) => acc + Number(c.rating || 0), 0) / product.reviewsCount).toFixed(1))
-        : 0;
-      if (state.selectedProduct && state.selectedProduct.id === productId) {
-        state.selectedProduct = product;
-      }
-      persistProducts();
-    }
-    showToast('Avaliação excluída.', 'success');
-    renderApp();
-  } catch (error) {
-    showToast(error.message || 'Não foi possível excluir a avaliação.', 'error');
-  }
-};
-
-window.addComment = function(event) {
-  event.preventDefault();
-  const commentText = document.getElementById('reviewText').value.trim();
-  if (!commentText || !state.selectedProduct) return;
-
-  const authorName = state.user.name || state.user.propertyOrCompany || 'Produtor Rural';
-
-  state.selectedProduct.comments.unshift({
-    author: authorName,
-    text: commentText,
-    rating: state.newRatingStar
-  });
-
-  const totalStars = state.selectedProduct.comments.reduce((acc, c) => acc + c.rating, 0);
-  state.selectedProduct.reviewsCount = state.selectedProduct.comments.length;
-  state.selectedProduct.rating = parseFloat((totalStars / state.selectedProduct.reviewsCount).toFixed(1));
-
-  persistProducts();
-  showToast('Agradecemos sua avaliação!', 'success');
-  renderApp();
 };
 
 // --- IA ASSISTENTE DE ANÚNCIO ---
@@ -763,30 +714,6 @@ window.toggleFavorite = function(productId) {
   renderApp();
 };
 
-window.buyAgain = function(orderId) {
-  const order = state.orders.list.find(o => o.id === orderId);
-  if (!order || !order.items || !order.items.length) {
-    showToast('Nenhum item anterior para recomprar.', 'info');
-    return;
-  }
-  let added = 0;
-  order.items.forEach(it => {
-    const prod = state.products.find(p => p.id === it.id || p.name === it.name);
-    if (prod) {
-      state.cart = addProductToCart(state.cart, prod);
-      added++;
-    }
-  });
-  if (added) {
-    showToast(`${added} item(ns) adicionados ao carrinho!`, 'success');
-    state.activeScreen = 'cart';
-  } else {
-    showToast('Os itens desse pedido não estão mais no catálogo.', 'info');
-    state.activeScreen = 'catalog';
-  }
-  renderApp();
-};
-
 window.addToCart = function(productId) {
   const prod = state.products.find(p => p.id === productId);
   if (!prod) return;
@@ -891,20 +818,6 @@ window.setFinanceFilter = function(filter) {
 window.setFinancePeriod = function(months) {
   state.financePeriod = Number(months);
   renderApp();
-};
-
-window.setTransactionType = function(type) {
-  const input = document.getElementById('txType');
-  if (!input) return;
-  input.value = type;
-
-  const buttons = document.querySelectorAll('[data-tx-type]');
-  buttons.forEach((button) => {
-    const isActive = button.dataset.txType === type;
-    button.style.background = isActive ? '#2E7D32' : '#F4FBF7';
-    button.style.color = isActive ? '#FFFFFF' : '#1B5E20';
-    button.style.borderColor = isActive ? '#2E7D32' : '#C8E6C9';
-  });
 };
 
 window.handleAddTransaction = async function(event) {
