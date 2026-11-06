@@ -9,6 +9,7 @@ import { summarizeFinance } from '../services/finance.js';
 import { formatOrderDate } from '../services/orders.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../services/catalog.js';
+import { filterCatalogProducts } from '../services/catalog-view.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
 import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, deleteReview as deleteReviewApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
@@ -163,18 +164,19 @@ window.applyCategoryFilter = function(category) {
   renderApp();
 };
 
+// Contador e grade saem da mesma lista (filterCatalogProducts), então o número bate com os cartões.
+function catalogCountLabel(count) {
+  return `${count} anúncios ativos`;
+}
+
 window.applySearchFilter = function() {
   const input = document.getElementById('searchInput');
   if (!input) return;
   state.searchTerm = input.value;
-  const term = input.value.toLowerCase();
-
-  const productCards = document.querySelectorAll('.product-card');
-  productCards.forEach(card => {
-    const title = card.getAttribute('data-title').toLowerCase();
-    const category = card.getAttribute('data-category').toLowerCase();
-    card.style.display = (title.includes(term) || category.includes(term)) ? 'flex' : 'none';
-  });
+  const visible = filterCatalogProducts(state.products, state.selectedCategory, state.searchTerm);
+  // ponytail: refaz a grade inteira a cada tecla (sem re-render da tela); ok para catálogo pequeno
+  document.getElementById('catalogCount').textContent = catalogCountLabel(visible.length);
+  document.getElementById('productList').innerHTML = visible.map(renderCatalogCard).join('');
 };
 
 window.openProductDetail = function(productId) {
@@ -1222,9 +1224,7 @@ function renderLoginForm() {
 function renderCatalogScreen() {
   // Categorias derivadas apenas dos produtos já postados
   const existingCategories = [...new Set(state.products.map(p => p.category).filter(Boolean))];
-  const filtered = state.selectedCategory === 'Todos' || !existingCategories.includes(state.selectedCategory)
-    ? state.products
-    : state.products.filter(p => p.category === state.selectedCategory);
+  const filtered = filterCatalogProducts(state.products, state.selectedCategory, state.searchTerm);
   const categories = existingCategories.length ? ['Todos', ...existingCategories] : [];
 
   return `
@@ -1271,7 +1271,7 @@ function renderCatalogScreen() {
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
         <h3 style="font-family: 'Outfit', sans-serif;; color: #1B5E20; font-size: 18px; font-weight: 700; margin: 0;">Catálogo de Insumos</h3>
-        <span style="font-size: 11px; color: #388E3C; font-weight: 600;">${filtered.length} anúncios ativos</span>
+        <span id="catalogCount" style="font-size: 11px; color: #388E3C; font-weight: 600;">${catalogCountLabel(filtered.length)}</span>
       </div>
 
       ${state.loadingProducts ? `
