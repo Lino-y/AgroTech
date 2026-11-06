@@ -634,6 +634,11 @@ app.get('/api/admin/users', authenticate, requireAdmin, async (_, res) => {
   res.json(users);
 });
 
+// Rota /api que não existe não cai na SPA: responde 404 em JSON, como o resto da API (issue #26).
+app.all('/api/*', (_, res) => {
+  res.status(404).json({ message: 'Rota não encontrada.' });
+});
+
 app.get('*', (_, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
