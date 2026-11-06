@@ -2,13 +2,15 @@ import { getToken, removeToken, removeUser } from './storage.js';
 
 export async function apiRequest(path, options = {}) {
   const token = getToken();
+  // Os cabeçalhos do chamador somam aos montados aqui; não podem apagar o token (issue #22).
+  const { headers = {}, ...rest } = options;
   const response = await fetch(`/api${path}`, {
+    ...rest,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {})
-    },
-    ...options
+      ...headers
+    }
   }).catch((error) => {
     // O fetch só rejeita quando a requisição não chega ao servidor (sem internet, servidor fora do ar).
     throw new Error('Sem conexão com o servidor. Verifique a internet e tente de novo.', { cause: error });
