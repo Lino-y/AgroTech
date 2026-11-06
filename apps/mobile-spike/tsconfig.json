@@ -1,0 +1,18 @@
+{
+  // Spike da issue #11: TS estrito. `expo/tsconfig.base` entra na Fase 1,
+  // junto com a instalação do Expo (gate da ADR-0001 ainda não passou).
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom"],
+    "skipLibCheck": true
+  },
+  "include": ["app/services/**/*.ts", "__tests__/**/*.ts"]
+}

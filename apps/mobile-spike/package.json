@@ -1,0 +1,15 @@
+{
+  "name": "agrotech-mobile-spike",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "test": "node --experimental-strip-types --test \"__tests__/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "comment": "Spike da issue #11 (Fase 0 da spec 08). Dependências do Expo ficam declaradas aqui, mas só são instaladas depois do gate de aprovação da ADR-0001 — o módulo app/index.ts só carrega com expo start."
+}

@@ -1,7 +1,7 @@
 # ADR-0001 — Arquitetura mobile React Native + Expo
 
-- **Status:** proposta para aprovação
-- **Data:** 2026-10-07
+- **Status:** proposta para aprovação — **spike validado (issue #11)**
+- **Data:** 2026-10-07 · **Atualização (spike):** 2026-11-05
 - **Escopo:** futuro cliente mobile do AgroTech
 - **Referência de padrão:** arquitetura mobile já praticada no projeto Mais Frota
 
@@ -141,3 +141,61 @@ Antes de instalar Expo ou criar `apps/mobile`, devem estar aprovados:
 - necessidade de manter compatibilidade da API;
 - complexidade de cache, revalidação de preço e sincronização;
 - custo adicional de publicação e suporte Android/iOS.
+
+## Resultado do spike (issue #11, Fase 0 da spec 08)
+
+**Decisão: seguir** com React Native + Expo, sem mudanças no alvo acima.
+
+O spike validou a Fase 0 da spec 08 sem instalar Expo ainda — o gate de
+aprovação desta ADR continua valendo (as dependências de Expo/React Native só
+entram após a aprovação). O que foi construído em `apps/mobile-spike/`, com
+TypeScript estrito (`apps/mobile-spike/tsconfig.json`) e testes nativos do
+Node (`node --experimental-strip-types --test`):
+
+- **API service centralizado** (`apps/mobile-spike/app/services/api.ts:30`):
+  anexa `Bearer` da sessão, timeout via `AbortController` nativo, erro tipado
+  (`ApiError`, `api.ts:12`) e 401/403 chamam `clearSession` (`api.ts:55`) —
+  espelha o padrão já provado na web (`src/services/api.js:3`).
+- **Storage service** (`apps/mobile-spike/app/services/storage.ts:22`): sessão
+  isolada por trás de `setSecureStore` (`storage.ts:18`); token usa
+  armazenamento seguro quando disponível, fallback em memória para testes.
+  Logout limpa memória e store (`storage.ts:37`).
+- **Tela autenticada mínima** (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`):
+  consome `/api/auth/me` (`server.js:384`, via `api.ts:73`) sem acessar `fetch`
+  nem storage diretamente — a tela só reflete estados.
+- **Testes de sessão expirada e offline**
+  (`apps/mobile-spike/__tests__/session.test.ts:26`): token anexado, 401/403
+  encerram a sessão local (`session.test.ts:65`, `:88`), falha de rede preserva
+  a sessão com erro tipado em português (`session.test.ts:101`; mesma regra da
+  web, `src/services/api.js:11`) e timeout vira erro de conexão
+  (`session.test.ts:119`).
+- **Política offline** (seção acima): nenhuma ação financeira no spike;
+  catálogo/carrinho ficam para as Fases 1–3 com revalidação obrigatória.
+
+### Riscos observados no spike
+
+- React Native não expõe `localStorage`: todo acesso à sessão precisa passar
+  pelo storage service — confirmado no desenho: a tela só fala com os
+  services, nunca com storage direto.
+- O `EXPO_PUBLIC_API_URL` do Expo depende dos types do Expo; no spike o tipo
+  mínimo foi declarado à mão em `api.ts` e a Fase 1 instala `@types/node` e os
+  types do Expo.
+- A API é consumida pelo cliente nativo com `CORS` aberto (`server.js:317`);
+  revisar antes do rollout (Fase 4).
+
+### Custos do spike
+
+- Nenhum componente web foi alterado; a SPA segue funcionando (RN08).
+- Build Android/iOS (`expo run:android|ios`) fica para depois do gate:
+  instalar Expo antes da aprovação feriria o próprio gate desta ADR.
+
+### Escolhas de navegação, estado e storage (para a Fase 1)
+
+- **Navegação:** `@react-navigation/native` com stack + guards de sessão
+  (mesma família do Mais Frota; Expo Router descartado por acoplar rotas a
+  arquivos antes de validarmos os fluxos).
+- **Estado:** store por slices, sem dependência nova (padrão do Mais Frota);
+  Redux/Zustand descartados por adicionarem dependência sem necessidade
+  comprovada no spike.
+- **Storage:** `expo-secure-store` para o token (já previsto no storage
+  service) e `AsyncStorage` para cache/fila.

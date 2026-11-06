@@ -1,6 +1,6 @@
 # 08 — Spec de migração mobile para React Native + Expo
 
-- **Status:** proposta / não implementada
+- **Status:** spike da Fase 0 executado (issue #11); fases 1–4 pendentes do gate da ADR
 - **ADR:** `docs/adr/0001-migracao-para-react-native.md`
 - **Padrão de referência:** `mais-frota/apps/mobile-driver`
 
@@ -98,14 +98,14 @@ Migrar cada fluxo completo, com tela, serviço, erro, loading, teste e rollout:
 
 | ID | Critério | Evidência esperada | Status |
 |---|---|---|---|
-| RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🔴 |
-| RN02 | API e tipos mobile seguem o contrato existente | testes de integração | 🔴 |
-| RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | 🔴 |
-| RN04 | Storage isola sessão, cache e fila | testes de storage | 🔴 |
-| RN05 | Carrinho offline revalida preço e estoque | teste de reconexão | 🔴 |
-| RN06 | Nenhum cartão ou pedido financeiro entra na fila | teste de segurança | 🔴 |
-| RN07 | Cada fluxo migrado tem teste e rollout reversível | checklist de release | 🔴 |
-| RN08 | SPA continua funcional durante o piloto | smoke test web | 🔴 |
+| RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🟡 TS estrito validado (`apps/mobile-spike/tsconfig.json`, `tsc -p` passa); build Expo pendente do gate |
+| RN02 | API e tipos mobile seguem o contrato existente | testes de integração | 🟡 `/api/auth/me` coberto por `apps/mobile-spike/__tests__/session.test.ts`; demais rotas na Fase 1 |
+| RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | ✅ `apps/mobile-spike/app/services/api.ts:30` + testes de token/401/403/timeout (`session.test.ts:26,65,88,119`) |
+| RN04 | Storage isola sessão, cache e fila | testes de storage | ✅ `apps/mobile-spike/app/services/storage.ts:18` + teste de set/get/clear (`session.test.ts:136`) |
+| RN05 | Carrinho offline revalida preço e estoque | teste de reconexão | 🔴 Fase 3 |
+| RN06 | Nenhum cartão ou pedido financeiro entra na fila | teste de segurança | 🔴 Fase 3 (no spike nenhuma ação financeira existe) |
+| RN07 | Cada fluxo migrado tem teste e rollout reversível | checklist de release | 🔴 Fase 2 |
+| RN08 | SPA continua funcional durante o piloto | smoke test web | ✅ spike não toca a SPA: nenhum arquivo de `src/` alterado |
 
 ## Fora de escopo
 
