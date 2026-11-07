@@ -150,6 +150,8 @@ const defaultDb = {
       ownerEmail: 'demo@agrotech.com.br',
       date: '15/Set/2026',
       status: 'Em trânsito',
+      // Estágio 3 de TRACKING_STAGES (src/modules/tracker.js): "Saiu para Entrega" é o que está na estrada.
+      statusStep: 3,
       trackingCode: 'BR-AGRO-982134-X',
       carrier: 'AgroExpress Logística Rural',
       estimatedDelivery: '18/Set/2026',
