@@ -84,7 +84,6 @@ button {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  outline: none !important;
   filter: drop-shadow(none) !important;
   text-shadow: none !important;
   -webkit-box-shadow: none !important;
@@ -103,9 +102,15 @@ button:active {
   text-shadow: none !important;
 }
 
-button:focus {
+/* Foco do mouse some; foco do teclado (:focus-visible) mostra contorno (WCAG 2.4.7, #28). */
+button:focus:not(:focus-visible) {
   outline: none !important;
   box-shadow: none !important;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 input,
@@ -251,9 +256,8 @@ textarea:focus {
   align-self: center;
 }
 
-/* Foco do teclado visível nos chips (o reset de button:focus acima tira o outline); por dentro
-   do chip, porque o carrossel corta o que passa da borda. */
+/* Chips do carrossel: o contorno de foco fica por dentro do chip, porque o carrossel corta o
+   que passa da borda. */
 .drag-scroll-container button:focus-visible {
-  outline: 2px solid var(--text) !important;
   outline-offset: -2px;
 }

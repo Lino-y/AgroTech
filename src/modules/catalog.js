@@ -1185,7 +1185,7 @@ function renderCatalogScreen() {
       ${categories.length > 0 ? `
       <div class="drag-scroll-container" data-drag-scroll="true" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex-shrink: 0; scrollbar-width: none;">
         ${categories.map(cat => `
-          <button onclick="applyCategoryFilter('${cat}')" style="background: ${state.selectedCategory === cat ? '#2E7D32' : '#FFFFFF'}; color: ${state.selectedCategory === cat ? '#FFFFFF' : '#2E7D32'}; border: 1px solid ${state.selectedCategory === cat ? '#2E7D32' : '#C8E6C9'}; padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: ${state.selectedCategory === cat ? '600' : '500'}; white-space: nowrap; cursor: pointer; transition: all 0.2s;">
+          <button data-focus-key="cat-${cat}" onclick="applyCategoryFilter('${cat}')" style="background: ${state.selectedCategory === cat ? '#2E7D32' : '#FFFFFF'}; color: ${state.selectedCategory === cat ? '#FFFFFF' : '#2E7D32'}; border: 1px solid ${state.selectedCategory === cat ? '#2E7D32' : '#C8E6C9'}; padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: ${state.selectedCategory === cat ? '600' : '500'}; white-space: nowrap; cursor: pointer; transition: all 0.2s;">
             ${cat}
           </button>
         `).join('')}
@@ -2416,6 +2416,9 @@ function renderOrdersScreen() {
 }
 
 // --- RENDERIZADOR PRINCIPAL ---
+// Tela desenhada por último, para não levar a rolagem de um carrossel a outra tela (#29).
+let lastRenderedScreen = null;
+
 function renderApp() {
   const totalCartCount = state.cart.reduce((acc, item) => acc + item.quantity, 0);
   const navbarRoot = document.getElementById('navbar-root');
@@ -2449,6 +2452,10 @@ function renderApp() {
     mainContent.style.overflow = 'hidden';
     mainContent.style.position = 'relative';
 
+    const view = captureView(mainContent);
+    const sameScreen = lastRenderedScreen === state.activeScreen;
+    lastRenderedScreen = state.activeScreen;
+
     if (state.activeScreen === 'register') {
       mainContent.innerHTML = screenHTML;
     } else {
@@ -2457,7 +2464,28 @@ function renderApp() {
     enableDragToScroll();
     // A busca filtra os cards no DOM: reaplica o termo salvo depois de redesenhar (#15).
     window.applySearchFilter();
+    restoreView(mainContent, view, sameScreen);
   }
+}
+
+// Trocar o HTML zera o foco e a rolagem dos carrosséis: guarda os dois antes do redesenho (#29).
+function captureView(mainContent) {
+  const active = mainContent.contains(document.activeElement) ? document.activeElement : null;
+  return {
+    focusKey: active && (active.id || active.dataset.focusKey),
+    scrolls: [...mainContent.querySelectorAll('.drag-scroll-container')].map((el) => el.scrollLeft)
+  };
+}
+
+// Devolve foco e rolagem ao redesenhar. A rolagem só volta na mesma tela, senão o carrossel de
+// uma tela cairia no de outra (#29).
+function restoreView(mainContent, { focusKey, scrolls }, sameScreen) {
+  if (sameScreen) {
+    mainContent.querySelectorAll('.drag-scroll-container').forEach((el, i) => { el.scrollLeft = scrolls[i] ?? 0; });
+  }
+  const target = focusKey && [...mainContent.querySelectorAll('[id], [data-focus-key]')]
+    .find((el) => (el.id || el.dataset.focusKey) === focusKey);
+  target?.focus({ preventScroll: true });
 }
 
 function enableDragToScroll() {
