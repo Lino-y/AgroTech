@@ -2,7 +2,7 @@
 
 - **Status:** spike da Fase 0 executado (issue #11); fases 1–4 pendentes do gate da ADR
 - **ADR:** `docs/adr/0001-migracao-para-react-native.md`
-- **ADR da estrutura frontend/backend (proposta, issue #62):**
+- **ADR da estrutura frontend/backend (aceita em 2026-11-10, issue #62):**
   `docs/adr/0002-estrutura-frontend-backend.md`
 - **Padrão de referência:** `mais-frota/apps/mobile-driver`
 
@@ -41,7 +41,7 @@ apps/mobile/
 └─ __tests__/
 ```
 
-### Estrutura do repositório (proposta da ADR-0002, pendente de aprovação)
+### Estrutura do repositório (ADR-0002, aceita)
 
 ```text
 apps/api/        # backend Express (hoje server.js e src/data/ na raiz)
@@ -51,8 +51,8 @@ packages/domain/ # regras puras compartilhadas: commerce, finance, catalog
 ```
 
 `apps/api`, `apps/web` e `apps/mobile` falam só por HTTP e importam apenas
-`packages/domain`. Enquanto a ADR-0002 não for aprovada, `server.js` e `src/`
-ficam onde estão.
+`packages/domain`. A estrutura é aplicada passo a passo (Fase A): até cada passo
+ser mesclado, `server.js` e `src/` ficam onde estão.
 
 ## Fases
 
@@ -66,7 +66,8 @@ ficam onde estão.
 
 ### Fase A — separação frontend/backend (ADR-0002, antes da Fase 1)
 
-Só começa com a ADR-0002 aprovada. Um PR por passo, sem mudar comportamento,
+Liberada pela ADR-0002 (aceita); A1 e A2 não instalam Expo nem React Native,
+então não esperam a aprovação da ADR-0001. Um PR por passo, sem mudar comportamento,
 com `npm run verify`, `npm run test:ui` e `npm run check:coherence` verdes:
 
 1. **A1:** extrair `packages/domain` (commerce, finance, catalog);

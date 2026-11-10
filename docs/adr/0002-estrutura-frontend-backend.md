@@ -1,6 +1,6 @@
 # ADR-0002 — Estrutura de frontend e backend separados (`apps/` e `packages/`)
 
-- **Status:** proposta para aprovação
+- **Status:** aceita em 2026-11-10 (decisões 1 a 4 aprovadas na issue #62)
 - **Data:** 2026-11-10
 - **Escopo:** organização de pastas e pacotes do repositório
 - **Relacionada:** ADR-0001 (cliente mobile React Native + Expo), spec 08 e
@@ -37,7 +37,7 @@ a transição". Isso deixa de bastar por dois motivos:
 2. O servidor recalcula preço, frete e total (`calculateCartSummary`). Um
    cliente que calcula diferente mostra um valor que o servidor recusa.
 
-## Decisão proposta
+## Decisão
 
 Separar por **fronteira de código e de pacote**, sem serviço novo: a API segue
 sendo o Express 4 com `db.json`.
@@ -76,6 +76,11 @@ Campo `workspaces` do `package.json` da raiz (recurso nativo do npm, sem
 dependência nova). Os comandos da raiz continuam: `npm start`, `npm test`,
 `npm run verify`.
 
+Os workspaces entram aos poucos, quando cada pacote ganha um manifesto próprio:
+`packages/*` no passo A1 (o domínio, sem dependências) e `apps/*` quando um app
+precisar do seu (o mobile, na Fase 1). Enquanto isso as dependências da API
+ficam no `package.json` da raiz, para não mexer no lockfile sem necessidade.
+
 ### Sequência
 
 Um PR por passo, com comportamento idêntico: `npm run verify`,
@@ -83,7 +88,7 @@ Um PR por passo, com comportamento idêntico: `npm run verify`,
 
 | Passo | O que faz | Risco |
 |---|---|---|
-| **A1** | extrai `packages/domain` (`commerce`, `finance`, `catalog`); a SPA passa a importar por uma URL servida pela API | baixo |
+| **A1** | extrai `packages/domain` (`commerce`, `finance`, `catalog`); o caminho de import é o mesmo no disco e na URL (`/packages/domain/...`), então o mesmo `import` funciona na SPA e no Node | baixo |
 | **A2** | move o backend para `apps/api`; o banco sai da pasta servida para `apps/api/data/` | médio |
 | **A3** | move a SPA para `apps/web` | só vale quando a SPA for aposentada; **adiar** |
 
@@ -100,7 +105,7 @@ ganho funcional enquanto a SPA for o fallback servido pela API.
 | Scripts | `package.json:8` a `:18` | `start` e `dev` apontam para `apps/api`; `verify` encadeia os workspaces |
 | Git hooks | `.githooks/pre-commit:16` e `:17`, `.githooks/pre-push:5` | continuam chamando scripts da raiz |
 | Testes | `tests/api.test.js:28`, `tests/ui/browser.js:144` e os imports `../src/...` (38 pontos) | caminhos novos; `tests/api.test.js:92` (confere que `server.js` não é servido) acompanha |
-| Arquivos servidos | `server.js:357` a `:369`, `server.js:713` | a API serve `/domain` a partir de `packages/domain` com a mesma guarda; no A3, a SPA a partir de `apps/web` |
+| Arquivos servidos | `server.js:357` a `:369`, `server.js:713` | a API serve `/packages/domain` (só essa pasta, com a mesma guarda); no A2 passa a servir `src/`, `assets/` e `index.html` a partir da raiz; no A3, a SPA a partir de `apps/web` |
 | Documentação | 137 referências `arquivo:linha`, `README.md` (estrutura), `docs/agents/architecture.md` | script de remapeamento versionado em `.ai/scripts/` antes do A2 (o da #24 foi um script avulso, fora do repositório) + `npm run check:coherence` |
 | Dados locais | `src/data/db.json` fora do git, na máquina de cada pessoa | no A2, mover o arquivo ou apontar `DATA_FILE`; avisar no PR |
 
@@ -118,38 +123,35 @@ ganho funcional enquanto a SPA for o fallback servido pela API.
 - **Turborepo ou Nx.** Dependência nova sem necessidade com três apps e um
   pacote; reavaliar se o `verify` ficar lento.
 
-## Mudanças em `docs/agents/architecture.md` (aplicar no PR que aprovar esta ADR, não antes)
+## Decisões aprovadas (2026-11-10, issue #62)
 
-`docs/agents/architecture.md` só muda por ADR, então as edições abaixo ficam
-**pendentes de aprovação**:
-
-- `docs/agents/architecture.md:10` a `:12` ("SPA em JavaScript puro [...] Nada
-  de React, Vue, bundler ou TypeScript compilado"): registrar a exceção
-  `apps/mobile` (React Native, Metro e TypeScript). Web, API e domínio seguem
-  sem build.
-- `docs/agents/architecture.md:16` (API em `server.js`, dados em
-  `src/data/db.json`) e `docs/agents/architecture.md:62` (só `src/` e `assets/`
-  são servidos): novos caminhos conforme os passos A1 e A2.
-- `docs/agents/architecture.md:23` (tabela "Onde cada coisa mora"): linhas de
-  `packages/domain` e `apps/mobile`.
-- `docs/agents/architecture.md:68` ("não adicione Jest nem Vitest"): depende da
-  decisão 3 abaixo.
-
-## Decisões para aprovar
-
-1. **Estrutura:** npm workspaces com `apps/*` e `packages/*`, passos A1 e A2
-   agora e A3 adiado (recomendado) ou plano B (só `apps/mobile`).
+1. **Estrutura:** npm workspaces; passos A1 e A2 agora, A3 adiado. O plano B
+   (só `apps/mobile`) foi descartado.
 2. **Domínio:** JavaScript com JSDoc e `// @ts-check`, tipos gerados para o
-   mobile (recomendado) ou TypeScript compilado.
-3. **Teste de componente React Native:** o padrão do Expo é Jest, hoje
-   proibido pela arquitetura. Opções: `node:test` só para lógica mais E2E
-   (Maestro ou Detox) **ou** aceitar `jest-expo` apenas em `apps/mobile`, com
-   emenda na arquitetura. Recomendação: `node:test` para lógica e serviços (como
-   o spike) e decidir o E2E na Fase 1, quando houver tela para testar.
-4. **Passo A3** (mover a SPA) adiado até a aposentadoria dela: sim ou não.
+   mobile. TypeScript compilado descartado.
+3. **Teste de componente React Native:** `node:test` para lógica e serviços
+   (como o spike); o E2E (Maestro ou Detox) é decidido na Fase 1, quando houver
+   tela para testar. `jest-expo` não entra por enquanto, e a regra "não
+   adicione Jest nem Vitest" (`docs/agents/architecture.md:68`) fica como está.
+4. **Passo A3** (mover a SPA) adiado até a aposentadoria dela.
 
 As demais decisões do gate (sessão, crash reporting, distribuição, orçamento
 da SPA) continuam na #62 e são tomadas na fase em que bloqueiam.
+
+## Quando `docs/agents/architecture.md` muda
+
+O arquivo só muda por ADR. Esta ADR autoriza, cada uma no PR do passo que a
+torna verdadeira (nunca antes, para a documentação não descrever pasta que não
+existe):
+
+- **A1:** linha de `packages/domain` na tabela "Onde cada coisa mora"
+  (`docs/agents/architecture.md:23`) e os caminhos de `commerce`, `finance`
+  e `catalog` citados no texto.
+- **A2:** os caminhos da API e do banco (`docs/agents/architecture.md:16`) e
+  dos arquivos servidos (`docs/agents/architecture.md:62`).
+- **Aprovação da ADR-0001** (não desta): a exceção React Native, Metro e
+  TypeScript para `apps/mobile` em `docs/agents/architecture.md:10` a `:12` e
+  a linha de `apps/mobile` na tabela.
 
 ## Consequências
 
@@ -170,6 +172,7 @@ da SPA) continuam na #62 e são tomadas na fase em que bloqueiam.
 
 ## Gate
 
-Esta ADR só passa de "proposta" para "aceita" com a aprovação das decisões
-acima. No mesmo PR da aprovação: atualizar `docs/agents/architecture.md`
-(seção anterior), o status da ADR-0001 se ela for aprovada junto, e a spec 08.
+A ADR está aceita: os passos A1 e A2 estão liberados e **não instalam Expo nem
+React Native**, então não dependem da aprovação da ADR-0001. A ADR-0001 segue
+como proposta; a Fase 1 do mobile só começa com ela aprovada e com as decisões
+restantes do gate respondidas (sessão, distribuição e orçamento da SPA).
