@@ -24,7 +24,7 @@ referencial `mais-frota/apps/mobile-driver`.
 ## 3. Contratos (antes do código)
 
 - Endpoint consumido: `GET /api/auth/me` — auth: `authenticate`
-  (`server.js:384`) — response `{ user }`. Sem endpoint novo: OpenAPI
+  (`server.js:423`) — response `{ user }`. Sem endpoint novo: OpenAPI
   (`.ai/specs/05-openapi-spec.md`) não muda.
 - Função pública `[NOVO]`: `apiRequest<T>(path, options)` em
   `apps/mobile-spike/app/services/api.ts` — token de `getSession()`, timeout
@@ -69,7 +69,7 @@ resolvido em silêncio.
 
 ## 8. Divergências / achados durante a implementação
 
-- CORS aberto no `server.js:317` aceitará o cliente nativo sem restrição;
+- CORS aberto no `server.js:312` aceitará o cliente nativo sem restrição;
   sinalizado na ADR como risco para a Fase 4 (rollout).
 - **Revisão (spec-code-review):** a `HomeScreen.tsx` limpava a sessão em
   qualquer erro, incluindo falha de rede — contrariava a política offline

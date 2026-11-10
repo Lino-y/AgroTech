@@ -100,7 +100,7 @@ Migrar cada fluxo completo, com tela, serviço, erro, loading, teste e rollout:
 |---|---|---|---|
 | RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🟡 TS estrito validado (`apps/mobile-spike/tsconfig.json`, `tsc -p` passa); build Expo pendente do gate |
 | RN02 | API e tipos mobile seguem o contrato existente | testes de integração | 🟡 `/api/auth/me` coberto por `apps/mobile-spike/__tests__/session.test.ts`; demais rotas na Fase 1 |
-| RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | ✅ `apps/mobile-spike/app/services/api.ts:30` + testes de token/401/403/timeout (`session.test.ts:26,65,88,119`) |
+| RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | ✅ `apps/mobile-spike/app/services/api.ts:30` + testes de token/401/403/timeout (`session.test.ts:26,65,88,139`) |
 | RN04 | Storage isola sessão, cache e fila | testes de storage | ✅ `apps/mobile-spike/app/services/storage.ts:18` + teste de set/get/clear (`session.test.ts:136`) |
 | RN05 | Carrinho offline revalida preço e estoque | teste de reconexão | 🔴 Fase 3 |
 | RN06 | Nenhum cartão ou pedido financeiro entra na fila | teste de segurança | 🔴 Fase 3 (no spike nenhuma ação financeira existe) |
