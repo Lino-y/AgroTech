@@ -1,22 +1,40 @@
 // @ts-check
 
+/** @type {Record<string, string>} */
+const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+
+/**
+ * Texto como o usuário o vê: o servidor grava o nome com HTML escapado (d&#39;água, &amp;), então a
+ * busca desfaz isso; e ignora acento e caixa ("racao" acha "Ração"). Uma passada só, para não
+ * desescapar duas vezes.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function fold(value) {
+  return String(value ?? '')
+    .replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity])
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase();
+}
+
 /**
  * Regra da lista do catálogo na tela: categoria escolhida e termo da busca. A grade e o
  * contador usam esta mesma função, então não divergem depois de uma busca ou de um redesenho.
- * @template {{ name: string, category?: string }} T
- * @param {T[]} products anúncios da API
+ * @template {{ name?: string | null, category?: string }} T
+ * @param {T[] | null} products anúncios da API
  * @param {string} category 'Todos' ou uma das categorias dos anúncios
- * @param {string} term texto digitado na busca (sem diferença de maiúsculas)
+ * @param {string} term texto digitado na busca (sem diferença de maiúsculas nem de acento)
  * @returns {T[]} anúncios que passam na categoria e no termo, na mesma ordem
  */
 export function filterCatalogProducts(products, category, term) {
-  const existing = new Set(products.map((product) => product.category).filter(Boolean));
+  const list = Array.isArray(products) ? products : [];
+  const existing = new Set(list.map((product) => product.category).filter(Boolean));
   const byCategory = category === 'Todos' || !existing.has(category)
-    ? products
-    : products.filter((product) => product.category === category);
-  const needle = term.toLowerCase();
-  return byCategory.filter((product) =>
-    product.name.toLowerCase().includes(needle) || (product.category ?? '').toLowerCase().includes(needle));
+    ? list
+    : list.filter((product) => product.category === category);
+  const needle = fold(term);
+  return byCategory.filter((product) => fold(product.name).includes(needle) || fold(product.category).includes(needle));
 }
 
 /**

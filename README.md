@@ -48,7 +48,7 @@ AgroTech/
 │  ├─ styles/             # tokens.css (design tokens) e ui.css
 │  └─ data/db.json        # "banco" em arquivo, fora do git (criado pelo server.js no 1º uso)
 ├─ assets/                # logo
-├─ tests/                 # testes do app (npm test)
+├─ tests/                 # testes do app (npm test); telas em tests/ui (npm run test:ui)
 ├─ docs/
 │  ├─ setup.md            # instalação e execução local
 │  ├─ agents/             # playbook, arquitetura, issue tracker e domínio (fluxo com IA)

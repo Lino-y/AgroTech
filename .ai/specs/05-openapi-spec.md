@@ -8,18 +8,21 @@ Regras que valem para todas as rotas:
 
 - Erro sempre como `{ "message": string }` com o status HTTP correspondente.
 - Falha de leitura ou gravação do `db.json` (ex.: arquivo corrompido) responde `500` com `{ "message": string }` em qualquer rota. O servidor não cai; o arquivo não é regravado (issue #39).
+- Entrada que o cliente errou volta com o status dele: JSON malformado é `400` e corpo maior que 2 MB é `413`, ambos com `{ "message": string }`. Rota `/api/*` que não existe responde `404`.
+- Banco ilegível em rota autenticada é `500`, nunca `401` (o `401` é só do token).
+- Limites de entrada: preço do produto até R$ 10.000.000, estoque até 1.000.000 e quantidade por item do pedido de 1 a 10.000.
 - Autenticação por `Authorization: Bearer <JWT>` (validade de 7 dias, payload
   `{ sub, email, role }`). Token ausente ou inválido: 401. Perfil sem
   permissão: 403.
-- Texto enviado pelo usuário (nome, empresa, campos do produto, descrição do
-  lançamento financeiro) é gravado com HTML escapado (`<` vira `&lt;` etc.),
+- Texto enviado pelo usuário (nome, empresa, campos do produto e da loja, texto da
+  avaliação, descrição do lançamento financeiro) é gravado com HTML escapado (`<` vira `&lt;` etc.),
   porque o front monta as telas com `innerHTML`.
 
 ```yaml
 openapi: 3.0.0
 info:
   title: AgroTech API
-  version: 1.4.0
+  version: 1.5.0
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -35,6 +38,12 @@ components:
         propertyOrCompany: { type: string }
         email: { type: string }
         role: { type: string, enum: [PRODUTOR, VENDEDOR, ADMIN] }
+        storeProfileImage: { type: string, nullable: true, description: link http(s) ou foto enviada }
+        storeCoverImage: { type: string, nullable: true, description: link http(s) ou foto enviada }
+        storeBio: { type: string, description: até 500 caracteres }
+        storePhone: { type: string }
+        storeLocation: { type: string }
+        storeHours: { type: string }
     Session:
       type: object
       properties:
@@ -173,6 +182,59 @@ paths:
         '201': { description: 'anúncio criado', content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }
         '400': { description: 'dados incompletos, preço/estoque inválidos ou imagem inválida' }
         '401': { description: 'sem token ou token inválido' }
+  /api/auth/store:
+    put:
+      summary: Edita o perfil da loja do usuário da sessão
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                propertyOrCompany: { type: string }
+                storeProfileImage: { type: string, description: link http(s) ou foto enviada (data URL de imagem) }
+                storeCoverImage: { type: string, description: link http(s) ou foto enviada (data URL de imagem) }
+                storeBio: { type: string, maxLength: 500 }
+                storePhone: { type: string }
+                storeLocation: { type: string }
+                storeHours: { type: string }
+      responses:
+        '200': { description: 'perfil atualizado', content: { application/json: { schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } } } } }
+        '400': { description: 'nome vazio ou imagem inválida' }
+        '401': { description: 'sem token ou token inválido' }
+        '404': { description: 'usuário não encontrado' }
+  /api/products/{id}/reviews:
+    post:
+      summary: Avalia um anúncio (texto até 600 caracteres, nota de 0 a 5; sem nota vale 5)
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties: { text: { type: string, maxLength: 600 }, rating: { type: number, minimum: 0, maximum: 5 } }
+      responses:
+        '201': { description: 'avaliação criada', content: { application/json: { schema: { type: object, properties: { review: { type: object }, rating: { type: number }, reviewsCount: { type: integer } } } } } }
+        '400': { description: 'texto vazio' }
+        '401': { description: 'sem token ou token inválido' }
+        '404': { description: 'produto não encontrado' }
+  /api/products/{id}/reviews/{reviewId}:
+    delete:
+      summary: Remove uma avaliação (o autor dela ou ADMIN)
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: reviewId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '204': { description: 'removida' }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'não é o autor nem ADMIN' }
+        '404': { description: 'produto ou avaliação não encontrados' }
   /api/products/{id}:
     delete:
       summary: Remove um anúncio (dono do anúncio ou ADMIN)
@@ -204,11 +266,11 @@ paths:
                 items:
                   type: array
                   minItems: 1
-                  items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1 } } }
-                coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20] }
+                  items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1, maximum: 10000 } } }
+                coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20], description: 'sem diferenciar maiúsculas; cupom que não existe ou abaixo do valor mínimo é ignorado, sem erro, e o pedido sai sem desconto' }
       responses:
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
-        '400': { description: 'lista vazia, produto fora do catálogo ou quantidade inválida' }
+        '400': { description: 'lista vazia, produto fora do catálogo ou quantidade que não é inteira de 1 a 10.000' }
         '401': { description: 'sem token ou token inválido' }
   /api/finance/entries:
     get:

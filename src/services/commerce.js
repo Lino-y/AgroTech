@@ -38,6 +38,9 @@ export function validateCouponCode(code, subtotal = 0) {
   return { valid: true, coupon: upper, rule };
 }
 
+// Dinheiro em centavos exatos: 266,6 x 3 dava 799.8000000000001, que o pedido gravava e o financeiro somava.
+/** @param {number} value */
+const cents = (value) => Math.round(value * 100) / 100;
 
 /**
  * @param {CartLine[]} [cart]
@@ -45,7 +48,7 @@ export function validateCouponCode(code, subtotal = 0) {
  * @returns {CartSummary}
  */
 export function calculateCartSummary(cart = [], appliedCoupon = null) {
-  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+  const subtotal = cents(cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0));
   let discount = 0;
   // RF03: frete grátis acima de R$ 800,00. É o que a tela anuncia como "compra acima de R$ 800";
   // `freeShipping` também liga com o cupom FRETEGRATIS (issue #19).
@@ -56,7 +59,7 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
     const rule = COUPON_RULES[appliedCoupon];
     if (subtotal >= (rule.min || 0)) {
       if (rule.type === 'percent') {
-        discount = subtotal * rule.value;
+        discount = cents(subtotal * rule.value);
       }
       if (rule.type === 'fixed') {
         discount = rule.value;
@@ -68,7 +71,7 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
   }
 
   const shipping = freeShipping || subtotal === 0 ? 0 : 35;
-  const total = Math.max(0, subtotal - discount) + shipping;
+  const total = cents(Math.max(0, subtotal - discount) + shipping);
 
   return {
     subtotal,
