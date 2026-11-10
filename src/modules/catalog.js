@@ -1067,9 +1067,9 @@ function renderNavbar(cartCount = 0) {
 }
 
 function renderSellFab() {
-  // Carrinho e pagamento: o "+" cobria o botão principal da tela ("Ir para o Pagamento", #42, e "Confirmar
-  // Pagamento"), então some nelas.
-  if (state.activeScreen === 'cart' || state.activeScreen === 'payment') return '';
+  // Carrinho, pagamento e suporte: o "+" cobria o botão principal da tela ("Ir para o Pagamento", #42,
+  // "Confirmar Pagamento" e "Enviar" do chat, #60), então some nelas.
+  if (['cart', 'payment', 'support'].includes(state.activeScreen)) return '';
   return `
     <button onclick="navigateTo('sell')" title="Anunciar produto" style="position: absolute; bottom: 88px; right: 16px; width: 58px; height: 58px; border-radius: 50%; background: #2E7D32; color: #FFFFFF; border: none; font-size: 30px; line-height: 1; font-weight: 700; cursor: pointer; z-index: 50; box-shadow: 0 4px 14px rgba(27,94,32,0.35); display: flex; align-items: center; justify-content: center; padding-bottom: 4px;">+</button>
   `;
