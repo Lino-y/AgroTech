@@ -2,6 +2,8 @@
 
 - **Status:** spike da Fase 0 executado (issue #11); fases 1–4 pendentes do gate da ADR
 - **ADR:** `docs/adr/0001-migracao-para-react-native.md`
+- **ADR da estrutura frontend/backend (proposta, issue #62):**
+  `docs/adr/0002-estrutura-frontend-backend.md`
 - **Padrão de referência:** `mais-frota/apps/mobile-driver`
 
 ## Objetivo
@@ -39,6 +41,19 @@ apps/mobile/
 └─ __tests__/
 ```
 
+### Estrutura do repositório (proposta da ADR-0002, pendente de aprovação)
+
+```text
+apps/api/        # backend Express (hoje server.js e src/data/ na raiz)
+apps/web/        # SPA legada (hoje index.html, src/ e assets/ na raiz)
+apps/mobile/     # o app acima
+packages/domain/ # regras puras compartilhadas: commerce, finance, catalog
+```
+
+`apps/api`, `apps/web` e `apps/mobile` falam só por HTTP e importam apenas
+`packages/domain`. Enquanto a ADR-0002 não for aprovada, `server.js` e `src/`
+ficam onde estão.
+
 ## Fases
 
 ### Fase 0 — spike arquitetural
@@ -48,6 +63,18 @@ apps/mobile/
 - validar armazenamento e remoção da sessão;
 - validar TypeScript estrito, testes e build Android/iOS;
 - registrar custo, riscos e decisão final na ADR.
+
+### Fase A — separação frontend/backend (ADR-0002, antes da Fase 1)
+
+Só começa com a ADR-0002 aprovada. Um PR por passo, sem mudar comportamento,
+com `npm run verify`, `npm run test:ui` e `npm run check:coherence` verdes:
+
+1. **A1:** extrair `packages/domain` (commerce, finance, catalog);
+2. **A2:** mover o backend para `apps/api`, com o banco fora da pasta servida;
+3. **A3:** mover a SPA para `apps/web` — adiado até a aposentadoria dela.
+
+A guarda de spec (`.ai/scripts/spec-guard.js`), o ESLint, o `jsconfig.json`, os
+scripts e os testes acompanham cada movimentação (checklist na ADR-0002).
 
 ### Fase 1 — fundação
 
@@ -101,11 +128,14 @@ Migrar cada fluxo completo, com tela, serviço, erro, loading, teste e rollout:
 | RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🟡 TS estrito validado (`apps/mobile-spike/tsconfig.json`, `tsc -p` passa); build Expo pendente do gate |
 | RN02 | API e tipos mobile seguem o contrato existente | testes de integração | 🟡 `/api/auth/me` coberto por `apps/mobile-spike/__tests__/session.test.ts`; demais rotas na Fase 1 |
 | RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | ✅ `apps/mobile-spike/app/services/api.ts:30` + testes de token/401/403/timeout (`session.test.ts:26,65,88,139`) |
-| RN04 | Storage isola sessão, cache e fila | testes de storage | ✅ `apps/mobile-spike/app/services/storage.ts:18` + teste de set/get/clear (`session.test.ts:136`) |
+| RN04 | Storage isola sessão, cache e fila | testes de storage | ✅ `apps/mobile-spike/app/services/storage.ts:18` + teste de set/get/clear (`session.test.ts:156`) |
 | RN05 | Carrinho offline revalida preço e estoque | teste de reconexão | 🔴 Fase 3 |
 | RN06 | Nenhum cartão ou pedido financeiro entra na fila | teste de segurança | 🔴 Fase 3 (no spike nenhuma ação financeira existe) |
 | RN07 | Cada fluxo migrado tem teste e rollout reversível | checklist de release | 🔴 Fase 2 |
 | RN08 | SPA continua funcional durante o piloto | smoke test web | ✅ spike não toca a SPA: nenhum arquivo de `src/` alterado |
+| RN09 | Regras de comércio e finanças em um único lugar (`packages/domain`), usadas por api, web e mobile | teste que falha se divergirem | 🔴 Fase A (A1) |
+| RN10 | Separação frontend/backend sem regressão | `npm run verify`, `npm run test:ui`, `npm run check:coherence` e spec-guard cobrindo as pastas novas | 🔴 Fase A (A1 e A2) |
+| RN11 | Pré-requisitos de API para o app: idempotência em `POST /api/orders`, exclusão de conta, estratégia de sessão, versão mínima do app, catálogo paginado, CORS e limite de login | spec 05 atualizada + testes de API | 🔴 antes da Fase 2 |
 
 ## Fora de escopo
 
