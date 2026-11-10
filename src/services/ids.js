@@ -19,6 +19,16 @@ export const newProductId = () => crypto.randomUUID();
 // dígitos de antes, perto de 350 pedidos). Se o volume chegar lá, o id vira UUID e a tela
 // ganha um código curto separado.
 
+/**
+ * Id de usuário e de avaliação: UUID. Com o relógio (Date.now) dois cadastros no mesmo milissegundo
+ * dividiam o id, e o token de um resolvia para o outro.
+ * @returns {string}
+ */
+export const newUserId = () => `usr-${crypto.randomUUID()}`;
+
+/** @returns {string} */
+export const newReviewId = () => `rev-${crypto.randomUUID()}`;
+
 /** @returns {string} ex.: AGT-9F3A2C1B7D4E */
 export const newOrderId = () => `AGT-${randomHex(6)}`;
 

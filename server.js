@@ -10,7 +10,8 @@ import dotenv from 'dotenv';
 import { getProductCategoryStyle } from './src/services/catalog.js';
 import { calculateCartSummary } from './src/services/commerce.js';
 import { buildFinanceEntries } from './src/services/finance.js';
-import { newOrderId, newProductId, newTrackingCode } from './src/services/ids.js';
+import { createTurnQueue } from './src/services/write-queue.js';
+import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './src/services/ids.js';
 
 dotenv.config();
 
@@ -33,20 +34,7 @@ for (const method of ['get', 'post', 'put', 'delete']) {
   app[method] = (route, ...handlers) => (handlers.length ? register(route, ...handlers.map(catchAsync)) : register(route));
 }
 
-// Uma gravação por vez: a rota lê, altera e grava o db.json dentro da mesma vez, sem outra gravação
-// no meio (senão uma perde o que a outra gravou). A vez passa quando a resposta sai ou a conexão cai.
-// GET não entra na fila. Teto: um cliente que nunca termina a requisição trava a fila; um timeout de
-// requisição é o próximo passo se isso acontecer.
-let dbQueue = Promise.resolve();
-app.use((req, res, next) => {
-  if (req.method === 'GET' || !req.path.startsWith('/api')) return next();
-  const previous = dbQueue;
-  let done;
-  dbQueue = new Promise((resolve) => { done = resolve; });
-  res.once('finish', done);
-  res.once('close', done);
-  previous.then(next);
-});
+const writeQueue = createTurnQueue();
 
 const PORT = Number(process.env.PORT || 3001);
 // Sem JWT_SECRET, segredo aleatório por processo — nunca um valor fixo no código, que está
@@ -195,9 +183,12 @@ const normalizeDbUsers = (users = []) => {
 
     if (existingIndex >= 0) {
       const currentUser = merged[existingIndex];
+      // O que o usuário editou (nome, loja) vale; do seed vêm os campos que faltam e o perfil, que o corpo
+      // de uma requisição nunca define (é como o ADMIN do seed continua ADMIN).
       merged[existingIndex] = {
-        ...currentUser,
         ...seedUser,
+        ...currentUser,
+        role: seedUser.role,
         email: normalizedEmail,
         password: currentUser.password && String(currentUser.password).startsWith('$2')
           ? currentUser.password
@@ -292,19 +283,23 @@ const authenticate = async (req, res, next) => {
     return res.status(401).json({ message: 'Token de autenticação ausente.' });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const db = await readDb();
-    const user = db.users.find((item) => item.id === decoded.sub || item.email === decoded.email);
-    if (!user) {
-      return res.status(401).json({ message: 'Usuário inexistente para este token.' });
-    }
-
-    req.user = sanitizeUser(user);
-    next();
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch {
     return res.status(401).json({ message: 'Token inválido ou expirado.' });
   }
+
+  // Fora do try do token: banco ilegível é erro do servidor (500 pelo tratador de erro), e não "token
+  // inválido", que faria o app encerrar a sessão de todo mundo.
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === decoded.sub || item.email === decoded.email);
+  if (!user) {
+    return res.status(401).json({ message: 'Usuário inexistente para este token.' });
+  }
+
+  req.user = sanitizeUser(user);
+  return next();
 };
 
 const requireAdmin = (req, res, next) => {
@@ -324,8 +319,52 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '2mb' }));
-// Só o front é público: a raiz tem server.js e .env, e o banco fica em src/data/.
-app.use('/src/data', (_, res) => res.status(404).json({ message: 'Não encontrado.' }));
+
+// Uma gravação por vez (ver createTurnQueue). Entra depois do parse do corpo: um cliente lento, que
+// demora a mandar o corpo, não segura a fila de ninguém. O caminho casa sem diferenciar maiúsculas,
+// como o roteamento do Express (/API/orders chega na mesma rota). A vez é devolvida quando a rota
+// responde (res.end), e não quando a conexão cai: com o cliente desconectado a rota segue gravando.
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+app.use((req, res, next) => {
+  if (!WRITE_METHODS.has(req.method) || !/^\/api(\/|$)/i.test(req.path)) return next();
+  const { turn, release } = writeQueue.acquire();
+  let started = false;
+  let gone = false;
+  const end = res.end.bind(res);
+  res.end = (...args) => {
+    try {
+      return end(...args);
+    } finally {
+      release();
+    }
+  };
+  // Quem desiste ainda na fila devolve a vez e a rota nem roda; quem já está rodando termina antes.
+  res.once('close', () => {
+    gone = true;
+    if (!started) release();
+  });
+  turn.then(() => {
+    started = true;
+    if (gone) return release();
+    return next();
+  });
+});
+
+// Só o front é público: a raiz tem server.js e .env, e o banco fica em src/data/. O bloqueio olha o
+// caminho já decodificado, senão /src/%64ata/db.json passava por ele e o express.static decodificava
+// depois e entregava o banco (usuários e hashes de senha). Também ignora a caixa e a barra invertida
+// (o Windows serve src/DATA/db.json e src\data\db.json) e o ponto ou espaço no fim do nome.
+app.use('/src', (req, res, next) => {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(req.path);
+  } catch {
+    return res.status(400).json({ message: 'Caminho inválido.' });
+  }
+  const segments = decoded.toLowerCase().split(/[\\/]+/).map((segment) => segment.replace(/[. ]+$/, ''));
+  if (segments.includes('data')) return res.status(404).json({ message: 'Não encontrado.' });
+  return next();
+});
 app.use('/src', express.static(path.join(__dirname, 'src')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
@@ -349,7 +388,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const user = {
-    id: `usr-${Date.now()}`,
+    id: newUserId(),
     name: cleanText(name),
     propertyOrCompany: cleanText(propertyOrCompany),
     email: normalizedEmail,
@@ -395,20 +434,28 @@ app.put('/api/auth/store', authenticate, async (req, res) => {
     return res.status(400).json({ message: 'O nome é obrigatório.' });
   }
 
+  // A imagem da loja passa pelo mesmo filtro da do produto (link http(s) ou foto enviada).
+  const profileImage = safeImageUrl(String(storeProfileImage || '').trim());
+  const coverImage = safeImageUrl(String(storeCoverImage || '').trim());
+  if ((storeProfileImage !== undefined && profileImage === undefined) || (storeCoverImage !== undefined && coverImage === undefined)) {
+    return res.status(400).json({ message: 'Imagem inválida: use um link http(s) ou envie uma foto.' });
+  }
+
   const db = await readDb();
   const user = db.users.find((item) => item.id === req.user.id);
   if (!user) {
     return res.status(404).json({ message: 'Usuário não encontrado.' });
   }
 
-  user.name = String(name).trim();
-  if (propertyOrCompany !== undefined) user.propertyOrCompany = String(propertyOrCompany).trim();
-  if (storeProfileImage !== undefined) user.storeProfileImage = String(storeProfileImage || '').trim() || null;
-  if (storeCoverImage !== undefined) user.storeCoverImage = String(storeCoverImage || '').trim() || null;
-  if (storeBio !== undefined) user.storeBio = String(storeBio || '').slice(0, 500);
-  if (storePhone !== undefined) user.storePhone = String(storePhone || '').trim();
-  if (storeLocation !== undefined) user.storeLocation = String(storeLocation || '').trim();
-  if (storeHours !== undefined) user.storeHours = String(storeHours || '').trim();
+  // Todo texto que volta para a tela como HTML é escapado aqui, como no cadastro (cleanText).
+  user.name = cleanText(String(name).slice(0, 120));
+  if (propertyOrCompany !== undefined) user.propertyOrCompany = cleanText(String(propertyOrCompany || '').slice(0, 120));
+  if (storeProfileImage !== undefined) user.storeProfileImage = profileImage;
+  if (storeCoverImage !== undefined) user.storeCoverImage = coverImage;
+  if (storeBio !== undefined) user.storeBio = cleanText(String(storeBio || '').slice(0, 500));
+  if (storePhone !== undefined) user.storePhone = cleanText(String(storePhone || '').slice(0, 120));
+  if (storeLocation !== undefined) user.storeLocation = cleanText(String(storeLocation || '').slice(0, 120));
+  if (storeHours !== undefined) user.storeHours = cleanText(String(storeHours || '').slice(0, 120));
 
   await writeDb(db);
   res.json({ user: sanitizeUser(user) });
@@ -418,6 +465,11 @@ app.get('/api/products', async (_, res) => {
   const db = await readDb();
   res.json(db.products);
 });
+
+// Tetos de entrada: sem eles, 1e308 vira total "Infinity", que o JSON grava como null.
+const MAX_PRICE = 10_000_000;
+const MAX_STOCK = 1_000_000;
+const MAX_ORDER_QUANTITY = 10_000;
 
 app.post('/api/products', authenticate, async (req, res) => {
   const {
@@ -433,8 +485,8 @@ app.post('/api/products', authenticate, async (req, res) => {
   }
   const priceValue = Number(price);
   const stockValue = Number(stock);
-  if (!Number.isFinite(priceValue) || priceValue <= 0 || !Number.isFinite(stockValue) || stockValue < 0) {
-    return res.status(400).json({ message: 'O preço deve ser maior que zero e o estoque não pode ser negativo.' });
+  if (!Number.isFinite(priceValue) || priceValue <= 0 || priceValue > MAX_PRICE || !Number.isFinite(stockValue) || stockValue < 0 || stockValue > MAX_STOCK) {
+    return res.status(400).json({ message: 'O preço deve ser maior que zero (até R$ 10.000.000) e o estoque não pode ser negativo (até 1.000.000).' });
   }
   const image = safeImageUrl(imageUrl);
   if (image === undefined) {
@@ -482,11 +534,11 @@ app.post('/api/products/:id/reviews', authenticate, async (req, res) => {
   }
 
   const review = {
-    id: `rev-${Date.now()}`,
+    id: newReviewId(),
     author: req.user.name || req.user.propertyOrCompany || 'Produtor Rural',
     authorEmail: req.user.email,
-    text: String(text).trim().slice(0, 600),
-    rating: Math.min(5, Math.max(0, Number(rating) || 5))
+    text: cleanText(String(text).trim().slice(0, 600)),
+    rating: Number.isFinite(Number(rating)) ? Math.min(5, Math.max(0, Number(rating))) : 5
   };
 
   product.comments = product.comments || [];
@@ -556,11 +608,27 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const lines = Array.isArray(items)
     ? items.map((item) => ({ product: db.products.find((p) => p.id === String(item?.id)), quantity: Number(item?.quantity) }))
     : [];
-  if (!lines.length || lines.some(({ product, quantity }) => !product || !Number.isInteger(quantity) || quantity < 1)) {
-    return res.status(400).json({ message: 'Itens do pedido inválidos: informe produtos do catálogo e quantidades inteiras maiores que zero.' });
+  if (!lines.length || lines.some(({ product, quantity }) => !product || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ORDER_QUANTITY)) {
+    return res.status(400).json({ message: `Itens do pedido inválidos: informe produtos do catálogo e quantidades inteiras de 1 a ${MAX_ORDER_QUANTITY}.` });
   }
-  const orderItems = lines.map(({ product, quantity }) => ({ ...product, quantity }));
+  // Só o que a tela de pedidos e o financeiro leem. O produto inteiro levava junto a foto (data URL de
+  // até 2 MB) e os comentários, e o db.json, relido a cada requisição, crescia a cada compra.
+  const orderItems = lines.map(({ product, quantity }) => ({
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    unit: product.unit,
+    category: product.category,
+    ownerEmail: product.ownerEmail,
+    sellerName: product.sellerName,
+    imageEmoji: product.imageEmoji,
+    imageBg: product.imageBg,
+    quantity
+  }));
   const { total } = calculateCartSummary(orderItems, typeof coupon === 'string' ? coupon.toUpperCase() : null);
+  if (!Number.isFinite(total)) {
+    return res.status(400).json({ message: 'Não foi possível calcular o total do pedido.' });
+  }
 
   const order = {
     id: newOrderId(),
@@ -645,11 +713,17 @@ app.get('*', (_, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Erro de rota (ex.: db.json ilegível) vira 500 com { message }, sem derrubar o processo.
+// Erro de rota (ex.: db.json ilegível) vira 500 com { message }, sem derrubar o processo. Erro do
+// próprio cliente (JSON malformado = 400, corpo grande demais = 413) leva o status dele, não 500.
 app.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
-  console.error('[agrotech]', error);
-  res.status(500).json({ message: 'Erro ao acessar os dados do servidor.' });
+  const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 500 ? error.status : 500;
+  if (status < 500) {
+    return res.status(status).json({ message: status === 413 ? 'Corpo da requisição grande demais.' : 'Requisição inválida.' });
+  }
+  // Só a pilha: o erro do body-parser carrega `body` com o que o cliente mandou (pode ser a senha).
+  console.error('[agrotech]', error?.stack || error?.message || error);
+  return res.status(500).json({ message: 'Erro ao acessar os dados do servidor.' });
 });
 
 app.listen(PORT, () => {
