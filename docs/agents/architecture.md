@@ -14,7 +14,7 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
   (`.ai/specs/03-requisitos-nao-funcionais.md`, RNF02; contêiner de 430px em
   `src/styles/tokens.css:31`).
 - API em Express 4 no `server.js`, dados no arquivo `src/data/db.json` lido e
-  gravado só por `readDb`/`writeDb` (`server.js:210`, `server.js:221`). Banco,
+  gravado só por `readDb`/`writeDb` (`server.js:229`, `server.js:241`). Banco,
   ORM ou fila novos só com ADR.
 - Dependência nova só com pedido explícito do usuário. Antes de instalar,
   confira que o pacote existe e é o pretendido (`npm view <pacote>`): nome
@@ -29,18 +29,18 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 | Estado e fluxo | `src/modules/` | classes e orquestração; as telas ficam em `catalog.js` | `CartEngine` (`src/modules/cart.js:3`) |
 | HTML reutilizável | `src/components/` | função que devolve string HTML | `src/components/ProductCard.js:1` |
 | Estilo | `src/styles/` | cor e fonte por token (`var(--forest)` etc.), RNF01 | `src/styles/tokens.css:1` |
-| API HTTP | `server.js` | rota sob `/api`; `authenticate` quando exige login, `requireAdmin` para admin; erro como `{ message }` com o status certo | `server.js:486`, `server.js:309` |
+| API HTTP | `server.js` | rota sob `/api`; `authenticate` quando exige login, `requireAdmin` para admin; erro como `{ message }` com o status certo | `server.js:592`, `server.js:310` |
 
 ## Padrões atuais (siga; não crie um segundo padrão sem ADR)
 
 - Tela é string HTML trocada via `innerHTML` em `renderApp`
-  (`src/modules/catalog.js:2187`), com estado no objeto `state`
-  (`src/modules/catalog.js:59`).
-- Evento é `onclick="..."` chamando função exposta em `window` (67 e 35
+  (`src/modules/catalog.js:2424`), com estado no objeto `state`
+  (`src/modules/catalog.js:67`).
+- Evento é `onclick="..."` chamando função exposta em `window` (85 e 43
   ocorrências em `catalog.js`).
-- Dívida conhecida, **não copie**: `catalog.js` tem 2.292 linhas, 575 cores
+- Dívida conhecida, **não copie**: `catalog.js` tem 2.585 linhas, 629 cores
   hex literais e nenhum `var(--...)` (fere RNF01), e funções com
-  complexidade de até 72 (`src/modules/catalog.js:475`). Código novo usa os
+  complexidade de até 72 (`src/modules/catalog.js:458`). Código novo usa os
   tokens e funções curtas; o `npm run lint` avisa quando passa do limite.
 
 ## Contratos antes do código
@@ -53,12 +53,12 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - Formato novo de dado no `db.json`: descreva na seção Contratos do
   blueprint (`.ai/templates/blueprint-template.md`).
 - Entrada do usuário é validada no `server.js`, nunca só no front:
-  - texto que vai virar HTML passa por `cleanText` (`server.js:233`);
-  - link de imagem passa por `safeImageUrl` (`server.js:238`);
-  - perfil no cadastro só entre `SIGNUP_ROLES` (`server.js:227`), e ADMIN nunca
+  - texto que vai virar HTML passa por `cleanText` (`server.js:257`);
+  - link de imagem passa por `safeImageUrl` (`server.js:262`);
+  - perfil no cadastro só entre `SIGNUP_ROLES` (`server.js:251`), e ADMIN nunca
     vem do corpo da requisição;
   - preço e total saem do catálogo e de `calculateCartSummary`, nunca do valor
-    que o cliente manda (`server.js:436`);
+    que o cliente manda (`server.js:563`);
   - dado de um usuário só volta para ele mesmo ou para o ADMIN (ex.: pedidos).
 - Só `src/` (menos `src/data/`) e `assets/` são servidos como arquivo; não
   sirva a raiz do projeto.
