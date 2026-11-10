@@ -24,8 +24,8 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 
 | Camada | Onde | Regra | Exemplo real |
 |---|---|---|---|
-| Regra de negócio | `src/services/` | função pura, sem DOM nem `fetch`, testável no Node, com JSDoc | `calculateCartSummary` (`src/services/commerce.js:47`) |
-| Acesso à API | `src/services/api.js` | todo `fetch` passa por `apiRequest`, que põe o token e trata 401/403 | `src/services/api.js:3` |
+| Regra de negócio | `src/services/` | função pura, sem DOM nem `fetch`, testável no Node, com JSDoc | `calculateCartSummary` (`src/services/commerce.js:50`) |
+| Acesso à API | `src/services/api.js` | todo `fetch` passa por `apiRequest`, que põe o token e trata 401/403 | `src/services/api.js:12` |
 | Estado e fluxo | `src/modules/` | classes e orquestração; as telas ficam em `catalog.js` | `CartEngine` (`src/modules/cart.js:3`) |
 | HTML reutilizável | `src/components/` | função que devolve string HTML | `src/components/ProductCard.js:1` |
 | Estilo | `src/styles/` | cor e fonte por token (`var(--forest)` etc.), RNF01 | `src/styles/tokens.css:1` |
