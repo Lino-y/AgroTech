@@ -13,7 +13,7 @@ import { catalogEmptyKind, filterCatalogProducts } from '../services/catalog-vie
 import { renderCatalogEmptyState } from '../components/CatalogEmptyState.js';
 import { buildSupportReply } from '../services/support.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview } from '../services/api.js';
+import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview, setUnauthorizedHandler } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -64,6 +64,8 @@ const initialUser = savedUser || {
 };
 
 // --- ESTADO GLOBAL DA APLICAÇÃO ---
+const INITIAL_COINS = 350;
+
 const state = {
   activeScreen: 'catalog',
   authMode: 'register',
@@ -76,7 +78,7 @@ const state = {
   // Pedidos da conta, vindos de GET /api/orders ao abrir "Meus Pedidos" (src/modules/orders-sync.js).
   orders: { list: [], loading: false, error: null },
   appliedCoupon: null,
-  coins: 350,
+  coins: INITIAL_COINS,
   profileSection: null,
   storeEditor: null,
   paymentMethod: 'pix',
@@ -130,6 +132,26 @@ function showToast(message, type = 'info') {
   }, 2600);
 }
 window.showToast = showToast;
+
+// Impede o segundo toque enquanto a requisição do mesmo botão ainda está em andamento: sem isso, o duplo
+// clique em "Confirmar Pagamento" ou "Publicar" criava dois pedidos ou dois anúncios.
+const submitting = new Set();
+function once(key, handler) {
+  return async function guarded(...args) {
+    args[0]?.preventDefault?.();
+    if (submitting.has(key)) return undefined;
+    submitting.add(key);
+    try {
+      return await handler.apply(this, args);
+    } finally {
+      submitting.delete(key);
+    }
+  };
+}
+
+// A foto vira data URL (base64, cerca de 1,37x maior) dentro de um JSON que o servidor limita a 2 MB:
+// com 2 MB de arquivo o envio dava 413.
+const MAX_IMAGE_BYTES = 1.4 * 1024 * 1024;
 // --- NAVEGAÇÃO E LÓGICAS ---
 window.navigateTo = function(screen) {
   // Telas que requerem autenticação: compra (carrinho/pagamento), anúncio de produto, e o
@@ -138,6 +160,9 @@ window.navigateTo = function(screen) {
 
   // Verifica se o usuário está logado (tem email preenchido)
   const isLoggedIn = state.user && state.user.email && state.user.email.trim() !== '';
+
+  // O detalhe do produto é um modal por cima da tela: trocar de tela o fecha.
+  state.selectedProduct = null;
 
   if (authRequiredScreens.includes(screen) && !isLoggedIn) {
     // Armazena a tela que o usuário tentou acessar
@@ -211,7 +236,7 @@ window.setNewRatingStar = function(starCount) {
   renderApp();
 };
 
-window.submitReview = async function(event) {
+window.submitReview = once('review', async function(event) {
   event.preventDefault();
   const input = document.getElementById('reviewText');
   const text = input ? input.value.trim() : '';
@@ -222,20 +247,23 @@ window.submitReview = async function(event) {
     return;
   }
 
-  const productId = state.selectedProduct.id;
+  // O produto é guardado antes do await: se o modal fechar ou abrir outro enquanto o servidor responde,
+  // a avaliação continua indo para o produto certo, sem erro de "null".
+  const product = state.selectedProduct;
+  if (!product) return;
 
   try {
-    const result = await addReview(productId, { text, rating });
-    state.selectedProduct.comments = [{ ...result.review }, ...(state.selectedProduct.comments || [])];
-    state.selectedProduct.rating = result.rating;
-    state.selectedProduct.reviewsCount = result.reviewsCount;
+    const result = await addReview(product.id, { text, rating });
+    product.comments = [{ ...result.review }, ...(product.comments || [])];
+    product.rating = result.rating;
+    product.reviewsCount = result.reviewsCount;
     persistProducts();
     showToast('Avaliação publicada!', 'success');
     renderApp();
   } catch (error) {
     showToast(error.message || 'Não foi possível publicar a avaliação.', 'error');
   }
-};
+});
 
 // --- IA ASSISTENTE DE ANÚNCIO ---
 // Analisa a descrição livre do vendedor e preenche os campos do formulário.
@@ -615,7 +643,7 @@ window.aiFillProduct = function() {
 };
 
 // --- PUBLICAÇÃO DO ANÚNCIO ---
-window.handlePublishProduct = async function(event) {
+window.handlePublishProduct = once('publish', async function(event) {
   event.preventDefault();
 
   const name = document.getElementById('prodName')?.value.trim();
@@ -662,7 +690,7 @@ window.handlePublishProduct = async function(event) {
     // dava sucesso falso e ele sumia na próxima carga do catálogo.
     showToast(error.message, 'error');
   }
-};
+});
 
 // --- UPLOAD DE FOTO DO LOTE ---
 window.handleProductImageUpload = function(event) {
@@ -674,8 +702,8 @@ window.handleProductImageUpload = function(event) {
     return;
   }
 
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('Imagem muito grande. Máximo de 2MB.', 'error');
+  if (file.size > MAX_IMAGE_BYTES) {
+    showToast('Imagem muito grande. Máximo de 1,4 MB.', 'error');
     return;
   }
 
@@ -693,22 +721,26 @@ window.handleProductImageUpload = function(event) {
   };
   reader.readAsDataURL(file);
 };
-window.deleteProduct = function(productId) {
+window.deleteProduct = once('delete-product', async function(productId) {
   if (!confirm('Deseja realmente excluir este produto do catálogo?')) return;
+
+  // O servidor primeiro: tirar da tela antes e falhar depois deixava a tela diferente do banco ("excluído
+  // com sucesso" e o anúncio de volta ao recarregar). 404 é anúncio que já não existe, e sai igual.
+  try {
+    await deleteProductApi(productId);
+  } catch (error) {
+    if (error.status !== 404) {
+      showToast(error.message || 'Não foi possível excluir o anúncio.', 'error');
+      return;
+    }
+  }
 
   state.products = state.products.filter(p => p.id !== productId);
   persistProducts();
   state.selectedProduct = null;
   showToast('Produto excluído com sucesso.', 'success');
   renderApp();
-
-  // Sincroniza a exclusão no servidor (produtos salvos em db.json)
-  deleteProductApi(productId)
-    .catch((error) => {
-      console.warn('Não foi possível excluir no servidor:', error.message);
-      showToast('O produto foi removido aqui, mas pode reaparecer ao recarregar.', 'error');
-    });
-};
+});
 
 window.toggleProfileSection = function(section) {
   state.profileSection = state.profileSection === section ? null : section;
@@ -787,15 +819,13 @@ window.setCreditInstallments = function(inst) {
   renderApp();
 };
 
-window.processPayment = async function(event) {
+window.processPayment = once('payment', async function(event) {
   if (event) event.preventDefault();
 
   if (!state.cart.length) {
     showToast('Seu carrinho está vazio.', 'error');
     return;
   }
-
-  const totals = getCartTotals();
 
   try {
     // Só o que o servidor lê: preço, frete, total e rastreio saem do catálogo dele (POST /api/orders).
@@ -807,14 +837,14 @@ window.processPayment = async function(event) {
     state.coins += Math.round(newOrder.total / 10); // 1 moeda a cada R$ 10, pelo total cobrado pelo servidor
     // A compra entra em "Meus Pedidos" e no financeiro pelo servidor, que cada tela busca ao abrir.
 
-    showToast(`Pagamento de R$ ${totals.total.toFixed(2)} aprovado!`, 'success');
+    showToast(`Pagamento de R$ ${newOrder.total.toFixed(2)} aprovado!`, 'success');
     state.cart = [];
     state.appliedCoupon = null;
     window.navigateTo('orders');
   } catch (error) {
     showToast(error.message || 'Não foi possível confirmar o pagamento.', 'error');
   }
-};
+});
 
 function loadFinance() {
   return syncFinance(state, { load: loadFinanceEntries, render: renderApp });
@@ -832,7 +862,7 @@ window.setFinancePeriod = function(months) {
   renderApp();
 };
 
-window.handleAddTransaction = async function(event) {
+window.handleAddTransaction = once('transaction', async function(event) {
   event.preventDefault();
   const title = document.getElementById('txTitle').value.trim();
   const amount = parseFloat(document.getElementById('txAmount').value);
@@ -847,8 +877,10 @@ window.handleAddTransaction = async function(event) {
       // O formulário continua preenchido para tentar de novo.
       showToast(error.message || 'Não foi possível registrar o lançamento.', 'error');
     }
+  } else {
+    showToast('Informe a descrição e um valor maior que zero.', 'error');
   }
-};
+});
 
 window.sendChatMessage = function(customText) {
   const input = document.getElementById('chatInput');
@@ -973,21 +1005,48 @@ window.handleLogin = async function(event) {
   }
 };
 
+// Tudo o que é da conta que saiu. Sem isso, quem entra em seguida na mesma aba via o carrinho, o cupom, as
+// moedas e a conversa da conta anterior, e os timers do rastreio seguiam rodando.
+function resetAccountState() {
+  authService.logout();
+  state.user = { name: '', propertyOrCompany: '', email: '', password: '', role: 'PRODUTOR' };
+  state.activeScreen = 'catalog';
+  state.authMode = 'register';
+  state.pendingScreen = null;
+  state.finance = { entries: [], loading: false, error: null };
+  state.orders = { list: [], loading: false, error: null };
+  state.cart = [];
+  state.appliedCoupon = null;
+  state.coins = INITIAL_COINS;
+  state.chatMessages = state.chatMessages.slice(0, 1);
+  state.searchTerm = '';
+  state.selectedCategory = 'Todos';
+  state.selectedProduct = null;
+  state.profileSection = null;
+  state.storeEditor = null;
+  state.paymentMethod = 'pix';
+  state.creditInstallments = 1;
+  Object.values(window.activeTrackingTimers || {}).forEach((timer) => clearInterval(timer));
+  window.activeTrackingTimers = {};
+  removeUser();
+  removeToken();
+}
+
 window.handleLogout = function() {
   if (confirm('Deseja realmente sair da sua conta?')) {
-    authService.logout();
-    state.user = { name: '', propertyOrCompany: '', email: '', password: '', role: 'PRODUTOR' };
-    state.activeScreen = 'catalog';
-    state.authMode = 'register';
-    state.pendingScreen = null;
-    // Extrato e pedidos são da conta que saiu: não ficam na memória da aba para a próxima.
-    state.finance = { entries: [], loading: false, error: null };
-    state.orders = { list: [], loading: false, error: null };
-    removeUser();
-    removeToken();
+    resetAccountState();
     renderApp();
   }
 };
+
+// A API respondeu 401 a quem estava logado (o token expirou): volta ao login com o estado limpo. A
+// mensagem do servidor chega ao usuário pelo aviso do próprio fluxo que falhou.
+setUnauthorizedHandler(() => {
+  resetAccountState();
+  state.authMode = 'login';
+  state.activeScreen = 'register';
+  renderApp();
+});
 
 function renderNavbar(cartCount = 0) {
   return `
@@ -1008,8 +1067,9 @@ function renderNavbar(cartCount = 0) {
 }
 
 function renderSellFab() {
-  // Carrinho: o "+" cobria o botão "Ir para o Pagamento" (#42), então some nessa tela.
-  if (state.activeScreen === 'cart') return '';
+  // Carrinho e pagamento: o "+" cobria o botão principal da tela ("Ir para o Pagamento", #42, e "Confirmar
+  // Pagamento"), então some nelas.
+  if (state.activeScreen === 'cart' || state.activeScreen === 'payment') return '';
   return `
     <button onclick="navigateTo('sell')" title="Anunciar produto" style="position: absolute; bottom: 88px; right: 16px; width: 58px; height: 58px; border-radius: 50%; background: #2E7D32; color: #FFFFFF; border: none; font-size: 30px; line-height: 1; font-weight: 700; cursor: pointer; z-index: 50; box-shadow: 0 4px 14px rgba(27,94,32,0.35); display: flex; align-items: center; justify-content: center; padding-bottom: 4px;">+</button>
   `;
@@ -1220,7 +1280,6 @@ function renderCatalogScreen() {
       </div>
     </div>
 
-    ${state.selectedProduct ? renderProductDetail() : ''}
   `;
 }
 
@@ -1460,7 +1519,7 @@ function renderSellScreen() {
           <input type="hidden" id="prodImage" value="">
           <img id="prodImagePreview" alt="" style="display: none; width: 100%; max-height: 160px; object-fit: cover; border-radius: 10px; border: 1px solid #A5D6A7; margin-bottom: 8px;">
           <input type="file" accept="image/*" onchange="handleProductImageUpload(event)" style="width: 100%; padding: 10px 12px; border: 1px solid #A5D6A7; border-radius: 10px; font-size: 12px; background: #FFFFFF; box-sizing: border-box; outline: none;">
-          <p style="font-size: 10px; color: #388E3C; margin: 5px 0 0;">JPG ou PNG, até 2MB.</p>
+          <p style="font-size: 10px; color: #388E3C; margin: 5px 0 0;">JPG ou PNG, até 1,4 MB.</p>
         </div>
 
         <div>
@@ -1932,8 +1991,8 @@ window.handleStoreImagePick = function(field, inputId) {
   const input = document.getElementById(inputId);
   const file = input && input.files && input.files[0];
   if (!file) return;
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('Imagem muito grande. Escolha um arquivo de até 2 MB.', 'error');
+  if (file.size > MAX_IMAGE_BYTES) {
+    showToast('Imagem muito grande. Escolha um arquivo de até 1,4 MB.', 'error');
     return;
   }
   const reader = new FileReader();
@@ -2461,7 +2520,7 @@ function renderApp() {
     if (state.activeScreen === 'register') {
       mainContent.innerHTML = screenHTML;
     } else {
-      mainContent.innerHTML = screenHTML + (state.activeScreen === 'sell' ? '' : renderSellFab()) + renderBottomNav() + renderStoreEditor();
+      mainContent.innerHTML = screenHTML + (state.activeScreen === 'sell' ? '' : renderSellFab()) + renderBottomNav() + renderStoreEditor() + (state.selectedProduct ? renderProductDetail() : '');
     }
     enableDragToScroll();
     // A busca filtra os cards no DOM: reaplica o termo salvo depois de redesenhar (#15).

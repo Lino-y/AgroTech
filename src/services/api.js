@@ -1,10 +1,20 @@
 import { getToken, removeToken, removeUser } from './storage.js';
 
+// A tela registra o que fazer quando a sessão deixa de valer (volta ao login e limpa o estado da conta).
+let onUnauthorized = null;
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
+// Sem limite de tempo, um servidor que não responde deixava o "carregando" ligado para sempre.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export async function apiRequest(path, options = {}) {
   const token = getToken();
   // Os cabeçalhos do chamador somam aos montados aqui; não podem apagar o token (issue #22).
   const { headers = {}, ...rest } = options;
   const response = await fetch(`/api${path}`, {
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...rest,
     headers: {
       'Content-Type': 'application/json',
@@ -12,6 +22,9 @@ export async function apiRequest(path, options = {}) {
       ...headers
     }
   }).catch((error) => {
+    if (error?.name === 'TimeoutError') {
+      throw new Error('O servidor demorou para responder. Tente de novo.', { cause: error });
+    }
     // O fetch só rejeita quando a requisição não chega ao servidor (sem internet, servidor fora do ar).
     throw new Error('Sem conexão com o servidor. Verifique a internet e tente de novo.', { cause: error });
   });
@@ -20,12 +33,15 @@ export async function apiRequest(path, options = {}) {
     const payload = await response.json().catch(() => ({}));
     const message = payload.message || 'Erro ao carregar dados do servidor.';
 
-    if (response.status === 401 || response.status === 403) {
+    // 401 de quem estava logado: a sessão deixou de valer. O 403 é regra de negócio (ex.: excluir o
+    // anúncio de outro) e não encerra nada.
+    if (response.status === 401 && token) {
       removeToken();
       removeUser();
+      onUnauthorized?.();
     }
 
-    throw new Error(message);
+    throw Object.assign(new Error(message), { status: response.status });
   }
 
   if (response.status === 204) return null;

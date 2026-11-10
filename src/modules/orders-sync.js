@@ -15,7 +15,9 @@ export async function syncOrders(state, { load, render }) {
   state.orders = orders;
   render();
   try {
-    orders.list = await load();
+    const list = await load();
+    if (!Array.isArray(list)) throw new Error('Resposta inesperada do servidor.');
+    orders.list = list;
   } catch (error) {
     orders.error = (error instanceof Error && error.message) || 'Não foi possível carregar os pedidos.';
   }
