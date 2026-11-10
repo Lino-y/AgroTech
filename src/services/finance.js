@@ -27,8 +27,11 @@ export function orderDate(order) {
   if (order.createdAt) return order.createdAt;
   const match = /^(\d{1,2})\/(\p{L}{3})\/(\d{4})$/u.exec(String(order.date));
   const month = match ? MONTHS.findIndex((name) => name.toLowerCase() === match[2].toLowerCase()) : -1;
+  if (!match || month < 0) return null;
   // Meio-dia UTC: o dia não muda em nenhum fuso do Brasil.
-  return match && month >= 0 ? new Date(Date.UTC(Number(match[3]), month, Number(match[1]), 12)).toISOString() : null;
+  const date = new Date(Date.UTC(Number(match[3]), month, Number(match[1]), 12));
+  // 31/Fev virava 3 de março no Date e caía no mês errado: dia que não existe no mês não é data.
+  return date.getUTCMonth() === month && date.getUTCDate() === Number(match[1]) ? date.toISOString() : null;
 }
 
 /**
