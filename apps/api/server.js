@@ -896,6 +896,8 @@ app.use((error, req, res, next) => {
   return res.status(500).json({ message: 'Erro ao acessar os dados do servidor.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`AgroTech backend running on http://localhost:${PORT}`);
+// Com PORT=0 o sistema escolhe uma porta livre no próprio listen (sem corrida com outros processos nos
+// testes). O log mostra a porta real, que o helper dos testes lê.
+const httpServer = app.listen(PORT, () => {
+  console.log(`AgroTech backend running on http://localhost:${httpServer.address().port}`);
 });

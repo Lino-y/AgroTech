@@ -4,12 +4,10 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { freePort, startServer as startServerProcess } from '../helpers/start-server.js';
 
-const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 // CHROME_PATH, quando definido, é o único candidato: caminho errado pula os testes em vez de abrir outro navegador.
 const BROWSERS = process.env.CHROME_PATH ? [process.env.CHROME_PATH] : [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -32,12 +30,6 @@ export const skipReason = browserPath ? false : 'Chrome ou Edge não encontrado:
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
 
 // Repete `check` até dar verdadeiro. Erro no meio (servidor subindo, aba trocando de documento) conta como "ainda não".
 async function poll(check, what, timeout = 5000) {
@@ -139,13 +131,9 @@ async function openPage(cdp, url, { products, width = 390, height = 844 } = {}) 
 /** Sobe o server.js e o navegador; `open(opções)` abre a SPA numa aba isolada. */
 export async function startApp() {
   const tmp = mkdtempSync(path.join(tmpdir(), 'agrotech-ui-'));
-  const appPort = await freePort();
   const cdpPort = await freePort();
-  const server = spawn(process.execPath, ['apps/api/server.js'], {
-    cwd: ROOT,
-    env: { ...process.env, PORT: String(appPort), DATA_FILE: path.join(tmp, 'db.json'), JWT_SECRET: '' },
-    stdio: 'ignore'
-  });
+  const server = await startServerProcess({ env: { DATA_FILE: path.join(tmp, 'db.json'), JWT_SECRET: '' } });
+  const appPort = Number(new URL(server.base).port);
   const browser = spawn(browserPath, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     // Só localhost resolve: fonte e foto da internet não atrasam nem derrubam o teste.

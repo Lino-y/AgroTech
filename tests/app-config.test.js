@@ -2,44 +2,23 @@
 // com banco descartável (DATA_FILE). Valor inválido derruba o servidor na subida.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { readAppMinVersion } from '../apps/api/app-version.js';
+import { startServer as startServerProcess } from './helpers/start-server.js';
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
 
-function start(extraEnv) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'agrotech-appconfig-'));
-  const env = { ...process.env, DATA_FILE: path.join(dir, 'db.json'), JWT_SECRET: '', ...extraEnv };
-  if (!('APP_MIN_VERSION' in extraEnv)) delete env.APP_MIN_VERSION; // não herdar do shell
-  return { dir, env };
-}
 
 async function withServer(extraEnv, fn) {
-  const port = await freePort();
-  const { dir, env } = start({ ...extraEnv, PORT: String(port) });
-  const child = spawn(process.execPath, ['apps/api/server.js'], { env, stdio: 'ignore' });
+  const dir = mkdtempSync(path.join(tmpdir(), 'agrotech-appconfig-'));
+  const started = await startServerProcess({
+    env: { DATA_FILE: path.join(dir, 'db.json'), JWT_SECRET: '', APP_MIN_VERSION: undefined, ...extraEnv }
+  });
   try {
-    const base = `http://localhost:${port}`;
-    for (let attempt = 0; attempt < 100; attempt++) {
-      try {
-        if ((await fetch(`${base}/api/health`)).ok) return await fn(base);
-      } catch {
-        // ainda subindo
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    throw new Error('server.js não subiu em 10s');
+    return await fn(started.base);
   } finally {
-    child.kill();
+    started.kill();
     rmSync(dir, { recursive: true, force: true });
   }
 }

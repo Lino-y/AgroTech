@@ -3,47 +3,22 @@
 // HTML, limites de entrada, erro de entrada e de banco, perfil editado, ids e fila de gravação.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { startServer as startServerProcess } from './helpers/start-server.js';
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
 
 const servers = [];
 
 // capture: guarda stdout/stderr do servidor para conferir o que ele escreve no log.
-async function startServer({ capture = false } = {}) {
+async function startServer() {
   const dir = mkdtempSync(path.join(tmpdir(), 'agrotech-hard-'));
   const dataFile = path.join(dir, 'db.json');
-  const port = await freePort();
-  const child = spawn(process.execPath, ['apps/api/server.js'], {
-    env: { ...process.env, PORT: String(port), DATA_FILE: dataFile, JWT_SECRET: '' },
-    stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'ignore'
-  });
-  let output = '';
-  if (capture) {
-    child.stdout.on('data', (chunk) => (output += chunk));
-    child.stderr.on('data', (chunk) => (output += chunk));
-  }
-  const base = `http://localhost:${port}`;
-  const server = { base, dir, dataFile, child, output: () => output };
+  const started = await startServerProcess({ env: { DATA_FILE: dataFile, JWT_SECRET: '' } });
+  const server = { base: started.base, dir, dataFile, child: started.child, output: started.output };
   servers.push(server);
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      if ((await fetch(`${base}/api/health`)).ok) return server;
-    } catch {
-      // ainda subindo
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('server.js não subiu em 10s');
+  return server;
 }
 
 async function call(server, method, url, body, token) {
@@ -176,7 +151,7 @@ test('rota /API em maiúsculas entra na fila: gravações simultâneas não se p
 });
 
 test('corpo malformado responde 400 e o log não guarda o que o cliente mandou (senha)', async () => {
-  const server = await startServer({ capture: true });
+  const server = await startServer();
   const bad = await call(server, 'POST', '/api/auth/login', '{"password":"senha-secreta-123", x');
   assert.equal(bad.status, 400);
   assert.equal(typeof bad.body?.message, 'string');

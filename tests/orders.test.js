@@ -4,14 +4,13 @@
 // apps/api/data/db.json do repositório.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { newOrderId, newProductId, newTrackingCode } from '../apps/api/ids.js';
 import { formatOrderDate } from '../src/services/orders.js';
 import { syncOrders } from '../src/modules/orders-sync.js';
+import { startServer } from './helpers/start-server.js';
 
 // A data da tela depende do fuso: estes testes rodam no de Brasília em qualquer máquina.
 process.env.TZ = 'America/Sao_Paulo';
@@ -92,30 +91,11 @@ let server;
 let base;
 let dataDir;
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
-
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-orders-'));
-  const port = await freePort();
-  base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['apps/api/server.js'], {
-    env: { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' },
-    stdio: 'ignore'
-  });
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      if ((await fetch(`${base}/api/health`)).ok) return;
-    } catch {
-      // ainda subindo
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('server.js não subiu em 10s');
+  const started = await startServer({ env: { DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' } });
+  base = started.base;
+  server = started;
 });
 
 after(() => {

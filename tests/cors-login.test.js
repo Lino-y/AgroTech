@@ -3,39 +3,24 @@
 // tests/orders.test.js. O limitador também tem testes unitários com relógio falso.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { MAX_FAILURES, WINDOW_MS, blockedSeconds, clearFailures, recordFailure } from '../apps/api/login-limiter.js';
+import { startServer as startServerProcess } from './helpers/start-server.js';
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
 
 /** Sobe o servidor com as variáveis dadas; devolve a base da URL e como desligar. */
 async function startServer(extraEnv = {}) {
   const dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-cors-login-'));
-  const port = await freePort();
-  const base = `http://localhost:${port}`;
-  const env = { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' };
-  delete env.CORS_ORIGINS;
-  const server = spawn(process.execPath, ['apps/api/server.js'], { env: { ...env, ...extraEnv }, stdio: 'ignore' });
-  const stop = () => { server.kill(); rmSync(dataDir, { recursive: true, force: true }); };
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      if ((await fetch(`${base}/api/health`)).ok) return { base, stop };
-    } catch {
-      // ainda subindo
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  stop();
-  throw new Error('server.js não subiu em 10s');
+  const started = await startServerProcess({
+    env: { DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '', CORS_ORIGINS: undefined, ...extraEnv }
+  });
+  const stop = () => {
+    started.kill();
+    rmSync(dataDir, { recursive: true, force: true });
+  };
+  return { base: started.base, stop };
 }
 
 const post = (base, url, body) => fetch(base + url, {
