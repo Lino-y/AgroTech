@@ -152,6 +152,29 @@ paths:
       responses:
         '200': { description: 'usuário', content: { application/json: { schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } } } } }
         '401': { description: 'sem token ou token inválido' }
+    delete:
+      summary: Exclui a conta da sessão (exige a senha)
+      description: >
+        Remove o usuário, os anúncios e os lançamentos financeiros dele. Os pedidos são mantidos
+        e anonimizados: o ownerEmail do pedido e o dos itens vira conta-excluida-{idDoPedido}@removido.invalid,
+        e o sellerName dos itens vira "Vendedor removido". As avaliações (comentários nos produtos)
+        NÃO são alteradas: guardam só o nome do autor, sem referência à conta. O token da conta
+        excluída passa a receber 401. Conta ADMIN não pode ser excluída por esta rota.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '204': { description: 'conta excluída, sem corpo' }
+        '400': { description: 'senha ausente no corpo' }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'senha incorreta (não é 401: o app encerra a sessão em todo 401) ou conta administradora' }
   /api/products:
     get:
       summary: Lista o catálogo (público)
