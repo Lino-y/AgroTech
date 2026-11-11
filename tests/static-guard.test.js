@@ -3,24 +3,16 @@
 // (usuários e hashes de senha). Este teste usa um arquivo de banco de verdade dentro de src/data.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, rmSync, rmdirSync } from 'node:fs';
 import { request } from 'node:http';
-import { createServer } from 'node:net';
 import path from 'node:path';
+import { startServer } from './helpers/start-server.js';
 
 const DATA_DIR = path.resolve('src/data');
 const FILE = `guard-${process.pid}.json`;
 const dirExisted = existsSync(DATA_DIR);
 let server;
 let port;
-
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port: free } = probe.address();
-    probe.close(() => resolve(free));
-  });
-});
 
 // Caminho cru, sem a normalização que o fetch faz (ele resolveria %2e e ..).
 const raw = (rawPath) => new Promise((resolve, reject) => {
@@ -34,21 +26,9 @@ const raw = (rawPath) => new Promise((resolve, reject) => {
 });
 
 before(async () => {
-  port = await freePort();
-  server = spawn(process.execPath, ['apps/api/server.js'], {
-    env: { ...process.env, PORT: String(port), DATA_FILE: path.join(DATA_DIR, FILE), JWT_SECRET: '' },
-    stdio: 'ignore'
-  });
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      // /api/products lê o banco e o cria em src/data na primeira chamada.
-      if ((await raw('/api/products')).status === 200) return;
-    } catch {
-      // ainda subindo
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('server.js não subiu em 10s');
+  const started = await startServer({ env: { DATA_FILE: path.join(DATA_DIR, FILE), JWT_SECRET: '' } });
+  port = Number(new URL(started.base).port);
+  server = started;
 });
 
 after(() => {

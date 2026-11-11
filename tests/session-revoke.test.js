@@ -4,12 +4,11 @@
 // Sobe apps/api/server.js com JWT_SECRET fixo, para assinar um token "antigo" nos testes.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import jwt from 'jsonwebtoken';
+import { startServer } from './helpers/start-server.js';
 
 const SECRET = 'segredo-de-teste-sessao-62';
 let server;
@@ -17,31 +16,12 @@ let base;
 let dataDir;
 let dataFile;
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
-
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-sessao-'));
   dataFile = path.join(dataDir, 'db.json');
-  const port = await freePort();
-  base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['apps/api/server.js'], {
-    env: { ...process.env, PORT: String(port), DATA_FILE: dataFile, JWT_SECRET: SECRET },
-    stdio: 'ignore'
-  });
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      if ((await fetch(`${base}/api/health`)).ok) return;
-    } catch {
-      // ainda subindo
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('apps/api/server.js não subiu em 10s');
+  const started = await startServer({ env: { DATA_FILE: dataFile, JWT_SECRET: SECRET } });
+  base = started.base;
+  server = started;
 });
 
 after(() => {

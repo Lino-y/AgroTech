@@ -3,39 +3,20 @@
 // descartável (DATA_FILE), no molde de tests/orders.test.js.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { startServer } from './helpers/start-server.js';
 
 let server;
 let base;
 let dataDir;
 
-const freePort = () => new Promise((resolve) => {
-  const probe = createServer().listen(0, () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
-
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-paginacao-'));
-  const port = await freePort();
-  base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['apps/api/server.js'], {
-    env: { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' },
-    stdio: 'ignore'
-  });
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      if ((await fetch(`${base}/api/health`)).ok) break;
-    } catch {
-      // ainda subindo
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  const started = await startServer({ env: { DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' } });
+  base = started.base;
+  server = started;
   const email = `paginacao-${Date.now()}@agrotech.dev`;
   const reg = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
