@@ -157,9 +157,11 @@ paths:
       description: >
         Remove o usuário, os anúncios e os lançamentos financeiros dele. Os pedidos são mantidos
         e anonimizados: o ownerEmail do pedido e o dos itens vira conta-excluida-{idDoPedido}@removido.invalid,
-        e o sellerName dos itens vira "Vendedor removido". As avaliações (comentários nos produtos)
-        NÃO são alteradas: guardam só o nome do autor, sem referência à conta. O token da conta
-        excluída passa a receber 401. Conta ADMIN não pode ser excluída por esta rota.
+        e o sellerName dos itens vira "Vendedor removido". As avaliações feitas pela conta (vínculo:
+        authorEmail gravado na avaliação) saem dos produtos, e a nota e o total de cada produto afetado
+        são recalculados. Avaliações sem authorEmail (do seed ou anteriores ao vínculo) não são alteradas,
+        porque não há como ligá-las à conta; o nome é o único dado delas. O token da conta excluída passa
+        a receber 401. Conta ADMIN não pode ser excluída por esta rota.
       security: [{ bearer: [] }]
       requestBody:
         required: true
