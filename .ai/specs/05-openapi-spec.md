@@ -114,6 +114,12 @@ paths:
       summary: Verifica se a API está no ar
       responses:
         '200': { description: 'ok', content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, timestamp: { type: string } } } } } }
+  /api/app-config:
+    get:
+      summary: Versão mínima do app aceita pela API (pública, sem token)
+      description: 'Vem da variável de ambiente APP_MIN_VERSION (MAJOR.MINOR.PATCH); padrão 0.0.0. Valor inválido derruba o servidor na subida. A API não bloqueia versões antigas; só informa.'
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { type: object, properties: { minVersion: { type: string, example: '1.2.0' } } } } } }
   /api/auth/register:
     post:
       summary: Cria uma conta e já devolve a sessão
@@ -156,7 +162,39 @@ paths:
       security: [{ bearer: [] }]
       responses:
         '200': { description: 'usuário', content: { application/json: { schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } } } } }
+        '401': { description: 'sem token ou token inválido, ou sessão encerrada por logout (mensagem "Sessão encerrada. Entre de novo.")' }
+  /api/auth/logout:
+    post:
+      summary: Encerra todas as sessões da conta (todo token emitido antes deixa de valer, em todos os aparelhos)
+      security: [{ bearer: [] }]
+      responses:
+        '204': { description: 'sessões encerradas; sem corpo' }
         '401': { description: 'sem token ou token inválido' }
+    delete:
+      summary: Exclui a conta da sessão (exige a senha)
+      description: >
+        Remove o usuário, os anúncios e os lançamentos financeiros dele. Os pedidos são mantidos
+        e anonimizados: o ownerEmail do pedido e o dos itens vira conta-excluida-{idDoPedido}@removido.invalid,
+        e o sellerName dos itens vira "Vendedor removido". As avaliações feitas pela conta (vínculo:
+        authorEmail gravado na avaliação) saem dos produtos, e a nota e o total de cada produto afetado
+        são recalculados. Avaliações sem authorEmail (do seed ou anteriores ao vínculo) não são alteradas,
+        porque não há como ligá-las à conta; o nome é o único dado delas. O token da conta excluída passa
+        a receber 401. Conta ADMIN não pode ser excluída por esta rota.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '204': { description: 'conta excluída, sem corpo' }
+        '400': { description: 'senha ausente no corpo' }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'senha incorreta (não é 401: o app encerra a sessão em todo 401) ou conta administradora' }
   /api/products:
     get:
       summary: Lista o catálogo (público); sem limit devolve a lista inteira, com limit devolve a página

@@ -13,6 +13,7 @@ import { getProductCategoryStyle } from '../../packages/domain/catalog.js';
 import { calculateCartSummary } from '../../packages/domain/commerce.js';
 import { buildFinanceEntries } from '../../packages/domain/finance.js';
 import { createTurnQueue } from './write-queue.js';
+import { readAppMinVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
 dotenv.config();
@@ -47,6 +48,14 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('he
 if (!process.env.JWT_SECRET) {
   console.warn('[agrotech] JWT_SECRET ausente: usando segredo aleatório (o login cai a cada reinício). Defina-o no .env.');
 }
+// Versão mínima do app (GET /api/app-config). Valor inválido derruba a subida: uma versão
+// mínima errada que desligasse a checagem em silêncio seria falha silenciosa.
+const appMinVersion = readAppMinVersion(process.env.APP_MIN_VERSION);
+if ('error' in appMinVersion) {
+  console.error(`[agrotech] ${appMinVersion.error}`);
+  process.exit(1);
+}
+const APP_MIN_VERSION = appMinVersion.version;
 // DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
 const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
 // O banco morava em src/data (pasta servida como estática). Sem este aviso, quem tem o arquivo antigo
@@ -170,8 +179,10 @@ const defaultDb = {
   financeEntries: []
 };
 
+// `ver` é a versão de sessão da conta: POST /api/auth/logout a incrementa e todo token com versão
+// antiga deixa de valer. Token sem `ver` (emitido antes disso) conta como versão 0.
 const signToken = (user) => jwt.sign(
-  { sub: user.id, email: user.email, role: user.role },
+  { sub: user.id, email: user.email, role: user.role, ver: user.tokenVersion ?? 0 },
   JWT_SECRET,
   { expiresIn: '7d' }
 );
@@ -303,9 +314,16 @@ const authenticate = async (req, res, next) => {
   // Fora do try do token: banco ilegível é erro do servidor (500 pelo tratador de erro), e não "token
   // inválido", que faria o app encerrar a sessão de todo mundo.
   const db = await readDb();
-  const user = db.users.find((item) => item.id === decoded.sub || item.email === decoded.email);
+  // Com `sub`, o token é da conta com esse id: se ela saiu do banco, o e-mail de uma conta nova não o
+  // herda. Só token sem `sub` (formato antigo) casa pelo e-mail.
+  const user = decoded.sub !== undefined
+    ? db.users.find((item) => item.id === decoded.sub)
+    : db.users.find((item) => item.email === decoded.email);
   if (!user) {
     return res.status(401).json({ message: 'Usuário inexistente para este token.' });
+  }
+  if ((decoded.ver ?? 0) !== (user.tokenVersion ?? 0)) {
+    return res.status(401).json({ message: 'Sessão encerrada. Entre de novo.' });
   }
 
   req.user = sanitizeUser(user);
@@ -386,6 +404,10 @@ app.get('/api/health', (_, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
 
+app.get('/api/app-config', (_, res) => {
+  res.json({ minVersion: APP_MIN_VERSION });
+});
+
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, role = 'PRODUTOR', propertyOrCompany = '' } = req.body;
   if (!name || !email || !password) {
@@ -446,6 +468,66 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
   res.json({ user: req.user });
+});
+
+// Exclusão de conta: remove usuário, anúncios e lançamentos; os pedidos ficam (o vendedor da outra
+// ponta precisa deles), sem o e-mail. Avaliações guardam só o nome do autor, sem referência à conta:
+// não dá para removê-las com segurança. Senha errada é 403, e não 401: o app encerra a sessão em todo 401.
+// Tira do produto as avaliações de uma conta (vínculo: authorEmail) e recalcula nota e total como a rota
+// de excluir avaliação. Sem avaliação da conta, o produto não muda. Avaliação sem authorEmail (seed ou
+// anterior ao vínculo) não é reivindicada por ninguém.
+function dropReviewsOf(product, email) {
+  const comments = product.comments || [];
+  const kept = comments.filter((comment) => comment.authorEmail !== email);
+  if (kept.length === comments.length) return;
+  product.comments = kept;
+  product.reviewsCount = kept.length;
+  product.rating = kept.length
+    ? parseFloat((kept.reduce((acc, comment) => acc + Number(comment.rating || 0), 0) / kept.length).toFixed(1))
+    : 0;
+}
+
+app.delete('/api/auth/me', authenticate, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password) {
+    return res.status(400).json({ message: 'Informe a senha para excluir a conta.' });
+  }
+  if (req.user.role === 'ADMIN') {
+    return res.status(403).json({ message: 'Conta administradora não pode ser excluída por aqui.' });
+  }
+
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === req.user.id);
+  if (!user || !bcrypt.compareSync(String(password), user.password)) {
+    return res.status(403).json({ message: 'Senha incorreta.' });
+  }
+
+  const { email } = user;
+  const removedEmail = (orderId) => `conta-excluida-${orderId}@removido.invalid`;
+  db.users = db.users.filter((item) => item.id !== user.id);
+  db.products = db.products.filter((item) => item.ownerEmail !== email);
+  db.financeEntries = db.financeEntries.filter((item) => item.ownerEmail !== email);
+  for (const product of db.products) dropReviewsOf(product, email);
+  for (const order of db.orders) {
+    if (order.ownerEmail === email) order.ownerEmail = removedEmail(order.id);
+    for (const item of order.items || []) {
+      if (item.ownerEmail !== email) continue;
+      item.ownerEmail = removedEmail(order.id);
+      item.sellerName = 'Vendedor removido';
+    }
+  }
+  await writeDb(db);
+  res.status(204).end();
+});
+
+// Encerra todas as sessões da conta de uma vez: incrementa a versão, e os tokens emitidos antes não
+// passam mais em `authenticate`. Com mais de um aparelho logado, todos saem.
+app.post('/api/auth/logout', authenticate, async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === req.user.id);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await writeDb(db);
+  res.status(204).end();
 });
 
 app.put('/api/auth/store', authenticate, async (req, res) => {
