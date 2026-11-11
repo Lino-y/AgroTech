@@ -505,6 +505,16 @@ app.delete('/api/auth/me', authenticate, async (req, res) => {
   res.status(204).end();
 });
 
+// Encerra todas as sessões da conta de uma vez: incrementa a versão, e os tokens emitidos antes não
+// passam mais em `authenticate`. Com mais de um aparelho logado, todos saem.
+app.post('/api/auth/logout', authenticate, async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === req.user.id);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await writeDb(db);
+  res.status(204).end();
+});
+
 app.put('/api/auth/store', authenticate, async (req, res) => {
   const {
     name, propertyOrCompany, storeProfileImage, storeCoverImage,
