@@ -72,7 +72,8 @@ components:
         sellerName: { type: string }
         comments:
           type: array
-          items: { type: object, properties: { author: { type: string }, text: { type: string }, rating: { type: number } } }
+          description: 'Na lista pública (GET /api/products) cada comentário traz só id, autor, texto e nota; o e-mail de quem avaliou (authorEmail, guardado no banco) nunca sai nessa resposta.'
+          items: { type: object, properties: { id: { type: string }, author: { type: string }, text: { type: string }, rating: { type: number } } }
     Order:
       type: object
       properties:
