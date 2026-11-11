@@ -1,22 +1,25 @@
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { getProductCategoryStyle } from './packages/domain/catalog.js';
-import { calculateCartSummary } from './packages/domain/commerce.js';
-import { buildFinanceEntries } from './packages/domain/finance.js';
-import { createTurnQueue } from './src/services/write-queue.js';
-import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './src/services/ids.js';
+import { getProductCategoryStyle } from '../../packages/domain/catalog.js';
+import { calculateCartSummary } from '../../packages/domain/commerce.js';
+import { buildFinanceEntries } from '../../packages/domain/finance.js';
+import { createTurnQueue } from './write-queue.js';
+import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// A SPA (src/, assets/, index.html) e o domínio ainda moram na raiz do repositório (ADR-0002, A2).
+const ROOT = path.resolve(__dirname, '..', '..');
 const app = express();
 
 // ponytail: Express 4 não captura rejeição de handler async. Sem isto, um erro de banco vira promise
@@ -44,7 +47,13 @@ if (!process.env.JWT_SECRET) {
   console.warn('[agrotech] JWT_SECRET ausente: usando segredo aleatório (o login cai a cada reinício). Defina-o no .env.');
 }
 // DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
-const dataFile = process.env.DATA_FILE || path.join(__dirname, 'src', 'data', 'db.json');
+const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
+// O banco morava em src/data (pasta servida como estática). Sem este aviso, quem tem o arquivo antigo
+// veria o app subir com os dados de exemplo e acharia que perdeu tudo.
+const legacyDataFile = path.join(ROOT, 'src', 'data', 'db.json');
+if (!process.env.DATA_FILE && existsSync(legacyDataFile) && !existsSync(dataFile)) {
+  console.warn(`[agrotech] Banco antigo em ${legacyDataFile}. Mova-o para ${dataFile} para manter os seus dados.`);
+}
 
 const defaultDb = {
   users: [
@@ -365,9 +374,9 @@ app.use('/src', (req, res, next) => {
   if (segments.includes('data')) return res.status(404).json({ message: 'Não encontrado.' });
   return next();
 });
-app.use('/src', express.static(path.join(__dirname, 'src')));
-app.use('/assets', express.static(path.join(__dirname, 'assets')));
-app.use('/packages/domain', express.static(path.join(__dirname, 'packages', 'domain')));
+app.use('/src', express.static(path.join(ROOT, 'src')));
+app.use('/assets', express.static(path.join(ROOT, 'assets')));
+app.use('/packages/domain', express.static(path.join(ROOT, 'packages', 'domain')));
 
 app.get('/api/health', (_, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
@@ -711,7 +720,7 @@ app.all('/api/*', (_, res) => {
 });
 
 app.get('*', (_, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(ROOT, 'index.html'));
 });
 
 // Erro de rota (ex.: db.json ilegível) vira 500 com { message }, sem derrubar o processo. Erro do

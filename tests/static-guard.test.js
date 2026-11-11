@@ -35,7 +35,7 @@ const raw = (rawPath) => new Promise((resolve, reject) => {
 
 before(async () => {
   port = await freePort();
-  server = spawn(process.execPath, ['server.js'], {
+  server = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: path.join(DATA_DIR, FILE), JWT_SECRET: '' },
     stdio: 'ignore'
   });

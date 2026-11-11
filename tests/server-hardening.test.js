@@ -23,7 +23,7 @@ async function startServer({ capture = false } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'agrotech-hard-'));
   const dataFile = path.join(dir, 'db.json');
   const port = await freePort();
-  const child = spawn(process.execPath, ['server.js'], {
+  const child = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: dataFile, JWT_SECRET: '' },
     stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'ignore'
   });

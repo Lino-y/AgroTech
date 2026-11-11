@@ -40,7 +40,7 @@ label `em-andamento`, e marque-a antes de começar. Os comandos estão em
     de tipo nos `.js` do commit.
 12. Ship: `CONFIRM_SHIP=1 git push origin <branch>` seguido de
     `CONFIRM_SHIP=1 gh pr create --title "..." --body "Closes #<issue>"`.
-    O pre-push roda o spec-guard (regra 09): mexeu em `src/`, `server.js` ou
+    O pre-push roda o spec-guard (regra 09): mexeu em `src/`, `packages/`, `apps/` ou
     `index.html` sem atualizar `.ai/specs/` ou `docs/tasks/`? Declare
     `Spec: n/a — <motivo>` no commit ou no PR. **Todo trabalho vai por PR** —
     push/merge direto na master sobrescreve mudanças de outros
@@ -81,8 +81,8 @@ no chat (ver `CLAUDE.md` → Secrets) — diga só o nome da variável.
 
 ## O que ainda não existe (não espere que funcione)
 
-- Banco de dados: os dados vivem em `src/data/db.json`, lido e gravado pelo
-  `server.js`. O PostgreSQL de `.ai/specs/06-schema-banco-de-dados.md` é alvo,
+- Banco de dados: os dados vivem em `apps/api/data/db.json`, lido e gravado pelo
+  `apps/api/server.js`. O PostgreSQL de `.ai/specs/06-schema-banco-de-dados.md` é alvo,
   não existe.
 - CI: não há `.github/workflows/`. O spec-guard só roda no pre-push local, e
   `--no-verify` pula.

@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks')}catch{}\"",
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "start": "node apps/api/server.js",
+    "dev": "node --watch apps/api/server.js",
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=88 --test-coverage-branches=68 --test-coverage-functions=85",
     "test:ui": "node --test --test-timeout=60000 \"tests/ui/*.ui.js\"",
@@ -18,7 +18,7 @@
     "typecheck": "tsc -p jsconfig.json",
     "check:coherence": "node .ai/scripts/check-coherence.js",
     "audit:dependencies": "npm audit --audit-level=high",
-    "verify": "npm run lint:budget && npm run typecheck && npm run test:coverage && npm run check:coherence && node --test .ai/scripts/spec-guard.test.js .claude/hooks/workflow-guide.test.js"
+    "verify": "npm run lint:budget && npm run typecheck && npm run test:coverage && npm run check:coherence && node --test .ai/scripts/spec-guard.test.js .ai/scripts/remap-refs.test.js .claude/hooks/workflow-guide.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

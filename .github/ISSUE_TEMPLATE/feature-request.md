@@ -33,7 +33,7 @@ Descreva o problema ou necessidade da funcionalidade.
 
 ## Dependências
 
-- API (`server.js`):
+- API (`apps/api/server.js`):
 - Dados (`src/data/db.json`):
 - Integrações externas:
 
