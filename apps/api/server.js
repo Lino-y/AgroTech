@@ -571,6 +571,11 @@ app.put('/api/auth/store', authenticate, async (req, res) => {
 const MAX_PAGE_SIZE = 100;
 const parseInteger = (raw) => (/^\d+$/.test(raw) ? Number(raw) : NaN);
 
+// Lista pública: o e-mail de quem avaliou fica no banco (é o vínculo para excluir a conta e a própria
+// avaliação), mas não sai na resposta. A SPA mostra só autor, nota e texto.
+const publicComment = (comment) => ({ id: comment.id, author: comment.author, text: comment.text, rating: comment.rating });
+const publicProduct = (product) => (product.comments ? { ...product, comments: product.comments.map(publicComment) } : product);
+
 app.get('/api/products', async (req, res) => {
   const { page, limit } = req.query;
   let pageNumber = 1;
@@ -589,7 +594,8 @@ app.get('/api/products', async (req, res) => {
   }
   const { products } = await readDb();
   res.set('X-Total-Count', String(products.length));
-  res.json(pageSize ? products.slice((pageNumber - 1) * pageSize, pageNumber * pageSize) : products);
+  const visible = (pageSize ? products.slice((pageNumber - 1) * pageSize, pageNumber * pageSize) : products).map(publicProduct);
+  res.json(visible);
 });
 
 // Tetos de entrada: sem eles, 1e308 vira total "Infinity", que o JSON grava como null.
