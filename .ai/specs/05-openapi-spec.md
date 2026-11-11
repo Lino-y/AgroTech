@@ -255,6 +255,12 @@ paths:
     post:
       summary: Fecha um pedido; preço e total vêm do catálogo, nunca do cliente
       security: [{ bearer: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: 'Chave do cliente (8 a 64 letras, números, _ ou -) para reenvio seguro. Mesma chave e mesmos itens devolvem o pedido já criado (200), sem criar outro; mesma chave com outros itens dá 409. A chave vale por usuário. Sem o cabeçalho, cada POST cria um pedido.'
+          schema: { type: string, minLength: 8, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$' }
       requestBody:
         required: true
         content:
@@ -269,9 +275,11 @@ paths:
                   items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1, maximum: 10000 } } }
                 coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20], description: 'sem diferenciar maiúsculas; cupom que não existe ou abaixo do valor mínimo é ignorado, sem erro, e o pedido sai sem desconto' }
       responses:
+        '200': { description: 'reenvio com a mesma Idempotency-Key e os mesmos itens: devolve o pedido já criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
-        '400': { description: 'lista vazia, produto fora do catálogo ou quantidade que não é inteira de 1 a 10.000' }
+        '400': { description: 'lista vazia, produto fora do catálogo, quantidade que não é inteira de 1 a 10.000 ou Idempotency-Key malformada' }
         '401': { description: 'sem token ou token inválido' }
+        '409': { description: 'Idempotency-Key já usada com outros itens ou cupom' }
   /api/finance/entries:
     get:
       summary: Extrato financeiro da conta da sessão, do mais recente ao mais antigo (ADMIN também vê só o dele)
