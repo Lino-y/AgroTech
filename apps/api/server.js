@@ -473,6 +473,20 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
 // Exclusão de conta: remove usuário, anúncios e lançamentos; os pedidos ficam (o vendedor da outra
 // ponta precisa deles), sem o e-mail. Avaliações guardam só o nome do autor, sem referência à conta:
 // não dá para removê-las com segurança. Senha errada é 403, e não 401: o app encerra a sessão em todo 401.
+// Tira do produto as avaliações de uma conta (vínculo: authorEmail) e recalcula nota e total como a rota
+// de excluir avaliação. Sem avaliação da conta, o produto não muda. Avaliação sem authorEmail (seed ou
+// anterior ao vínculo) não é reivindicada por ninguém.
+function dropReviewsOf(product, email) {
+  const comments = product.comments || [];
+  const kept = comments.filter((comment) => comment.authorEmail !== email);
+  if (kept.length === comments.length) return;
+  product.comments = kept;
+  product.reviewsCount = kept.length;
+  product.rating = kept.length
+    ? parseFloat((kept.reduce((acc, comment) => acc + Number(comment.rating || 0), 0) / kept.length).toFixed(1))
+    : 0;
+}
+
 app.delete('/api/auth/me', authenticate, async (req, res) => {
   const { password } = req.body || {};
   if (!password) {
@@ -493,6 +507,7 @@ app.delete('/api/auth/me', authenticate, async (req, res) => {
   db.users = db.users.filter((item) => item.id !== user.id);
   db.products = db.products.filter((item) => item.ownerEmail !== email);
   db.financeEntries = db.financeEntries.filter((item) => item.ownerEmail !== email);
+  for (const product of db.products) dropReviewsOf(product, email);
   for (const order of db.orders) {
     if (order.ownerEmail === email) order.ownerEmail = removedEmail(order.id);
     for (const item of order.items || []) {
