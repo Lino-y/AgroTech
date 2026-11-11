@@ -457,12 +457,37 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
   res.json({ user: req.user });
 });
 
-// Encerra todas as sessões da conta de uma vez: incrementa a versão, e os tokens emitidos antes não
-// passam mais em `authenticate`. Com mais de um aparelho logado, todos saem.
-app.post('/api/auth/logout', authenticate, async (req, res) => {
+// Exclusão de conta: remove usuário, anúncios e lançamentos; os pedidos ficam (o vendedor da outra
+// ponta precisa deles), sem o e-mail. Avaliações guardam só o nome do autor, sem referência à conta:
+// não dá para removê-las com segurança. Senha errada é 403, e não 401: o app encerra a sessão em todo 401.
+app.delete('/api/auth/me', authenticate, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password) {
+    return res.status(400).json({ message: 'Informe a senha para excluir a conta.' });
+  }
+  if (req.user.role === 'ADMIN') {
+    return res.status(403).json({ message: 'Conta administradora não pode ser excluída por aqui.' });
+  }
+
   const db = await readDb();
   const user = db.users.find((item) => item.id === req.user.id);
-  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  if (!user || !bcrypt.compareSync(String(password), user.password)) {
+    return res.status(403).json({ message: 'Senha incorreta.' });
+  }
+
+  const { email } = user;
+  const removedEmail = (orderId) => `conta-excluida-${orderId}@removido.invalid`;
+  db.users = db.users.filter((item) => item.id !== user.id);
+  db.products = db.products.filter((item) => item.ownerEmail !== email);
+  db.financeEntries = db.financeEntries.filter((item) => item.ownerEmail !== email);
+  for (const order of db.orders) {
+    if (order.ownerEmail === email) order.ownerEmail = removedEmail(order.id);
+    for (const item of order.items || []) {
+      if (item.ownerEmail !== email) continue;
+      item.ownerEmail = removedEmail(order.id);
+      item.sellerName = 'Vendedor removido';
+    }
+  }
   await writeDb(db);
   res.status(204).end();
 });
