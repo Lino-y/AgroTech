@@ -114,6 +114,12 @@ paths:
       summary: Verifica se a API está no ar
       responses:
         '200': { description: 'ok', content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, timestamp: { type: string } } } } } }
+  /api/app-config:
+    get:
+      summary: Versão mínima do app aceita pela API (pública, sem token)
+      description: 'Vem da variável de ambiente APP_MIN_VERSION (MAJOR.MINOR.PATCH); padrão 0.0.0. Valor inválido derruba o servidor na subida. A API não bloqueia versões antigas; só informa.'
+      responses:
+        '200': { description: 'ok', content: { application/json: { schema: { type: object, properties: { minVersion: { type: string, example: '1.2.0' } } } } } }
   /api/auth/register:
     post:
       summary: Cria uma conta e já devolve a sessão
