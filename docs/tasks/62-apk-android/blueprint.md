@@ -18,7 +18,7 @@ contra a API antes de qualquer conta de loja.
 | CA04 | O token fica no armazenamento seguro, não no código | teste | ✅ | `apps/mobile/src/services/storage.ts:31`, `apps/mobile/__tests__/storage.test.ts:22` |
 | CA05 | A API configurada entra no bundle (`EXPO_PUBLIC_API_URL`) | build | ✅ | `apps/mobile/src/config.ts:3`; bundle exportado com o endereço (`npx expo export --platform android`) |
 | CA06 | Tráfego HTTP em texto claro liberado só para o build de teste | build | ✅ | `apps/mobile/app.json:17` (plugin `expo-build-properties`) |
-| CA07 | Tipos estritos e testes passam | comando | ✅ | `npm test` (11 de 11) e `npm run typecheck` em `apps/mobile` |
+| CA07 | Tipos estritos e testes passam | comando | ✅ | `apps/mobile/package.json:10` (`npm test`, 11 de 11) e `apps/mobile/package.json:11` (`npm run typecheck`) |
 | CA08 | APK Android gerado e assinado | build + `apksigner verify` + `aapt2 dump badging` | ✅ | procedimento: `apps/mobile/README.md:19`; evidência: seção 8.1 |
 
 ## 3. Contratos (antes do código)
