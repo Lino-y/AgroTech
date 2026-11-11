@@ -168,7 +168,7 @@ Node (`node --experimental-strip-types --test`):
   armazenamento seguro quando disponível, fallback em memória para testes.
   Logout limpa memória e store (`storage.ts:37`).
 - **Tela autenticada mínima** (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`):
-  consome `/api/auth/me` (`server.js:423`, via `api.ts:73`) sem acessar `fetch`
+  consome `/api/auth/me` (`server.js:424`, via `api.ts:73`) sem acessar `fetch`
   nem storage diretamente — a tela só reflete estados.
 - **Testes de sessão expirada e offline**
   (`apps/mobile-spike/__tests__/session.test.ts:26`): token anexado, 401/403

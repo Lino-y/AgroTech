@@ -43,10 +43,12 @@ AgroTech/
 ├─ jsconfig.json          # checagem de tipos por JSDoc (arquivos com // @ts-check)
 ├─ src/
 │  ├─ modules/            # telas e fluxos: catálogo, carrinho, auth, rastreio, suporte
-│  ├─ services/           # regras de negócio e acesso à API (cart, catalog, commerce...)
+│  ├─ services/           # acesso à API e regras só da SPA (api, cart, storage, catalog-view...)
 │  ├─ components/         # Navbar, ProductCard, FinanceChart
 │  ├─ styles/             # tokens.css (design tokens) e ui.css
 │  └─ data/db.json        # "banco" em arquivo, fora do git (criado pelo server.js no 1º uso)
+├─ packages/
+│  └─ domain/             # regras puras compartilhadas pela API e pela SPA (commerce, finance, catalog)
 ├─ assets/                # logo
 ├─ tests/                 # testes do app (npm test); telas em tests/ui (npm run test:ui)
 ├─ docs/

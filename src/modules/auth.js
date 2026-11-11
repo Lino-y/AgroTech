@@ -1,4 +1,4 @@
-import { normalizeUser, validateEmail } from '../services/commerce.js';
+import { normalizeUser, validateEmail } from '../../packages/domain/commerce.js';
 import { getUser, setUser } from '../services/storage.js';
 
 export class AuthService {

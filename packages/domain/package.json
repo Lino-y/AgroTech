@@ -1,0 +1,7 @@
+{
+  "name": "@agrotech/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Regras puras compartilhadas (comércio, finanças, catálogo): sem DOM, sem fetch, sem dependências. ADR-0002."
+}

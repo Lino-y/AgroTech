@@ -18,13 +18,13 @@ referencial `mais-frota/apps/mobile-driver`.
 | CA02 | Token é anexado e removido corretamente | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:35` (Bearer) e `apps/mobile-spike/app/services/storage.ts:37` (clearSession) — teste: `apps/mobile-spike/__tests__/session.test.ts:26` |
 | CA03 | 401 encerra a sessão local | teste do serviço | ✅ | `apps/mobile-spike/app/services/api.ts:55` (401/403 → `clearSession`) — testes: `apps/mobile-spike/__tests__/session.test.ts:65` e `apps/mobile-spike/__tests__/session.test.ts:119` (revisão: falha de rede não desloga) |
 | CA04 | TypeScript estrito e testes passam | `tsc -p` + `node --test` | ✅ | `apps/mobile-spike/tsconfig.json:5` (`"strict": true`); 7/7 testes verdes em `apps/mobile-spike/__tests__/session.test.ts:26-136` |
-| CA05 | ADR registra seguir, ajustar ou cancelar | seção na ADR | ✅ | `docs/adr/0001-migracao-para-react-native.md:145` — "Resultado do spike": **seguir** |
+| CA05 | ADR registra seguir, ajustar ou cancelar | seção na ADR | ✅ | `docs/adr/0001-migracao-para-react-native.md:146` — "Resultado do spike": recomendação **seguir** (a decisão vale só com o gate aprovado) |
 | CA06 | Política offline respeita a spec 08 | tabela da ADR | ✅ | Nenhuma ação financeira no spike; falha de rede preserva sessão com erro tipado — teste `apps/mobile-spike/__tests__/session.test.ts:101` |
 
 ## 3. Contratos (antes do código)
 
 - Endpoint consumido: `GET /api/auth/me` — auth: `authenticate`
-  (`server.js:423`) — response `{ user }`. Sem endpoint novo: OpenAPI
+  (`server.js:424`) — response `{ user }`. Sem endpoint novo: OpenAPI
   (`.ai/specs/05-openapi-spec.md`) não muda.
 - Função pública `[NOVO]`: `apiRequest<T>(path, options)` em
   `apps/mobile-spike/app/services/api.ts` — token de `getSession()`, timeout
@@ -53,8 +53,8 @@ referencial `mais-frota/apps/mobile-driver`.
 - [x] Storage de sessão isolado (`apps/mobile-spike/app/services/storage.ts:18`) — teste `apps/mobile-spike/__tests__/session.test.ts:136`
 - [x] Tela autenticada mínima (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`) consumindo `/api/auth/me` via `apps/mobile-spike/app/services/api.ts:73`
 - [x] Teste de sessão expirada (`apps/mobile-spike/__tests__/session.test.ts:65`)
-- [x] Decisão registrada na ADR-0001 (`docs/adr/0001-migracao-para-react-native.md:145` — seguir)
-- [x] Status RN01–RN08 atualizado na spec 08 (`.ai/specs/08-migracao-react-native.md:99-108`)
+- [x] Recomendação registrada na ADR-0001 (`docs/adr/0001-migracao-para-react-native.md:146` — seguir; a decisão depende do gate)
+- [x] Status RN01–RN08 atualizado na spec 08 (`.ai/specs/08-migracao-react-native.md:131-138`)
 
 ## 6. Nice to have
 

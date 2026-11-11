@@ -3,7 +3,7 @@
 // um banco descartável (`npm run test:ui`; base em tests/ui/browser.js).
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateCartSummary } from '../../src/services/commerce.js';
+import { calculateCartSummary } from '../../packages/domain/commerce.js';
 import { skipReason, startApp } from './browser.js';
 
 let app;

@@ -2,8 +2,8 @@
 // o financeiro o somava; e uma data que não existe (31/Fev) virava 3 de março e caía no mês errado.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateCartSummary } from '../src/services/commerce.js';
-import { buildFinanceEntries } from '../src/services/finance.js';
+import { calculateCartSummary } from '../packages/domain/commerce.js';
+import { buildFinanceEntries } from '../packages/domain/finance.js';
 
 test('subtotal, desconto e total saem em centavos exatos, sem ruído de ponto flutuante', () => {
   const cases = [

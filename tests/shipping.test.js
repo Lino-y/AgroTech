@@ -3,7 +3,7 @@
 // frete zerado, que o cupom FRETEGRATIS também zera. Tela no Chrome headless: tests/ui/cart.ui.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateCartSummary } from '../src/services/commerce.js';
+import { calculateCartSummary } from '../packages/domain/commerce.js';
 import { CartEngine } from '../src/modules/cart.js';
 
 const cart = (price) => [{ id: 'p1', price, quantity: 1 }];

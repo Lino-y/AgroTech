@@ -1,4 +1,4 @@
-import { COUPON_RULES, calculateCartSummary, validateCouponCode } from '../services/commerce.js';
+import { COUPON_RULES, calculateCartSummary, validateCouponCode } from '../../packages/domain/commerce.js';
 
 export class CartEngine {
   constructor(initialCart = []) {
