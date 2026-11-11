@@ -10,6 +10,9 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - SPA em JavaScript puro com módulos ES, **sem framework e sem build**
   (`.ai/specs/04-arquitetura-e-engenharia.md`). Nada de React, Vue, bundler
   ou TypeScript compilado; tipos só em JSDoc (ver "Contratos").
+  **Exceção registrada (ADR-0001, 2026-11-11):** `apps/mobile` usa React Native,
+  Expo, Metro e TypeScript, isolado em `apps/mobile/` com lockfile próprio. Só
+  o build Android (APK) está previsto. A SPA e a API continuam sem build.
 - Mobile-first, 360–430px, sem recarregar a página
   (`.ai/specs/03-requisitos-nao-funcionais.md`, RNF02; contêiner de 430px em
   `src/styles/tokens.css:31`).

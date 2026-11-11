@@ -1,0 +1,9 @@
+# Gerado pelo expo prebuild (Continuous Native Generation): não se versiona.
+android/
+ios/
+node_modules/
+.expo/
+dist/
+# Chaves de assinatura nunca entram no repositório.
+*.keystore
+*.jks

@@ -126,6 +126,21 @@ Antes de instalar Expo ou criar `apps/mobile`, devem estar aprovados:
 6. plano de testes, distribuição e rollout;
 7. orçamento de manutenção da SPA durante a transição.
 
+## Decisão de distribuição (2026-11-11)
+
+Registrada antes da primeira dependência do app (`apps/mobile`), como o gate pede:
+
+- **Android, por APK instalado manualmente (sideload).** Sem contas de loja
+  (Google Play e Apple Developer) por enquanto. O APK é gerado localmente, sem
+  EAS (que exige conta Expo).
+- **iOS adiado.** Não há Mac nem conta Apple. O critério "Android e iOS" da
+  #62 fica **registrado como divergência**: só o Android é entregue nesta fase.
+- **Orçamento da SPA, provisório:** a SPA atual fica como fallback, sem telas
+  novas, até o piloto. Pendente de decisão formal do dono do projeto.
+- **Teste em aparelho:** o APK aponta para a API pelo endereço da rede local
+  (`EXPO_PUBLIC_API_URL`, em HTTP, com tráfego em texto claro permitido só nesse
+  build). Produção pede HTTPS; esse ponto segue no gate.
+
 ## Consequências
 
 ### Positivas

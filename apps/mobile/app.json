@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "AgroTech",
+    "slug": "agrotech",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "agrotech",
+    "android": {
+      "package": "br.com.agrotech.app",
+      "versionCode": 1
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
+  }
+}

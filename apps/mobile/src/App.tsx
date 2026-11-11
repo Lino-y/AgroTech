@@ -1,0 +1,38 @@
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import * as SecureStore from 'expo-secure-store';
+import { CatalogScreen } from './screens/CatalogScreen.tsx';
+import { LoginScreen } from './screens/LoginScreen.tsx';
+import { getSession, setSecureStore } from './services/storage.ts';
+
+type Screen = 'loading' | 'login' | 'catalog';
+
+// Troca de tela fica aqui; token e HTTP ficam nos services (camadas da ADR-0001).
+export default function App(): React.JSX.Element {
+  const [screen, setScreen] = useState<Screen>('loading');
+
+  useEffect(() => {
+    setSecureStore(SecureStore);
+    getSession().then((session) => setScreen(session ? 'catalog' : 'login'));
+  }, []);
+
+  if (screen === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <StatusBar style="dark" />
+      {screen === 'login' ? (
+        <LoginScreen onLoggedIn={() => setScreen('catalog')} />
+      ) : (
+        <CatalogScreen onLoggedOut={() => setScreen('login')} />
+      )}
+    </>
+  );
+}

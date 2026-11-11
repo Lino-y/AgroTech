@@ -140,6 +140,16 @@ ganho funcional enquanto a SPA for o fallback servido pela API.
 As demais decisões do gate (sessão, crash reporting, distribuição, orçamento
 da SPA) continuam na #62 e são tomadas na fase em que bloqueiam.
 
+## Desvio registrado: `apps/mobile` fora dos workspaces (2026-11-11)
+
+A decisão 1 previa `apps/*` nos workspaces na Fase 1. Na prática, `apps/mobile`
+fica **isolado**: não entra em `workspaces`, tem `package.json` e lockfile
+próprios, e roda `npm install` dentro da pasta. Motivos, verificados no
+projeto: o template do Expo traz TypeScript 6 e o raiz usa TypeScript 7; e a
+árvore do React Native não deve entrar no lockfile da API nem nos gates
+(`lint`, `audit`, `test`) do raiz. Não medi o efeito de juntar tudo; se um dia
+a separação atrapalhar, reavaliar com números.
+
 ## Quando `docs/agents/architecture.md` muda
 
 O arquivo só muda por ADR. Esta ADR autoriza, cada uma no PR do passo que a

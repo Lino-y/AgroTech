@@ -1,6 +1,6 @@
 # 08 — Spec de migração mobile para React Native + Expo
 
-- **Status:** spike da Fase 0 executado (issue #11); fases 1–4 pendentes do gate da ADR
+- **Status:** Fase 0 executada (issue #11). Fase 1 em andamento: APK Android gerado por sideload, sem contas de loja (ADR-0001, "Decisão de distribuição"); iOS adiado; fases 2–4 pendentes
 - **ADR:** `docs/adr/0001-migracao-para-react-native.md`
 - **ADR da estrutura frontend/backend (aceita em 2026-11-10, issue #62):**
   `docs/adr/0002-estrutura-frontend-backend.md`
@@ -133,7 +133,7 @@ Migrar cada fluxo completo, com tela, serviço, erro, loading, teste e rollout:
 
 | ID | Critério | Evidência esperada | Status |
 |---|---|---|---|
-| RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🟡 TS estrito validado (`apps/mobile-spike/tsconfig.json`, `tsc -p` passa); build Expo pendente do gate |
+| RN01 | Expo + TypeScript estrito validados no spike | ADR + build Android/iOS | 🟡 Android: APK gerado e assinado (`apps/mobile/README.md:19`; evidência em `docs/tasks/62-apk-android/blueprint.md`, seção 8.1); TS estrito em `apps/mobile/tsconfig.json:1`; iOS adiado (ADR-0001, divergência registrada) |
 | RN02 | API e tipos mobile seguem o contrato existente | testes de integração | 🟡 `/api/auth/me` coberto por `apps/mobile-spike/__tests__/session.test.ts`; demais rotas na Fase 1 |
 | RN03 | API service centraliza token, timeout e 401/403 | teste do serviço | ✅ `apps/mobile-spike/app/services/api.ts:30` + testes de token/401/403/timeout (`session.test.ts:26,65,88,139`) |
 | RN04 | Storage isola sessão, cache e fila | testes de storage | ✅ `apps/mobile-spike/app/services/storage.ts:18` + teste de set/get/clear (`session.test.ts:156`) |
