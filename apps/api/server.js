@@ -12,6 +12,7 @@ import { getProductCategoryStyle } from '../../packages/domain/catalog.js';
 import { calculateCartSummary } from '../../packages/domain/commerce.js';
 import { buildFinanceEntries } from '../../packages/domain/finance.js';
 import { createTurnQueue } from './write-queue.js';
+import { readAppMinVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
 dotenv.config();
@@ -46,6 +47,14 @@ const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('he
 if (!process.env.JWT_SECRET) {
   console.warn('[agrotech] JWT_SECRET ausente: usando segredo aleatório (o login cai a cada reinício). Defina-o no .env.');
 }
+// Versão mínima do app (GET /api/app-config). Valor inválido derruba a subida: uma versão
+// mínima errada que desligasse a checagem em silêncio seria falha silenciosa.
+const appMinVersion = readAppMinVersion(process.env.APP_MIN_VERSION);
+if ('error' in appMinVersion) {
+  console.error(`[agrotech] ${appMinVersion.error}`);
+  process.exit(1);
+}
+const APP_MIN_VERSION = appMinVersion.version;
 // DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
 const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
 // O banco morava em src/data (pasta servida como estática). Sem este aviso, quem tem o arquivo antigo
@@ -380,6 +389,10 @@ app.use('/packages/domain', express.static(path.join(ROOT, 'packages', 'domain')
 
 app.get('/api/health', (_, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
+});
+
+app.get('/api/app-config', (_, res) => {
+  res.json({ minVersion: APP_MIN_VERSION });
 });
 
 app.post('/api/auth/register', async (req, res) => {
