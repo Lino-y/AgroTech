@@ -6,7 +6,7 @@ export default [
   { ignores: ['node_modules/', '.qa/'] },
   js.configs.recommended,
   { files: ['src/**/*.js'], languageOptions: { globals: globals.browser } },
-  { files: ['server.js', 'tests/**/*.js', 'eslint.config.js'], languageOptions: { globals: globals.node } },
+  { files: ['apps/api/**/*.js', 'tests/**/*.js', 'eslint.config.js'], languageOptions: { globals: globals.node } },
   { files: ['.ai/**/*.js', '.claude/**/*.js'], languageOptions: { sourceType: 'commonjs', globals: globals.node } },
   // packages/** não tem bloco de globais de propósito: só o ECMAScript, então DOM, fetch e process viram no-undef (ADR-0002).
   {

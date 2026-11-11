@@ -23,6 +23,7 @@ Thumbs.db
 
 # Banco local: o server.js cria a partir do defaultDb no primeiro uso; dado de teste não vai pro git
 src/data/db.json
+apps/api/data/db.json
 
 # Scripts e prints de QA ad-hoc no navegador (gerados em sessões de IA)
 .qa/

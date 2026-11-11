@@ -1,22 +1,26 @@
 import express from 'express';
 import cors from 'cors';
+import { blockedSeconds, clearFailures, recordFailure } from './login-limiter.js';
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { getProductCategoryStyle } from './packages/domain/catalog.js';
-import { calculateCartSummary } from './packages/domain/commerce.js';
-import { buildFinanceEntries } from './packages/domain/finance.js';
-import { createTurnQueue } from './src/services/write-queue.js';
-import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './src/services/ids.js';
+import { getProductCategoryStyle } from '../../packages/domain/catalog.js';
+import { calculateCartSummary } from '../../packages/domain/commerce.js';
+import { buildFinanceEntries } from '../../packages/domain/finance.js';
+import { createTurnQueue } from './write-queue.js';
+import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// A SPA (src/, assets/, index.html) e o domínio ainda moram na raiz do repositório (ADR-0002, A2).
+const ROOT = path.resolve(__dirname, '..', '..');
 const app = express();
 
 // ponytail: Express 4 não captura rejeição de handler async. Sem isto, um erro de banco vira promise
@@ -44,7 +48,13 @@ if (!process.env.JWT_SECRET) {
   console.warn('[agrotech] JWT_SECRET ausente: usando segredo aleatório (o login cai a cada reinício). Defina-o no .env.');
 }
 // DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
-const dataFile = process.env.DATA_FILE || path.join(__dirname, 'src', 'data', 'db.json');
+const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
+// O banco morava em src/data (pasta servida como estática). Sem este aviso, quem tem o arquivo antigo
+// veria o app subir com os dados de exemplo e acharia que perdeu tudo.
+const legacyDataFile = path.join(ROOT, 'src', 'data', 'db.json');
+if (!process.env.DATA_FILE && existsSync(legacyDataFile) && !existsSync(dataFile)) {
+  console.warn(`[agrotech] Banco antigo em ${legacyDataFile}. Mova-o para ${dataFile} para manter os seus dados.`);
+}
 
 const defaultDb = {
   users: [
@@ -309,7 +319,10 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-app.use(cors());
+// CORS: a SPA é da mesma origem e o app nativo não usa CORS, então o padrão é não liberar nenhuma
+// origem cruzada. CORS_ORIGINS lista as permitidas (exatas, separadas por vírgula, sem barra final).
+const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map((item) => item.trim()).filter(Boolean);
+app.use(cors({ origin: corsOrigins }));
 app.use((req, res, next) => {
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -365,9 +378,9 @@ app.use('/src', (req, res, next) => {
   if (segments.includes('data')) return res.status(404).json({ message: 'Não encontrado.' });
   return next();
 });
-app.use('/src', express.static(path.join(__dirname, 'src')));
-app.use('/assets', express.static(path.join(__dirname, 'assets')));
-app.use('/packages/domain', express.static(path.join(__dirname, 'packages', 'domain')));
+app.use('/src', express.static(path.join(ROOT, 'src')));
+app.use('/assets', express.static(path.join(ROOT, 'assets')));
+app.use('/packages/domain', express.static(path.join(ROOT, 'packages', 'domain')));
 
 app.get('/api/health', (_, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
@@ -404,6 +417,9 @@ app.post('/api/auth/register', async (req, res) => {
   res.status(201).json({ user: sanitizeUser(user), token });
 });
 
+/** @type {import('./login-limiter.js').FailureStore} */
+const loginFailures = new Map();
+
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -412,10 +428,17 @@ app.post('/api/auth/login', async (req, res) => {
 
   const db = await readDb();
   const normalizedEmail = String(email).trim().toLowerCase();
+  const wait = blockedSeconds(loginFailures, normalizedEmail, Date.now());
+  if (wait > 0) {
+    res.set('Retry-After', String(wait));
+    return res.status(429).json({ message: 'Muitas tentativas de login. Tente de novo em alguns minutos.' });
+  }
   const user = db.users.find((item) => item.email === normalizedEmail);
   if (!user || !bcrypt.compareSync(String(password), user.password)) {
+    recordFailure(loginFailures, normalizedEmail, Date.now());
     return res.status(401).json({ message: 'E-mail ou senha incorretos.' });
   }
+  clearFailures(loginFailures, normalizedEmail);
 
   const token = signToken(user);
   res.json({ user: sanitizeUser(user), token });
@@ -462,15 +485,68 @@ app.put('/api/auth/store', authenticate, async (req, res) => {
   res.json({ user: sanitizeUser(user) });
 });
 
-app.get('/api/products', async (_, res) => {
-  const db = await readDb();
-  res.json(db.products);
+// Paginação opcional: sem limit a lista inteira (a SPA lê o catálogo todo); o total vai em X-Total-Count.
+const MAX_PAGE_SIZE = 100;
+const parseInteger = (raw) => (/^\d+$/.test(raw) ? Number(raw) : NaN);
+
+app.get('/api/products', async (req, res) => {
+  const { page, limit } = req.query;
+  let pageNumber = 1;
+  let pageSize = null;
+  if (limit !== undefined) {
+    pageSize = parseInteger(limit);
+    if (!(pageSize >= 1 && pageSize <= MAX_PAGE_SIZE)) {
+      return res.status(400).json({ message: `Parâmetro limit inválido: use um inteiro de 1 a ${MAX_PAGE_SIZE}.` });
+    }
+  } else if (page !== undefined) {
+    return res.status(400).json({ message: 'Parâmetro page exige limit: informe o tamanho da página.' });
+  }
+  if (page !== undefined) {
+    pageNumber = parseInteger(page);
+    if (!(pageNumber >= 1)) return res.status(400).json({ message: 'Parâmetro page inválido: use um inteiro a partir de 1.' });
+  }
+  const { products } = await readDb();
+  res.set('X-Total-Count', String(products.length));
+  res.json(pageSize ? products.slice((pageNumber - 1) * pageSize, pageNumber * pageSize) : products);
 });
 
 // Tetos de entrada: sem eles, 1e308 vira total "Infinity", que o JSON grava como null.
 const MAX_PRICE = 10_000_000;
 const MAX_STOCK = 1_000_000;
 const MAX_ORDER_QUANTITY = 10_000;
+// Idempotência do pedido: o app repete o POST quando a rede cai no meio, e sem chave isso vira pedido
+// duplicado. A chave é do cliente (8 a 64 caracteres seguros para cabeçalho). Guardamos um hash do
+// pedido pedido, para a mesma chave com outros itens não ser tomada por reenvio.
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+// Hash do que o cliente pediu (produto e quantidade, na ordem, e o cupom): diferencia um reenvio de um
+// pedido novo que reaproveitou a mesma chave.
+function orderFingerprint(lines, coupon) {
+  return crypto.createHash('sha256').update(JSON.stringify({
+    items: lines.map(({ product, quantity }) => [product.id, quantity]),
+    coupon: typeof coupon === 'string' ? coupon.toUpperCase() : null
+  })).digest('hex');
+}
+
+// Campos que o pedido guarda para a chave; vazio quando o cliente não mandou chave.
+function idempotencyFields(key, lines, coupon) {
+  return key === undefined ? {} : { idempotencyKey: key, requestHash: orderFingerprint(lines, coupon) };
+}
+
+// Resposta de reenvio: 200 com o pedido já criado; 409 se a chave veio com outros itens; 400 se for
+// malformada. Devolve null quando a chave é nova ou não foi enviada (aí o pedido é criado).
+function replayOrderResponse(db, email, key, lines, coupon) {
+  if (key === undefined) return null;
+  if (!IDEMPOTENCY_KEY_RE.test(key)) {
+    return { status: 400, body: { message: 'Idempotency-Key inválida: use de 8 a 64 letras, números, _ ou -.' } };
+  }
+  const previous = db.orders.find((order) => order.ownerEmail === email && order.idempotencyKey === key);
+  if (!previous) return null;
+  if (previous.requestHash !== orderFingerprint(lines, coupon)) {
+    return { status: 409, body: { message: 'Essa Idempotency-Key já foi usada com outro pedido.' } };
+  }
+  return { status: 200, body: previous };
+}
 
 app.post('/api/products', authenticate, async (req, res) => {
   const {
@@ -603,6 +679,7 @@ app.get('/api/orders', authenticate, async (req, res) => {
 
 app.post('/api/orders', authenticate, async (req, res) => {
   const { items, coupon = null } = req.body;
+  const idempotencyKey = req.get('Idempotency-Key');
 
   const db = await readDb();
   // Preço e total saem do catálogo e da mesma regra do carrinho (calculateCartSummary), nunca do cliente.
@@ -614,6 +691,9 @@ app.post('/api/orders', authenticate, async (req, res) => {
   }
   // Só o que a tela de pedidos e o financeiro leem. O produto inteiro levava junto a foto (data URL de
   // até 2 MB) e os comentários, e o db.json, relido a cada requisição, crescia a cada compra.
+  const replay = replayOrderResponse(db, req.user.email, idempotencyKey, lines, coupon);
+  if (replay) return res.status(replay.status).json(replay.body);
+
   const orderItems = lines.map(({ product, quantity }) => ({
     id: product.id,
     name: product.name,
@@ -634,6 +714,7 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const order = {
     id: newOrderId(),
     ownerEmail: req.user.email,
+    ...idempotencyFields(idempotencyKey, lines, coupon),
     // Data real do pedido: "Meus Pedidos" a mostra em dd/mm/aaaa e o financeiro recorta por mês.
     createdAt: new Date().toISOString(),
     status: 'Pedido Confirmado',
@@ -711,7 +792,7 @@ app.all('/api/*', (_, res) => {
 });
 
 app.get('*', (_, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(ROOT, 'index.html'));
 });
 
 // Erro de rota (ex.: db.json ilegível) vira 500 com { message }, sem derrubar o processo. Erro do

@@ -19,7 +19,7 @@ testes — obrigatório antes de codar).
   `.js` do commit e rodam `.ai/scripts/spec-guard.js` antes do push. Ativados pelo `npm install` na raiz (script `prepare`) ou por
   `git config core.hooksPath .githooks`. `--no-verify` pula a trava; não use.
 - **spec-guard:** item marcado como feito (`[x]`/✅) num blueprint precisa de
-  evidência `arquivo:linha` que exista; mudança em `src/`, `server.js` ou
+  evidência `arquivo:linha` que exista; mudança em `src/`, `packages/`, `apps/` ou
   `index.html` precisa atualizar `.ai/specs/` ou `docs/tasks/` — ou declarar
   `Spec: n/a — <motivo>` no PR ou num commit.
 - **Só no Claude Code:** hooks em `.claude/hooks/*.js` (gates de push/PR,
@@ -79,8 +79,8 @@ o **nome** da variável.
 ## Integrações
 
 - GitHub via `gh` CLI.
-- Banco: nenhum serviço; os dados vivem em `src/data/db.json`, lido e gravado
-  pelo `server.js` (nunca assumir estrutura de memória).
+- Banco: nenhum serviço; os dados vivem em `apps/api/data/db.json`, lido e gravado
+  pelo `apps/api/server.js` (nunca assumir estrutura de memória).
 - Deploy: ainda não decidido.
 
 ## Ponytail (dev sênior "preguiçoso")

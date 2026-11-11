@@ -1,7 +1,7 @@
 // Pedidos: ids que não se repetem (issue #27) e "Meus Pedidos" carregado do servidor, com a
 // data real (issue #25). As rotas sobem o server.js de verdade numa porta livre, com banco
 // descartável (DATA_FILE), no mesmo molde de tests/api.test.js, sem tocar no
-// src/data/db.json do repositório.
+// apps/api/data/db.json do repositório.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { newOrderId, newProductId, newTrackingCode } from '../src/services/ids.js';
+import { newOrderId, newProductId, newTrackingCode } from '../apps/api/ids.js';
 import { formatOrderDate } from '../src/services/orders.js';
 import { syncOrders } from '../src/modules/orders-sync.js';
 
@@ -20,7 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const ORDER_ID = /^AGT-[0-9A-F]{12}$/;
 const TRACKING_CODE = /^BR-AGRO-[0-9A-F]{12}-X$/;
 
-// --- Ids (src/services/ids.js) ---
+// --- Ids (apps/api/ids.js) ---
 
 test('id de anúncio, id de pedido e código de rastreio não se repetem', () => {
   // Os geradores antigos repetiam: Date.now() no mesmo milissegundo, e 90 mil (pedido) ou
@@ -103,7 +103,7 @@ before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-orders-'));
   const port = await freePort();
   base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['server.js'], {
+  server = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' },
     stdio: 'ignore'
   });

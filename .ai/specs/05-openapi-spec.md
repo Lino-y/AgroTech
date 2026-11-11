@@ -1,6 +1,6 @@
 # 05 - Especificação da API (OpenAPI 3.0)
 
-Contrato da API implementada em `server.js`, conferido com os testes de
+Contrato da API implementada em `apps/api/server.js`, conferido com os testes de
 integração em `tests/api.test.js`. Endpoint novo ou alterado atualiza este
 arquivo no mesmo PR (`docs/agents/architecture.md`).
 
@@ -9,6 +9,7 @@ Regras que valem para todas as rotas:
 - Erro sempre como `{ "message": string }` com o status HTTP correspondente.
 - Falha de leitura ou gravação do `db.json` (ex.: arquivo corrompido) responde `500` com `{ "message": string }` em qualquer rota. O servidor não cai; o arquivo não é regravado (issue #39).
 - Entrada que o cliente errou volta com o status dele: JSON malformado é `400` e corpo maior que 2 MB é `413`, ambos com `{ "message": string }`. Rota `/api/*` que não existe responde `404`.
+- CORS segue a variável `CORS_ORIGINS` (origens exatas separadas por vírgula, sem barra final). Sem ela nenhuma origem cruzada é liberada; a SPA é da mesma origem e o app nativo não usa CORS.
 - Banco ilegível em rota autenticada é `500`, nunca `401` (o `401` é só do token).
 - Limites de entrada: preço do produto até R$ 10.000.000, estoque até 1.000.000 e quantidade por item do pedido de 1 a 10.000.
 - Autenticação por `Authorization: Bearer <JWT>` (validade de 7 dias, payload
@@ -145,6 +146,10 @@ paths:
         '200': { description: 'sessão aberta', content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
         '400': { description: 'e-mail ou senha ausentes' }
         '401': { description: 'e-mail ou senha incorretos' }
+        '429':
+          description: 'mais de 10 senhas erradas para o mesmo e-mail (trim + minúsculas) em 15 minutos; enquanto durar o bloqueio, até a senha certa recebe 429. Login certo zera a contagem. Contador em memória, por processo.'
+          headers: { Retry-After: { description: 'segundos até o e-mail destrancar', schema: { type: integer } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
   /api/auth/me:
     get:
       summary: Usuário da sessão atual
@@ -154,9 +159,17 @@ paths:
         '401': { description: 'sem token ou token inválido' }
   /api/products:
     get:
-      summary: Lista o catálogo (público)
+      summary: Lista o catálogo (público); sem limit devolve a lista inteira, com limit devolve a página
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 }, description: 'tamanho da página; sem ele a lista vem inteira' }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 }, description: 'número da página; exige limit' }
       responses:
-        '200': { description: 'produtos', content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Product' } } } } }
+        '200':
+          description: 'produtos (página além do fim devolve [])'
+          headers:
+            X-Total-Count: { description: 'total de produtos do catálogo, antes de paginar', schema: { type: integer } }
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Product' } } } }
+        '400': { description: 'limit ou page inválido (não inteiro, page < 1, limit fora de 1 a 100) ou page sem limit; corpo { message } diz qual parâmetro' }
     post:
       summary: Publica um anúncio
       security: [{ bearer: [] }]
@@ -255,6 +268,12 @@ paths:
     post:
       summary: Fecha um pedido; preço e total vêm do catálogo, nunca do cliente
       security: [{ bearer: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: 'Chave do cliente (8 a 64 letras, números, _ ou -) para reenvio seguro. Mesma chave e mesmos itens devolvem o pedido já criado (200), sem criar outro; mesma chave com outros itens dá 409. A chave vale por usuário. Sem o cabeçalho, cada POST cria um pedido.'
+          schema: { type: string, minLength: 8, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$' }
       requestBody:
         required: true
         content:
@@ -269,9 +288,11 @@ paths:
                   items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1, maximum: 10000 } } }
                 coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20], description: 'sem diferenciar maiúsculas; cupom que não existe ou abaixo do valor mínimo é ignorado, sem erro, e o pedido sai sem desconto' }
       responses:
+        '200': { description: 'reenvio com a mesma Idempotency-Key e os mesmos itens: devolve o pedido já criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
-        '400': { description: 'lista vazia, produto fora do catálogo ou quantidade que não é inteira de 1 a 10.000' }
+        '400': { description: 'lista vazia, produto fora do catálogo, quantidade que não é inteira de 1 a 10.000 ou Idempotency-Key malformada' }
         '401': { description: 'sem token ou token inválido' }
+        '409': { description: 'Idempotency-Key já usada com outros itens ou cupom' }
   /api/finance/entries:
     get:
       summary: Extrato financeiro da conta da sessão, do mais recente ao mais antigo (ADMIN também vê só o dele)

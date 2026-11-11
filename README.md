@@ -16,7 +16,7 @@ estágios e chatbot de suporte.
 ## Estado atual do repositório
 
 SPA em JavaScript puro (módulos ES, sem build) servida por uma API Express
-(`server.js`), que também guarda os dados no arquivo `src/data/db.json`.
+(`apps/api/server.js`), que também guarda os dados no arquivo `apps/api/data/db.json`.
 Para instalar e rodar, veja [`docs/setup.md`](docs/setup.md).
 
 As specs em `.ai/specs/` também descrevem o *alvo*: o schema PostgreSQL
@@ -29,7 +29,7 @@ assumir que algo foi implementado, confira no código.
   puro em módulos ES
 - API: Node.js + Express 4, autenticação JWT (`jsonwebtoken`) e senhas com
   bcrypt (`bcryptjs`)
-- Dados: arquivo JSON (`src/data/db.json`)
+- Dados: arquivo JSON (`apps/api/data/db.json`)
 - Testes: `node:test`, nativo do Node
 - Qualidade: ESLint 10 e TypeScript 7 só como checador de JSDoc (sem build)
 
@@ -38,15 +38,17 @@ assumir que algo foi implementado, confira no código.
 ```text
 AgroTech/
 ├─ index.html             # entrada da SPA (carrega src/modules/catalog.js)
-├─ server.js              # API Express (/api/*) e servidor dos arquivos do front
 ├─ eslint.config.js       # lint: erro barra o commit, complexidade só avisa
 ├─ jsconfig.json          # checagem de tipos por JSDoc (arquivos com // @ts-check)
 ├─ src/
 │  ├─ modules/            # telas e fluxos: catálogo, carrinho, auth, rastreio, suporte
 │  ├─ services/           # acesso à API e regras só da SPA (api, cart, storage, catalog-view...)
 │  ├─ components/         # Navbar, ProductCard, FinanceChart
-│  ├─ styles/             # tokens.css (design tokens) e ui.css
-│  └─ data/db.json        # "banco" em arquivo, fora do git (criado pelo server.js no 1º uso)
+│  └─ styles/             # tokens.css (design tokens) e ui.css
+├─ apps/
+│  ├─ api/                # API Express: server.js (/api/*, serve também o front), ids, write-queue
+│  │  └─ data/db.json     # "banco" em arquivo, fora do git (criado pelo server.js no 1º uso)
+│  └─ mobile-spike/       # spike do app React Native (issue #11), sem Expo instalado
 ├─ packages/
 │  └─ domain/             # regras puras compartilhadas pela API e pela SPA (commerce, finance, catalog)
 ├─ assets/                # logo

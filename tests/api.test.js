@@ -1,5 +1,5 @@
 // Testes de integração da API: sobem o server.js de verdade numa porta livre, com um
-// banco descartável (DATA_FILE), sem tocar no src/data/db.json do repositório.
+// banco descartável (DATA_FILE), sem tocar no apps/api/data/db.json do repositório.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -25,7 +25,7 @@ before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-api-'));
   const port = await freePort();
   base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['server.js'], {
+  server = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' },
     stdio: 'ignore'
   });
@@ -91,6 +91,10 @@ test('o arquivo do banco e o código do servidor não são servidos', async () =
   assert.equal(db.status, 404);
   const source = await (await fetch(`${base}/server.js`)).text();
   assert.doesNotMatch(source, /jsonwebtoken/);
+  // O banco e o servidor moram em apps/api, fora das pastas servidas (ADR-0002, A2): o caminho novo também não entrega nada.
+  // (Caminho desconhecido cai no index.html da SPA, então o que vale é o conteúdo, não o status.)
+  assert.doesNotMatch(await (await fetch(`${base}/apps/api/data/db.json`)).text(), /"users"/);
+  assert.doesNotMatch(await (await fetch(`${base}/apps/api/server.js`)).text(), /jsonwebtoken/);
 
   // o front continua sendo servido
   assert.match(await (await fetch(`${base}/`)).text(), /AgroTech/);

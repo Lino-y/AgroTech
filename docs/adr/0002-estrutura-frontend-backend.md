@@ -8,11 +8,13 @@
 
 ## Contexto
 
-Hoje o backend e o frontend web moram juntos na raiz:
+Hoje o backend e o frontend web moram juntos na raiz (estado da `main` em
+109e8a6, antes dos passos A1 e A2; as referências `arquivo:linha` desta seção e
+do checklist de impacto são desse estado e **não são remapeadas**):
 
 - `server.js` é a API Express **e** o servidor dos arquivos da SPA: serve
   `/src` e `/assets` (`server.js:368`, `server.js:369`) e devolve `index.html`
-  na rota coringa (`server.js:714`).
+  na rota coringa (`server.js:713`).
 - O "banco" fica dentro da pasta servida, em `src/data/db.json`
   (`server.js:47`). Por isso existe uma guarda só para `/src`
   (`server.js:357`).
@@ -21,7 +23,7 @@ Hoje o backend e o frontend web moram juntos na raiz:
   SPA; `ids` e `write-queue` só pelo servidor.
 - As ferramentas assumem esses caminhos: ESLint por pasta
   (`eslint.config.js:6` a `eslint.config.js:10`), tipos só em `src/**/*.js`
-  (`jsconfig.json`), scripts (`package.json:11` a `package.json:21`), git hooks
+  (`jsconfig.json`), scripts (`package.json:8` a `package.json:18`), git hooks
   (`.githooks/pre-commit:16`, `.githooks/pre-commit:17`,
   `.githooks/pre-push:5`) e testes que sobem o `server.js` pelo caminho
   (`tests/api.test.js:28`, `tests/ui/browser.js:144`).
@@ -101,11 +103,11 @@ ganho funcional enquanto a SPA for o fallback servido pela API.
 |---|---|---|
 | Guarda de spec | `.ai/scripts/spec-guard.js:16` (`CODE_RE` reconhece só `src/`, `server.js` e `index.html`) | incluir `apps/` e `packages/`, com teste. **Sem isso a regra 09 deixa de valer em silêncio**: mudar código não exigiria mais atualizar a spec |
 | Lint | `eslint.config.js:6` a `:10` | globs por pasta: web = navegador; api, domain e tests = Node; mobile = React Native |
-| Tipos | `jsconfig.json`, `package.json:18` | incluir `packages/domain` e o que já tem `// @ts-check`; o mobile tem `tsconfig` próprio |
-| Scripts | `package.json:11` a `:18` | `start` e `dev` apontam para `apps/api`; `verify` encadeia os workspaces |
+| Tipos | `jsconfig.json`, `package.json:15` | incluir `packages/domain` e o que já tem `// @ts-check`; o mobile tem `tsconfig` próprio |
+| Scripts | `package.json:8` a `:18` | `start` e `dev` apontam para `apps/api`; `verify` encadeia os workspaces |
 | Git hooks | `.githooks/pre-commit:16` e `:17`, `.githooks/pre-push:5` | continuam chamando scripts da raiz |
 | Testes | `tests/api.test.js:28`, `tests/ui/browser.js:144` e os imports `../src/...` (38 pontos) | caminhos novos; `tests/api.test.js:92` (confere que `server.js` não é servido) acompanha |
-| Arquivos servidos | `server.js:357` a `:369`, `server.js:714` | a API serve `/packages/domain` (só essa pasta, com a mesma guarda); no A2 passa a servir `src/`, `assets/` e `index.html` a partir da raiz; no A3, a SPA a partir de `apps/web` |
+| Arquivos servidos | `server.js:357` a `:369`, `server.js:713` | a API serve `/packages/domain` (só essa pasta, com a mesma guarda); no A2 passa a servir `src/`, `assets/` e `index.html` a partir da raiz; no A3, a SPA a partir de `apps/web` |
 | Documentação | 137 referências `arquivo:linha`, `README.md` (estrutura), `docs/agents/architecture.md` | script de remapeamento versionado em `.ai/scripts/` antes do A2 (o da #24 foi um script avulso, fora do repositório) + `npm run check:coherence` |
 | Dados locais | `src/data/db.json` fora do git, na máquina de cada pessoa | no A2, mover o arquivo ou apontar `DATA_FILE`; avisar no PR |
 

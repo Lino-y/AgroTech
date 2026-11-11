@@ -42,7 +42,7 @@ apps/mobile/
 │  └─ types/             # contratos mobile
 └─ __tests__/            # unidade, integração e cenários offline
 
-server.js                # API Express durante a transição
+apps/api/                # API Express (ADR-0002)
 src/                     # cliente web legado, mantido até o rollout
 ```
 
@@ -168,7 +168,7 @@ Node (`node --experimental-strip-types --test`):
   armazenamento seguro quando disponível, fallback em memória para testes.
   Logout limpa memória e store (`storage.ts:37`).
 - **Tela autenticada mínima** (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`):
-  consome `/api/auth/me` (`server.js:424`, via `api.ts:73`) sem acessar `fetch`
+  consome `/api/auth/me` (`apps/api/server.js:433`, via `api.ts:73`) sem acessar `fetch`
   nem storage diretamente — a tela só reflete estados.
 - **Testes de sessão expirada e offline**
   (`apps/mobile-spike/__tests__/session.test.ts:26`): token anexado, 401/403
@@ -187,7 +187,7 @@ Node (`node --experimental-strip-types --test`):
 - O `EXPO_PUBLIC_API_URL` do Expo depende dos types do Expo; no spike o tipo
   mínimo foi declarado à mão em `api.ts` e a Fase 1 instala `@types/node` e os
   types do Expo.
-- A API é consumida pelo cliente nativo com `CORS` aberto (`server.js:312`);
+- A API é consumida pelo cliente nativo com `CORS` aberto (`apps/api/server.js:321`);
   revisar antes do rollout (Fase 4).
 
 ### Custos do spike

@@ -25,7 +25,7 @@ async function startServer() {
   server?.kill();
   const port = await freePort();
   base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['server.js'], {
+  server = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: dataFile, JWT_SECRET: '' },
     stdio: 'ignore'
   });

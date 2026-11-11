@@ -11,7 +11,7 @@
 
 ## Spec relacionada
 
-<!-- Mexeu em src/, server.js ou index.html sem atualizar .ai/specs/ nem docs/tasks/? Escreva "Spec: n/a — <motivo>"; o spec-guard aceita. -->
+<!-- Mexeu em src/, packages/, apps/ ou index.html sem atualizar .ai/specs/ nem docs/tasks/? Escreva "Spec: n/a — <motivo>"; o spec-guard aceita. -->
 - Spec: 
 - Issue: 
 

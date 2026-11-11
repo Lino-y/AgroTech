@@ -1,7 +1,7 @@
 # 06 - Schema do Banco de Dados (PostgreSQL)
 
 > **Status: alvo, não implementado.** Hoje os dados vivem no arquivo
-> `src/data/db.json`, criado pelo `server.js` a partir do `defaultDb` no
+> `apps/api/data/db.json`, criado pelo `apps/api/server.js` a partir do `defaultDb` no
 > primeiro uso, com quatro listas: `users`, `products`, `orders` e
 > `financeEntries` (lançamentos manuais do financeiro:
 > `{ id, ownerEmail, type, title, amount, createdAt }`). O formato atual de cada
