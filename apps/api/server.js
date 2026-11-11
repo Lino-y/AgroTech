@@ -485,9 +485,29 @@ app.put('/api/auth/store', authenticate, async (req, res) => {
   res.json({ user: sanitizeUser(user) });
 });
 
-app.get('/api/products', async (_, res) => {
-  const db = await readDb();
-  res.json(db.products);
+// Paginação opcional: sem limit a lista inteira (a SPA lê o catálogo todo); o total vai em X-Total-Count.
+const MAX_PAGE_SIZE = 100;
+const parseInteger = (raw) => (/^\d+$/.test(raw) ? Number(raw) : NaN);
+
+app.get('/api/products', async (req, res) => {
+  const { page, limit } = req.query;
+  let pageNumber = 1;
+  let pageSize = null;
+  if (limit !== undefined) {
+    pageSize = parseInteger(limit);
+    if (!(pageSize >= 1 && pageSize <= MAX_PAGE_SIZE)) {
+      return res.status(400).json({ message: `Parâmetro limit inválido: use um inteiro de 1 a ${MAX_PAGE_SIZE}.` });
+    }
+  } else if (page !== undefined) {
+    return res.status(400).json({ message: 'Parâmetro page exige limit: informe o tamanho da página.' });
+  }
+  if (page !== undefined) {
+    pageNumber = parseInteger(page);
+    if (!(pageNumber >= 1)) return res.status(400).json({ message: 'Parâmetro page inválido: use um inteiro a partir de 1.' });
+  }
+  const { products } = await readDb();
+  res.set('X-Total-Count', String(products.length));
+  res.json(pageSize ? products.slice((pageNumber - 1) * pageSize, pageNumber * pageSize) : products);
 });
 
 // Tetos de entrada: sem eles, 1e308 vira total "Infinity", que o JSON grava como null.

@@ -159,9 +159,17 @@ paths:
         '401': { description: 'sem token ou token inválido' }
   /api/products:
     get:
-      summary: Lista o catálogo (público)
+      summary: Lista o catálogo (público); sem limit devolve a lista inteira, com limit devolve a página
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 }, description: 'tamanho da página; sem ele a lista vem inteira' }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 }, description: 'número da página; exige limit' }
       responses:
-        '200': { description: 'produtos', content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Product' } } } } }
+        '200':
+          description: 'produtos (página além do fim devolve [])'
+          headers:
+            X-Total-Count: { description: 'total de produtos do catálogo, antes de paginar', schema: { type: integer } }
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Product' } } } }
+        '400': { description: 'limit ou page inválido (não inteiro, page < 1, limit fora de 1 a 100) ou page sem limit; corpo { message } diz qual parâmetro' }
     post:
       summary: Publica um anúncio
       security: [{ bearer: [] }]
