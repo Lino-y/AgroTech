@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { blockedSeconds, clearFailures, recordFailure } from './login-limiter.js';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -318,7 +319,10 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-app.use(cors());
+// CORS: a SPA é da mesma origem e o app nativo não usa CORS, então o padrão é não liberar nenhuma
+// origem cruzada. CORS_ORIGINS lista as permitidas (exatas, separadas por vírgula, sem barra final).
+const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map((item) => item.trim()).filter(Boolean);
+app.use(cors({ origin: corsOrigins }));
 app.use((req, res, next) => {
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -413,6 +417,9 @@ app.post('/api/auth/register', async (req, res) => {
   res.status(201).json({ user: sanitizeUser(user), token });
 });
 
+/** @type {import('./login-limiter.js').FailureStore} */
+const loginFailures = new Map();
+
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -421,10 +428,17 @@ app.post('/api/auth/login', async (req, res) => {
 
   const db = await readDb();
   const normalizedEmail = String(email).trim().toLowerCase();
+  const wait = blockedSeconds(loginFailures, normalizedEmail, Date.now());
+  if (wait > 0) {
+    res.set('Retry-After', String(wait));
+    return res.status(429).json({ message: 'Muitas tentativas de login. Tente de novo em alguns minutos.' });
+  }
   const user = db.users.find((item) => item.email === normalizedEmail);
   if (!user || !bcrypt.compareSync(String(password), user.password)) {
+    recordFailure(loginFailures, normalizedEmail, Date.now());
     return res.status(401).json({ message: 'E-mail ou senha incorretos.' });
   }
+  clearFailures(loginFailures, normalizedEmail);
 
   const token = signToken(user);
   res.json({ user: sanitizeUser(user), token });
