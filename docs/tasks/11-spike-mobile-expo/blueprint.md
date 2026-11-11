@@ -24,7 +24,7 @@ referencial `mais-frota/apps/mobile-driver`.
 ## 3. Contratos (antes do código)
 
 - Endpoint consumido: `GET /api/auth/me` — auth: `authenticate`
-  (`server.js:424`) — response `{ user }`. Sem endpoint novo: OpenAPI
+  (`apps/api/server.js:433`) — response `{ user }`. Sem endpoint novo: OpenAPI
   (`.ai/specs/05-openapi-spec.md`) não muda.
 - Função pública `[NOVO]`: `apiRequest<T>(path, options)` em
   `apps/mobile-spike/app/services/api.ts` — token de `getSession()`, timeout
@@ -54,7 +54,7 @@ referencial `mais-frota/apps/mobile-driver`.
 - [x] Tela autenticada mínima (`apps/mobile-spike/app/screens/HomeScreen.tsx:15`) consumindo `/api/auth/me` via `apps/mobile-spike/app/services/api.ts:73`
 - [x] Teste de sessão expirada (`apps/mobile-spike/__tests__/session.test.ts:65`)
 - [x] Recomendação registrada na ADR-0001 (`docs/adr/0001-migracao-para-react-native.md:146` — seguir; a decisão depende do gate)
-- [x] Status RN01–RN08 atualizado na spec 08 (`.ai/specs/08-migracao-react-native.md:131-138`)
+- [x] Status RN01–RN08 atualizado na spec 08 (`.ai/specs/08-migracao-react-native.md:136-143`)
 
 ## 6. Nice to have
 
@@ -69,7 +69,7 @@ resolvido em silêncio.
 
 ## 8. Divergências / achados durante a implementação
 
-- CORS aberto no `server.js:312` aceitará o cliente nativo sem restrição;
+- CORS aberto no `apps/api/server.js:321` aceitará o cliente nativo sem restrição;
   sinalizado na ADR como risco para a Fase 4 (rollout).
 - **Revisão (spec-code-review):** a `HomeScreen.tsx` limpava a sessão em
   qualquer erro, incluindo falha de rede — contrariava a política offline

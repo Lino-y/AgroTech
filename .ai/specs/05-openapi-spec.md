@@ -1,6 +1,6 @@
 # 05 - Especificação da API (OpenAPI 3.0)
 
-Contrato da API implementada em `server.js`, conferido com os testes de
+Contrato da API implementada em `apps/api/server.js`, conferido com os testes de
 integração em `tests/api.test.js`. Endpoint novo ou alterado atualiza este
 arquivo no mesmo PR (`docs/agents/architecture.md`).
 

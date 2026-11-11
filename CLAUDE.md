@@ -3,7 +3,7 @@
 Plataforma mobile-first de e-commerce e gestão financeira para o agronegócio
 (compra de insumos pelo Comprador Rural, anúncios do Vendedor Agro): SPA em
 JavaScript puro servida por uma API Express, com os dados em
-`src/data/db.json`.
+`apps/api/data/db.json`.
 
 Guia do projeto: `README.md` (estrutura) e `docs/setup.md` (instalar, rodar,
 testar). Specs do produto: `.ai/specs/`. Convenção de task (spec + blueprint
@@ -85,7 +85,7 @@ ESLint e de tipo (JSDoc) nos `.js` do commit (`npm run lint`,
   "como". Divergência encontrada vira item registrado no blueprint, nunca é
   resolvida em silêncio.
 - Antes de codar contra os dados: o banco hoje é o arquivo
-  `src/data/db.json`, lido e gravado pelo `server.js` (`readDb`/`writeDb`).
+  `apps/api/data/db.json`, lido e gravado pelo `apps/api/server.js` (`readDb`/`writeDb`).
   O PostgreSQL de `.ai/specs/06-schema-banco-de-dados.md` e a API de
   `.ai/specs/05-openapi-spec.md` descrevem o alvo, não o que existe — confira
   no código antes de assumir estrutura.
@@ -115,7 +115,7 @@ como vazamento (fica no transcript da sessão). Fluxo correto:
 - GitHub via `gh` CLI (push/PR sempre atrás do gate acima). As labels do
   fluxo (`ready-for-agent`, `em-andamento`) ainda não existem no repo — ver
   `docs/agents/playbook.md` → "O que ainda não existe".
-- Banco: nenhum serviço; os dados vivem em `src/data/db.json`. O PostgreSQL
+- Banco: nenhum serviço; os dados vivem em `apps/api/data/db.json`. O PostgreSQL
   da spec 06 ainda não foi decidido nem implementado.
 - Deploy: ainda não decidido — não configurar antes de precisar.
 

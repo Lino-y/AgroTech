@@ -141,7 +141,7 @@ export async function startApp() {
   const tmp = mkdtempSync(path.join(tmpdir(), 'agrotech-ui-'));
   const appPort = await freePort();
   const cdpPort = await freePort();
-  const server = spawn(process.execPath, ['server.js'], {
+  const server = spawn(process.execPath, ['apps/api/server.js'], {
     cwd: ROOT,
     env: { ...process.env, PORT: String(appPort), DATA_FILE: path.join(tmp, 'db.json'), JWT_SECRET: '' },
     stdio: 'ignore'

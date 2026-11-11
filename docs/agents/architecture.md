@@ -13,8 +13,8 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - Mobile-first, 360–430px, sem recarregar a página
   (`.ai/specs/03-requisitos-nao-funcionais.md`, RNF02; contêiner de 430px em
   `src/styles/tokens.css:31`).
-- API em Express 4 no `server.js`, dados no arquivo `src/data/db.json` lido e
-  gravado só por `readDb`/`writeDb` (`server.js:220`, `server.js:232`). Banco,
+- API em Express 4 em `apps/api/server.js`, dados no arquivo `apps/api/data/db.json` lido e
+  gravado só por `readDb`/`writeDb` (`apps/api/server.js:229`, `apps/api/server.js:241`). Banco,
   ORM ou fila novos só com ADR.
 - Dependência nova só com pedido explícito do usuário. Antes de instalar,
   confira que o pacote existe e é o pretendido (`npm view <pacote>`): nome
@@ -29,7 +29,7 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 | Estado e fluxo | `src/modules/` | classes e orquestração; as telas ficam em `catalog.js` | `CartEngine` (`src/modules/cart.js:3`) |
 | HTML reutilizável | `src/components/` | função que devolve string HTML | `src/components/ProductCard.js:1` |
 | Estilo | `src/styles/` | cor e fonte por token (`var(--forest)` etc.), RNF01 | `src/styles/tokens.css:1` |
-| API HTTP | `server.js` | rota sob `/api`; `authenticate` quando exige login, `requireAdmin` para admin; erro como `{ message }` com o status certo | `server.js:539`, `server.js:305` |
+| API HTTP | `apps/api/server.js` | rota sob `/api`; `authenticate` quando exige login, `requireAdmin` para admin; erro como `{ message }` com o status certo | `apps/api/server.js:548`, `apps/api/server.js:314` |
 
 ## Padrões atuais (siga; não crie um segundo padrão sem ADR)
 
@@ -51,24 +51,24 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
   `npm run typecheck` barra `any` implícito e uso fora do contrato.
 - Formato novo de dado no `db.json`: descreva na seção Contratos do
   blueprint (`.ai/templates/blueprint-template.md`).
-- Entrada do usuário é validada no `server.js`, nunca só no front:
-  - texto que vai virar HTML passa por `cleanText` (`server.js:248`);
-  - link de imagem passa por `safeImageUrl` (`server.js:253`);
-  - perfil no cadastro só entre `SIGNUP_ROLES` (`server.js:242`), e ADMIN nunca
+- Entrada do usuário é validada no `apps/api/server.js`, nunca só no front:
+  - texto que vai virar HTML passa por `cleanText` (`apps/api/server.js:257`);
+  - link de imagem passa por `safeImageUrl` (`apps/api/server.js:262`);
+  - perfil no cadastro só entre `SIGNUP_ROLES` (`apps/api/server.js:251`), e ADMIN nunca
     vem do corpo da requisição;
   - preço e total saem do catálogo e de `calculateCartSummary`, nunca do valor
-    que o cliente manda (`server.js:629`);
+    que o cliente manda (`apps/api/server.js:638`);
   - dado de um usuário só volta para ele mesmo ou para o ADMIN (ex.: pedidos).
-- Só `src/` (menos `src/data/`), `packages/domain/` e `assets/` são servidos
+- Só `src/` (menos `src/data/`, onde o banco morava), `packages/domain/` e `assets/` são servidos
   como arquivo; não sirva a raiz do projeto.
 
 ## Testes
 
 - `node:test` + `node:assert/strict` em `tests/*.test.js`
   (`tests/services.test.js:1`); não adicione Jest nem Vitest.
-- Rota da API se testa de verdade: `tests/api.test.js` sobe o `server.js`
+- Rota da API se testa de verdade: `tests/api.test.js` sobe o `apps/api/server.js`
   numa porta livre com banco descartável (`DATA_FILE`) — nunca contra o
-  `src/data/db.json` local.
+  `apps/api/data/db.json` local.
 - Regra de negócio nova ou corrigida ganha teste que falha se a regra
   quebrar, inclusive no limite (ex.: subtotal de exatamente R$ 800 no frete
   grátis).

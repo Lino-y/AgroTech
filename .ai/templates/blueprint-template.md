@@ -4,7 +4,7 @@
 > Regra de ouro: toda decisão técnica abaixo cita `arquivo:linha` de código
 > real já lido, ou está marcada como `[NOVO]`. Nunca descrever estrutura de
 > código/banco "de memória" — se precisar, leia o arquivo (os dados vivem
-> hoje em `src/data/db.json`, via `server.js`) antes de escrever aqui.
+> hoje em `apps/api/data/db.json`, via `apps/api/server.js`) antes de escrever aqui.
 
 ## 1. Dor do usuário
 

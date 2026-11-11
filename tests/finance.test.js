@@ -1,6 +1,6 @@
 // Financeiro (issue #6): regras do extrato, carga da tela e rotas da API. As rotas sobem o
 // server.js de verdade numa porta livre, com banco descartável (DATA_FILE), no mesmo molde
-// de tests/api.test.js, sem tocar no src/data/db.json do repositório.
+// de tests/api.test.js, sem tocar no apps/api/data/db.json do repositório.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -183,7 +183,7 @@ before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-finance-'));
   const port = await freePort();
   base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['server.js'], {
+  server = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' },
     stdio: 'ignore'
   });

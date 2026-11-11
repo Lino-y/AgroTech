@@ -2,7 +2,7 @@
 // a anterior terminou, mesmo se alguém que ainda espera desistir (conexão que cai) antes da hora.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTurnQueue } from '../src/services/write-queue.js';
+import { createTurnQueue } from '../apps/api/write-queue.js';
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 

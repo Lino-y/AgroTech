@@ -1,7 +1,7 @@
 # Setup local
 
 Como deixar o AgroTech rodando na sua máquina. Os comandos foram conferidos
-com o `package.json` e o `server.js` em 07/10/2026, no Windows 11 com Node
+com o `package.json` e o `apps/api/server.js` em 07/10/2026, no Windows 11 com Node
 22.20 e npm 10.9.
 
 ## 1. O que instalar (uma vez por máquina)
@@ -35,7 +35,7 @@ cp .env.example .env
   `.githooks`.
 - No `.env`: `PORT` (padrão 3001) e `JWT_SECRET` (o comando para gerar um
   está no `.env.example`). Sem `JWT_SECRET` a API sorteia um segredo a cada
-  início (`server.js:21`) e o login cai sempre que o servidor reinicia.
+  início (`apps/api/server.js:24`) e o login cai sempre que o servidor reinicia.
 
 ## 3. Rodar
 
@@ -44,23 +44,26 @@ cp .env.example .env
 | `npm start` | API Express, que também serve o front (`index.html` e `src/`) | http://localhost:3001 (`GET /api/health`) |
 | `npm run dev` | o mesmo, reiniciando a cada mudança (`node --watch`) | idem |
 
-Usuários de exemplo (o `server.js` recria os dois se faltarem no banco):
+Usuários de exemplo (o `apps/api/server.js` recria os dois se faltarem no banco):
 
 | Perfil | E-mail | Senha |
 |---|---|---|
 | Produtor | `demo@agrotech.com.br` | `demo123` |
 | Admin | `admin@agrotech.com.br` | `admin123` |
 
-O banco é o arquivo `src/data/db.json`, fora do git: o `server.js` cria a
+O banco é o arquivo `apps/api/data/db.json`, fora do git: o `apps/api/server.js` cria a
 partir dos dados de exemplo (`defaultDb`) no primeiro uso, e cadastros,
 anúncios e pedidos feitos no app ficam só na sua máquina. Para voltar ao
 estado inicial, apague o arquivo e reinicie o servidor.
+
+Quem já tinha o banco em `src/data/db.json` (antes do passo A2 da ADR-0002) deve
+mover o arquivo para `apps/api/data/db.json`; o servidor avisa na subida se achar o antigo.
 
 ## 4. Testes e qualidade
 
 | O quê | Comando |
 |---|---|
-| Testes do app (`tests/`), incluindo os de API, que sobem o `server.js` numa porta livre com um banco temporário (`DATA_FILE`) | `npm test` |
+| Testes do app (`tests/`), incluindo os de API, que sobem o `apps/api/server.js` numa porta livre com um banco temporário (`DATA_FILE`) | `npm test` |
 | Testes com barreira de cobertura nativa do Node (linhas 88%, branches 68%, funções 85%) | `npm run test:coverage` |
 | Testes de tela no Chrome headless (navegação sem reload, login, catálogo vazio e com erro, drag-to-scroll dos carrosséis), fora do `npm test` e do `verify` | `npm run test:ui` |
 | Lint (ESLint, com alerta de função grande ou complexa) | `npm run lint` |
@@ -68,7 +71,7 @@ estado inicial, apague o arquivo e reinicie o servidor.
 | Tipos (JSDoc nos arquivos com `// @ts-check`) | `npm run typecheck` |
 | Verificação completa local antes do push | `npm run verify` |
 | Auditoria de dependências com bloqueio em vulnerabilidade alta/crítica | `npm run audit:dependencies` |
-| Governança (spec-guard e workflow-guide) | `node --test .ai/scripts/spec-guard.test.js .claude/hooks/workflow-guide.test.js` |
+| Governança (spec-guard, remap-refs e workflow-guide) | `node --test .ai/scripts/spec-guard.test.js .ai/scripts/remap-refs.test.js .claude/hooks/workflow-guide.test.js` |
 | Referências de arquivo quebradas na doc | `npm run check:coherence` |
 
 - O `npm test` só encontra `tests/`, porque o `node --test` não entra em
@@ -89,8 +92,8 @@ estado inicial, apague o arquivo e reinicie o servidor.
   padrão do Windows, do macOS e do Linux; fora deles, aponte o executável em
   `CHROME_PATH`. Sem navegador, os testes aparecem como pulados (`skipped`) e
   o comando termina com sucesso.
-- Cada arquivo sobe o `server.js` numa porta livre com banco temporário
-  (`DATA_FILE`, nunca o `src/data/db.json`) e o Chrome headless com perfil
+- Cada arquivo sobe o `apps/api/server.js` numa porta livre com banco temporário
+  (`DATA_FILE`, nunca o `apps/api/data/db.json`) e o Chrome headless com perfil
   temporário, controlado pelo DevTools Protocol com o WebSocket nativo do Node
   22, sem dependência nova. Cada teste abre a SPA numa aba com `localStorage`
   limpo, e a internet fica bloqueada (fontes e fotos externas não carregam).

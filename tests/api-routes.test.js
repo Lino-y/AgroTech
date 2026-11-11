@@ -23,7 +23,7 @@ before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), 'agrotech-routes-'));
   const port = await freePort();
   base = `http://localhost:${port}`;
-  server = spawn(process.execPath, ['server.js'], {
+  server = spawn(process.execPath, ['apps/api/server.js'], {
     env: { ...process.env, PORT: String(port), DATA_FILE: path.join(dataDir, 'db.json'), JWT_SECRET: '' },
     stdio: 'ignore'
   });
