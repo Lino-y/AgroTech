@@ -89,3 +89,19 @@ test('o resto da pasta estática continua servido', async () => {
   assert.equal(status, 200);
   assert.match(body, /:root/);
 });
+
+test('/packages/domain serve o domínio e nada além dele', async () => {
+  const domain = await raw('/packages/domain/commerce.js');
+  assert.equal(domain.status, 200);
+  assert.match(domain.body, /export function calculateCartSummary/);
+  const outside = [
+    '/packages/domain/../../server.js',
+    '/packages/domain/%2e%2e/%2e%2e/server.js',
+    '/packages/domain/..%2f..%2fpackage.json',
+    '/packages/server.js'
+  ];
+  for (const variant of outside) {
+    const { body } = await raw(variant);
+    assert.equal(/from 'express'|"dependencies"/.test(body), false, `${variant} devolveu arquivo fora do domínio`);
+  }
+});

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks')}catch{}\"",
     "start": "node server.js",

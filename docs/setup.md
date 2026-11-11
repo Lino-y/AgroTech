@@ -77,7 +77,7 @@ estado inicial, apague o arquivo e reinicie o servidor.
 - O pre-commit roda o ESLint e o `tsc` nos `.js` do commit: erro barra, aviso
   (complexidade, dívida antiga) só alerta.
 - A checagem de tipos vale para os arquivos que começam com `// @ts-check`
-  (hoje `src/services/cart.js` e `src/services/commerce.js`). Arquivo novo em
+  (hoje `src/services/cart.js` e `packages/domain/commerce.js`). Arquivo novo em
   `src/services/` entra do mesmo jeito (`docs/agents/architecture.md`).
 
 ### Testes de tela (`npm run test:ui`)

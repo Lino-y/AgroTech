@@ -29,6 +29,7 @@ test('código sem spec é barrado, salvo "Spec: n/a — motivo"', () => {
   const code = ['src/services/cart.js'];
   assert.strictEqual(missingSpecUpdate(code, ['']), true);
   assert.strictEqual(missingSpecUpdate(['server.js'], ['']), true);
+  assert.strictEqual(missingSpecUpdate(['packages/domain/commerce.js'], ['']), true);
   assert.strictEqual(missingSpecUpdate([...code, 'docs/tasks/1-carrinho/blueprint.md'], ['']), false);
   assert.strictEqual(missingSpecUpdate([...code, '.ai/specs/02-requisitos-funcionais.md'], ['']), false);
   assert.strictEqual(missingSpecUpdate(code, ['- Spec: n/a — só atualiza dependência']), false);

@@ -84,7 +84,7 @@ components:
         trackingCode: { type: string, example: BR-AGRO-9F3A2C1B7D4E-X, description: '12 hexadecimais aleatórios (48 bits); pedido antigo mantém o formato BR-AGRO-123456-X' }
         carrier: { type: string }
         estimatedDelivery: { type: string }
-        total: { type: number, description: 'calculado no servidor (calculateCartSummary, src/services/commerce.js)' }
+        total: { type: number, description: 'calculado no servidor (calculateCartSummary, packages/domain/commerce.js)' }
         items:
           type: array
           items:

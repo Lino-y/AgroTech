@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildFinanceEntries, summarizeFinance } from '../src/services/finance.js';
+import { buildFinanceEntries, summarizeFinance } from '../packages/domain/finance.js';
 import { syncFinance } from '../src/modules/finance-sync.js';
 import { createFinanceEntry, loadFinanceEntries } from '../src/services/api.js';
 
@@ -18,7 +18,7 @@ const ids = (list) => list.map((entry) => entry.id);
 const at = (year, month, day) => new Date(year, month - 1, day, 12).toISOString();
 const now = new Date(2026, 9, 20, 12); // 20/out/2026
 
-// --- Regras do extrato (src/services/finance.js) ---
+// --- Regras do extrato (packages/domain/finance.js) ---
 
 test('financeiro vazio: totais zerados e gráfico com os meses do período', () => {
   const { chart, ...totals } = summarizeFinance([], { now });

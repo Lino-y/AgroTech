@@ -7,9 +7,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { getProductCategoryStyle } from './src/services/catalog.js';
-import { calculateCartSummary } from './src/services/commerce.js';
-import { buildFinanceEntries } from './src/services/finance.js';
+import { getProductCategoryStyle } from './packages/domain/catalog.js';
+import { calculateCartSummary } from './packages/domain/commerce.js';
+import { buildFinanceEntries } from './packages/domain/finance.js';
 import { createTurnQueue } from './src/services/write-queue.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './src/services/ids.js';
 
@@ -367,6 +367,7 @@ app.use('/src', (req, res, next) => {
 });
 app.use('/src', express.static(path.join(__dirname, 'src')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
+app.use('/packages/domain', express.static(path.join(__dirname, 'packages', 'domain')));
 
 app.get('/api/health', (_, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });

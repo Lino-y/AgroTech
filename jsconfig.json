@@ -10,5 +10,5 @@
     "lib": ["es2022", "dom"],
     "skipLibCheck": true
   },
-  "include": ["src/**/*.js"]
+  "include": ["src/**/*.js", "packages/**/*.js"]
 }

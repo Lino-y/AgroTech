@@ -4,7 +4,7 @@
 //
 // 1. Linha nova de blueprint que marca algo como feito (`- [x]` ou célula `| ✅ |`)
 //    precisa citar evidência `arquivo:linha` que exista.
-// 2. Mudou código (src/, server.js ou index.html)? A mesma mudança atualiza .ai/specs/
+// 2. Mudou código (src/, packages/, server.js ou index.html)? A mesma mudança atualiza .ai/specs/
 //    ou docs/tasks/ — ou declara `Spec: n/a — <motivo>` no corpo do PR ou num commit.
 //
 // Uso: node .ai/scripts/spec-guard.js [base=origin/main] [head=HEAD]  (PR_BODY no ambiente)
@@ -13,7 +13,7 @@ const { execFileSync } = require('child_process');
 // Qualquer `caminho.ext:linha` entre crases; quem valida é a checagem de existência abaixo.
 const REF_RE = /`([^`\s:]+\.[A-Za-z0-9]+):(\d+)(?:-(\d+))?`/g;
 const DONE_RE = /^\s*(?:- \[x\] |\|.*\|\s*✅\s*\|)/;
-const CODE_RE = /^(?:src\/|server\.js$|index\.html$)/;
+const CODE_RE = /^(?:src\/|packages\/|server\.js$|index\.html$)/;
 const SPEC_RE = /^(?:\.ai\/specs\/|docs\/tasks\/)/;
 const OPT_OUT_RE = /^\s*(?:[-*]\s*)?Spec:\s*n\/a\s*[—–-]\s*\S/im;
 
@@ -63,7 +63,7 @@ if (require.main === module) {
   );
   if (missingSpecUpdate(changed, optOuts)) {
     problems.push(
-      'Código mudou (src/, server.js ou index.html) sem atualizar .ai/specs/ nem docs/tasks/ (regra 09).\n' +
+      'Código mudou (src/, packages/, server.js ou index.html) sem atualizar .ai/specs/ nem docs/tasks/ (regra 09).\n' +
         '    Atualize a spec/blueprint, ou declare no PR/commit: "Spec: n/a — <motivo>".',
     );
   }

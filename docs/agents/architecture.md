@@ -24,12 +24,12 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 
 | Camada | Onde | Regra | Exemplo real |
 |---|---|---|---|
-| Regra de negócio | `src/services/` | função pura, sem DOM nem `fetch`, testável no Node, com JSDoc | `calculateCartSummary` (`src/services/commerce.js:50`) |
+| Regra de negócio | `packages/domain/` (API e SPA) e `src/services/` (só da SPA) | função pura, sem DOM nem `fetch`, testável no Node, com JSDoc; o ESLint dá a `packages/` só os globais do ECMAScript (ADR-0002) | `calculateCartSummary` (`packages/domain/commerce.js:50`) |
 | Acesso à API | `src/services/api.js` | todo `fetch` passa por `apiRequest`, que põe o token e trata 401/403 | `src/services/api.js:12` |
 | Estado e fluxo | `src/modules/` | classes e orquestração; as telas ficam em `catalog.js` | `CartEngine` (`src/modules/cart.js:3`) |
 | HTML reutilizável | `src/components/` | função que devolve string HTML | `src/components/ProductCard.js:1` |
 | Estilo | `src/styles/` | cor e fonte por token (`var(--forest)` etc.), RNF01 | `src/styles/tokens.css:1` |
-| API HTTP | `server.js` | rota sob `/api`; `authenticate` quando exige login, `requireAdmin` para admin; erro como `{ message }` com o status certo | `server.js:538`, `server.js:305` |
+| API HTTP | `server.js` | rota sob `/api`; `authenticate` quando exige login, `requireAdmin` para admin; erro como `{ message }` com o status certo | `server.js:539`, `server.js:305` |
 
 ## Padrões atuais (siga; não crie um segundo padrão sem ADR)
 
@@ -57,10 +57,10 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
   - perfil no cadastro só entre `SIGNUP_ROLES` (`server.js:242`), e ADMIN nunca
     vem do corpo da requisição;
   - preço e total saem do catálogo e de `calculateCartSummary`, nunca do valor
-    que o cliente manda (`server.js:628`);
+    que o cliente manda (`server.js:629`);
   - dado de um usuário só volta para ele mesmo ou para o ADMIN (ex.: pedidos).
-- Só `src/` (menos `src/data/`) e `assets/` são servidos como arquivo; não
-  sirva a raiz do projeto.
+- Só `src/` (menos `src/data/`), `packages/domain/` e `assets/` são servidos
+  como arquivo; não sirva a raiz do projeto.
 
 ## Testes
 

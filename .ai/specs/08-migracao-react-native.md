@@ -20,7 +20,7 @@ uma futura implementação.
 - telas e estado web: `src/modules/catalog.js`;
 - acesso HTTP: `src/services/api.js`;
 - regras de carrinho e comércio: `src/services/cart.js` e
-  `src/services/commerce.js`;
+  `packages/domain/commerce.js`;
 - API Express: `server.js`;
 - contrato HTTP: `.ai/specs/05-openapi-spec.md`;
 - testes API/serviços: `tests/api.test.js` e `tests/services.test.js`.
@@ -70,7 +70,9 @@ Liberada pela ADR-0002 (aceita); A1 e A2 não instalam Expo nem React Native,
 então não esperam a aprovação da ADR-0001. Um PR por passo, sem mudar comportamento,
 com `npm run verify`, `npm run test:ui` e `npm run check:coherence` verdes:
 
-1. **A1:** extrair `packages/domain` (commerce, finance, catalog);
+1. **A1:** extrair `packages/domain` (commerce, finance, catalog) — **feito**:
+   API (`server.js:11`) e SPA (`src/modules/cart.js:1`) importam o mesmo
+   arquivo, servido em `/packages/domain` (`server.js:370`);
 2. **A2:** mover o backend para `apps/api`, com o banco fora da pasta servida;
 3. **A3:** mover a SPA para `apps/web` — adiado até a aposentadoria dela.
 
@@ -134,8 +136,8 @@ Migrar cada fluxo completo, com tela, serviço, erro, loading, teste e rollout:
 | RN06 | Nenhum cartão ou pedido financeiro entra na fila | teste de segurança | 🔴 Fase 3 (no spike nenhuma ação financeira existe) |
 | RN07 | Cada fluxo migrado tem teste e rollout reversível | checklist de release | 🔴 Fase 2 |
 | RN08 | SPA continua funcional durante o piloto | smoke test web | ✅ spike não toca a SPA: nenhum arquivo de `src/` alterado |
-| RN09 | Regras de comércio e finanças em um único lugar (`packages/domain`), usadas por api, web e mobile | teste que falha se divergirem | 🔴 Fase A (A1) |
-| RN10 | Separação frontend/backend sem regressão | `npm run verify`, `npm run test:ui`, `npm run check:coherence` e spec-guard cobrindo as pastas novas | 🔴 Fase A (A1 e A2) |
+| RN09 | Regras de comércio e finanças em um único lugar (`packages/domain`), usadas por api, web e mobile | teste que falha se divergirem | 🟡 api e web usam o mesmo arquivo (`server.js:11`, `src/modules/cart.js:1`; sem cópia: `tests/domain-boundary.test.js:22`; domínio puro: `tests/domain-boundary.test.js:10` e o lint de `packages/`); falta o mobile (Fase 1) |
+| RN10 | Separação frontend/backend sem regressão | `npm run verify`, `npm run test:ui`, `npm run check:coherence` e spec-guard cobrindo as pastas novas | 🟡 A1 feito: guarda de spec reconhece `packages/` (`.ai/scripts/spec-guard.js:16`, teste `.ai/scripts/spec-guard.test.js:32`), rota estática testada (`tests/static-guard.test.js:93`), `npm run verify` e `npm run test:ui` verdes; falta o A2 |
 | RN11 | Pré-requisitos de API para o app: idempotência em `POST /api/orders`, exclusão de conta, estratégia de sessão, versão mínima do app, catálogo paginado, CORS e limite de login | spec 05 atualizada + testes de API | 🔴 antes da Fase 2 |
 
 ## Fora de escopo

@@ -4,11 +4,11 @@ import { syncCatalog } from './catalog-sync.js';
 import { syncFinance } from './finance-sync.js';
 import { syncOrders } from './orders-sync.js';
 import { renderFinanceChart } from '../components/FinanceChart.js';
-import { calculateCartSummary, validateCouponCode } from '../services/commerce.js';
-import { summarizeFinance } from '../services/finance.js';
+import { calculateCartSummary, validateCouponCode } from '../../packages/domain/commerce.js';
+import { summarizeFinance } from '../../packages/domain/finance.js';
 import { formatOrderDate } from '../services/orders.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
-import { buildProductDraft } from '../services/catalog.js';
+import { buildProductDraft } from '../../packages/domain/catalog.js';
 import { catalogEmptyKind, filterCatalogProducts } from '../services/catalog-view.js';
 import { renderCatalogEmptyState } from '../components/CatalogEmptyState.js';
 import { buildSupportReply } from '../services/support.js';
@@ -1779,7 +1779,7 @@ function renderFinanceStatus(count) {
 
 function renderFinanceScreen() {
   const currentFilter = state.financeFilter || 'ALL';
-  // Cards, gráfico e extrato saem do mesmo resumo (src/services/finance.js).
+  // Cards, gráfico e extrato saem do mesmo resumo (packages/domain/finance.js).
   const { income, expense, balance, chart, entries, purchases } = summarizeFinance(state.finance.entries, { months: state.financePeriod, type: currentFilter });
 
   return `

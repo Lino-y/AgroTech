@@ -2,7 +2,7 @@
 // os totais da classe têm que bater com calculateCartSummary, que é a regra de referência da tela.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COUPON_RULES, calculateCartSummary } from '../src/services/commerce.js';
+import { COUPON_RULES, calculateCartSummary } from '../packages/domain/commerce.js';
 import { CartEngine } from '../src/modules/cart.js';
 
 const line = (id, price, quantity = 1) => ({ id, price, quantity });

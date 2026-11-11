@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COUPON_RULES, validateCouponCode } from '../src/services/commerce.js';
+import { COUPON_RULES, validateCouponCode } from '../packages/domain/commerce.js';
 import { CartEngine } from '../src/modules/cart.js';
 import { buildSupportReply } from '../src/services/support.js';
 import { SupportBot } from '../src/modules/support.js';

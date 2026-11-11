@@ -8,7 +8,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import jwt from 'jsonwebtoken';
-import { calculateCartSummary } from '../src/services/commerce.js';
+import { calculateCartSummary } from '../packages/domain/commerce.js';
 
 let server;
 let base;
