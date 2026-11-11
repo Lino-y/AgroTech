@@ -9,6 +9,7 @@ Regras que valem para todas as rotas:
 - Erro sempre como `{ "message": string }` com o status HTTP correspondente.
 - Falha de leitura ou gravação do `db.json` (ex.: arquivo corrompido) responde `500` com `{ "message": string }` em qualquer rota. O servidor não cai; o arquivo não é regravado (issue #39).
 - Entrada que o cliente errou volta com o status dele: JSON malformado é `400` e corpo maior que 2 MB é `413`, ambos com `{ "message": string }`. Rota `/api/*` que não existe responde `404`.
+- CORS segue a variável `CORS_ORIGINS` (origens exatas separadas por vírgula, sem barra final). Sem ela nenhuma origem cruzada é liberada; a SPA é da mesma origem e o app nativo não usa CORS.
 - Banco ilegível em rota autenticada é `500`, nunca `401` (o `401` é só do token).
 - Limites de entrada: preço do produto até R$ 10.000.000, estoque até 1.000.000 e quantidade por item do pedido de 1 a 10.000.
 - Autenticação por `Authorization: Bearer <JWT>` (validade de 7 dias, payload
@@ -145,6 +146,10 @@ paths:
         '200': { description: 'sessão aberta', content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
         '400': { description: 'e-mail ou senha ausentes' }
         '401': { description: 'e-mail ou senha incorretos' }
+        '429':
+          description: 'mais de 10 senhas erradas para o mesmo e-mail (trim + minúsculas) em 15 minutos; enquanto durar o bloqueio, até a senha certa recebe 429. Login certo zera a contagem. Contador em memória, por processo.'
+          headers: { Retry-After: { description: 'segundos até o e-mail destrancar', schema: { type: integer } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
   /api/auth/me:
     get:
       summary: Usuário da sessão atual
