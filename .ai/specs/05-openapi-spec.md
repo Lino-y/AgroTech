@@ -156,6 +156,13 @@ paths:
       security: [{ bearer: [] }]
       responses:
         '200': { description: 'usuário', content: { application/json: { schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } } } } }
+        '401': { description: 'sem token ou token inválido, ou sessão encerrada por logout (mensagem "Sessão encerrada. Entre de novo.")' }
+  /api/auth/logout:
+    post:
+      summary: Encerra todas as sessões da conta (todo token emitido antes deixa de valer, em todos os aparelhos)
+      security: [{ bearer: [] }]
+      responses:
+        '204': { description: 'sessões encerradas; sem corpo' }
         '401': { description: 'sem token ou token inválido' }
   /api/products:
     get:

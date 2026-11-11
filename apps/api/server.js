@@ -170,8 +170,10 @@ const defaultDb = {
   financeEntries: []
 };
 
+// `ver` é a versão de sessão da conta: POST /api/auth/logout a incrementa e todo token com versão
+// antiga deixa de valer. Token sem `ver` (emitido antes disso) conta como versão 0.
 const signToken = (user) => jwt.sign(
-  { sub: user.id, email: user.email, role: user.role },
+  { sub: user.id, email: user.email, role: user.role, ver: user.tokenVersion ?? 0 },
   JWT_SECRET,
   { expiresIn: '7d' }
 );
@@ -303,9 +305,16 @@ const authenticate = async (req, res, next) => {
   // Fora do try do token: banco ilegível é erro do servidor (500 pelo tratador de erro), e não "token
   // inválido", que faria o app encerrar a sessão de todo mundo.
   const db = await readDb();
-  const user = db.users.find((item) => item.id === decoded.sub || item.email === decoded.email);
+  // Com `sub`, o token é da conta com esse id: se ela saiu do banco, o e-mail de uma conta nova não o
+  // herda. Só token sem `sub` (formato antigo) casa pelo e-mail.
+  const user = decoded.sub !== undefined
+    ? db.users.find((item) => item.id === decoded.sub)
+    : db.users.find((item) => item.email === decoded.email);
   if (!user) {
     return res.status(401).json({ message: 'Usuário inexistente para este token.' });
+  }
+  if ((decoded.ver ?? 0) !== (user.tokenVersion ?? 0)) {
+    return res.status(401).json({ message: 'Sessão encerrada. Entre de novo.' });
   }
 
   req.user = sanitizeUser(user);
@@ -446,6 +455,16 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
   res.json({ user: req.user });
+});
+
+// Encerra todas as sessões da conta de uma vez: incrementa a versão, e os tokens emitidos antes não
+// passam mais em `authenticate`. Com mais de um aparelho logado, todos saem.
+app.post('/api/auth/logout', authenticate, async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === req.user.id);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await writeDb(db);
+  res.status(204).end();
 });
 
 app.put('/api/auth/store', authenticate, async (req, res) => {
