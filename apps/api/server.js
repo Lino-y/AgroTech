@@ -514,6 +514,39 @@ app.get('/api/products', async (req, res) => {
 const MAX_PRICE = 10_000_000;
 const MAX_STOCK = 1_000_000;
 const MAX_ORDER_QUANTITY = 10_000;
+// Idempotência do pedido: o app repete o POST quando a rede cai no meio, e sem chave isso vira pedido
+// duplicado. A chave é do cliente (8 a 64 caracteres seguros para cabeçalho). Guardamos um hash do
+// pedido pedido, para a mesma chave com outros itens não ser tomada por reenvio.
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+// Hash do que o cliente pediu (produto e quantidade, na ordem, e o cupom): diferencia um reenvio de um
+// pedido novo que reaproveitou a mesma chave.
+function orderFingerprint(lines, coupon) {
+  return crypto.createHash('sha256').update(JSON.stringify({
+    items: lines.map(({ product, quantity }) => [product.id, quantity]),
+    coupon: typeof coupon === 'string' ? coupon.toUpperCase() : null
+  })).digest('hex');
+}
+
+// Campos que o pedido guarda para a chave; vazio quando o cliente não mandou chave.
+function idempotencyFields(key, lines, coupon) {
+  return key === undefined ? {} : { idempotencyKey: key, requestHash: orderFingerprint(lines, coupon) };
+}
+
+// Resposta de reenvio: 200 com o pedido já criado; 409 se a chave veio com outros itens; 400 se for
+// malformada. Devolve null quando a chave é nova ou não foi enviada (aí o pedido é criado).
+function replayOrderResponse(db, email, key, lines, coupon) {
+  if (key === undefined) return null;
+  if (!IDEMPOTENCY_KEY_RE.test(key)) {
+    return { status: 400, body: { message: 'Idempotency-Key inválida: use de 8 a 64 letras, números, _ ou -.' } };
+  }
+  const previous = db.orders.find((order) => order.ownerEmail === email && order.idempotencyKey === key);
+  if (!previous) return null;
+  if (previous.requestHash !== orderFingerprint(lines, coupon)) {
+    return { status: 409, body: { message: 'Essa Idempotency-Key já foi usada com outro pedido.' } };
+  }
+  return { status: 200, body: previous };
+}
 
 app.post('/api/products', authenticate, async (req, res) => {
   const {
@@ -646,6 +679,7 @@ app.get('/api/orders', authenticate, async (req, res) => {
 
 app.post('/api/orders', authenticate, async (req, res) => {
   const { items, coupon = null } = req.body;
+  const idempotencyKey = req.get('Idempotency-Key');
 
   const db = await readDb();
   // Preço e total saem do catálogo e da mesma regra do carrinho (calculateCartSummary), nunca do cliente.
@@ -657,6 +691,9 @@ app.post('/api/orders', authenticate, async (req, res) => {
   }
   // Só o que a tela de pedidos e o financeiro leem. O produto inteiro levava junto a foto (data URL de
   // até 2 MB) e os comentários, e o db.json, relido a cada requisição, crescia a cada compra.
+  const replay = replayOrderResponse(db, req.user.email, idempotencyKey, lines, coupon);
+  if (replay) return res.status(replay.status).json(replay.body);
+
   const orderItems = lines.map(({ product, quantity }) => ({
     id: product.id,
     name: product.name,
@@ -677,6 +714,7 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const order = {
     id: newOrderId(),
     ownerEmail: req.user.email,
+    ...idempotencyFields(idempotencyKey, lines, coupon),
     // Data real do pedido: "Meus Pedidos" a mostra em dd/mm/aaaa e o financeiro recorta por mês.
     createdAt: new Date().toISOString(),
     status: 'Pedido Confirmado',
