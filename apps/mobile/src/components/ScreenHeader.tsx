@@ -1,7 +1,9 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, MIN_TOUCH } from '../theme.ts';
+import { colors, fontSize, iconSize, MIN_TOUCH, space } from '../theme.ts';
+import { Icon } from './Icon.tsx';
+import { Tap } from './Tap.tsx';
 
 type Props = { title: string; onBack?: () => void; subtitle?: string };
 
@@ -9,11 +11,12 @@ type Props = { title: string; onBack?: () => void; subtitle?: string };
 export function ScreenHeader({ title, onBack, subtitle }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
       {onBack ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBack} style={styles.back}>
-          <Text style={styles.backText}>‹ Voltar</Text>
-        </Pressable>
+        <Tap accessibilityRole="button" accessibilityLabel="Voltar" onPress={onBack} style={styles.back}>
+          <Icon name="chevron-back" size={iconSize.md} color={colors.primary} />
+          <Text style={styles.backText}>Voltar</Text>
+        </Tap>
       ) : null}
       <Text style={styles.title} accessibilityRole="header">
         {title}
@@ -24,9 +27,9 @@ export function ScreenHeader({ title, onBack, subtitle }: Props): React.JSX.Elem
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 16, paddingBottom: 8, backgroundColor: colors.paper },
-  back: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, justifyContent: 'center', alignSelf: 'flex-start' },
-  backText: { fontSize: 15, fontWeight: '700', color: colors.green },
-  title: { fontSize: 20, fontWeight: '800', color: colors.greenDark },
-  subtitle: { fontSize: 13, color: colors.greenMuted, marginTop: 2 }
+  header: { paddingHorizontal: space.lg, paddingBottom: space.sm, backgroundColor: colors.background },
+  back: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 2 },
+  backText: { fontSize: fontSize.body, fontWeight: '700', color: colors.primary },
+  title: { fontSize: fontSize.heading, fontWeight: '800', color: colors.foreground },
+  subtitle: { fontSize: fontSize.small, color: colors.secondaryForeground, marginTop: 2 }
 });

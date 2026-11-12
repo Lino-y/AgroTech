@@ -1,15 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../services/api.ts';
 import { loadProducts, type Product } from '../services/products.ts';
@@ -23,7 +15,7 @@ import {
   shouldUseSnapshot,
   snapshotLabel
 } from '../lib/catalog.ts';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
 type Props = { userName: string | null; onOpenProduct: (product: Product) => void };
@@ -78,22 +70,27 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
             {loading ? '' : countLabel(visible.length)}
           </Text>
         </View>
-        <TextInput
+        <View style={styles.searchBox}>
+          <View style={styles.searchIcon} pointerEvents="none">
+            <Icon name="search-outline" size={iconSize.sm + 2} color={colors.mutedForeground} />
+          </View>
+          <TextInput
           accessibilityLabel="Buscar produtos"
           placeholder="Buscar insumos, sementes, máquinas..."
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={colors.mutedForeground}
           returnKeyType="search"
           autoCorrect={false}
           value={term}
           onChangeText={setTerm}
           style={styles.search}
-        />
+          />
+        </View>
         {categories.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {[ALL_CATEGORIES, ...categories].map((item) => {
               const selected = category === item;
               return (
-                <Pressable
+                <Tap
                   key={item}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
@@ -101,7 +98,7 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
                   style={[styles.chip, selected && styles.chipSelected]}
                 >
                   <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{item}</Text>
-                </Pressable>
+                </Tap>
               );
             })}
           </ScrollView>
@@ -110,7 +107,7 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
 
       {loading && catalog.items.length === 0 ? (
         <View style={styles.center}>
-          <ActivityIndicator color={colors.green} />
+          <ActivityIndicator color={colors.primary} />
           <Text style={styles.hint}>Carregando catálogo...</Text>
         </View>
       ) : (
@@ -121,17 +118,17 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
           columnWrapperStyle={styles.column}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <Pressable
+            <Tap
               accessibilityRole="button"
               accessibilityHint="Abre os detalhes e a compra"
               onPress={() => onOpenProduct(item)}
               style={styles.cell}
             >
               <ProductCard product={item} />
-            </Pressable>
+            </Tap>
           )}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.green} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
           }
           ListHeaderComponent={
             catalog.snapshot || error ? (
@@ -145,9 +142,9 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
                 {error ? (
                   <View style={styles.errorBox}>
                     <Text style={styles.errorText}>{error}</Text>
-                    <Pressable accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
+                    <Tap accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
                       <Text style={styles.retryText}>Tentar novamente</Text>
-                    </Pressable>
+                    </Tap>
                   </View>
                 ) : null}
               </View>
@@ -158,7 +155,7 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
               {searching ? (
                 <>
                   <Text style={styles.hint}>Nenhum resultado para "{term.trim() || category}".</Text>
-                  <Pressable
+                  <Tap
                     accessibilityRole="button"
                     onPress={() => {
                       setTerm('');
@@ -167,7 +164,7 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
                     style={styles.retry}
                   >
                     <Text style={styles.retryText}>Limpar busca</Text>
-                  </Pressable>
+                  </Tap>
                 </>
               ) : (
                 <Text style={styles.hint}>
@@ -183,22 +180,25 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
-  top: { paddingHorizontal: 16, paddingBottom: 12, backgroundColor: colors.paper, gap: 12 },
-  greeting: { fontSize: 13, fontWeight: '600', color: colors.greenMuted },
+  screen: { flex: 1, backgroundColor: colors.background },
+  top: { paddingHorizontal: 16, paddingBottom: 12, backgroundColor: colors.background, gap: 12 },
+  greeting: { fontSize: 13, fontWeight: '600', color: colors.secondaryForeground },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 18, fontWeight: '700', color: colors.greenDark },
-  count: { fontSize: 12, fontWeight: '600', color: colors.greenMuted },
+  title: { fontSize: 18, fontWeight: '700', color: colors.foreground },
+  count: { fontSize: 12, fontWeight: '600', color: colors.secondaryForeground },
   search: {
     minHeight: MIN_TOUCH,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radius.control,
-    paddingHorizontal: 14,
-    backgroundColor: colors.white,
+    paddingLeft: 42,
+    paddingRight: 16,
+    backgroundColor: colors.surface,
     fontSize: 15,
-    color: colors.greenDark
+    color: colors.foreground
   },
+  searchBox: { justifyContent: 'center' },
+  searchIcon: { position: 'absolute', left: 14, zIndex: 1 },
   chips: { gap: 8, paddingRight: 8 },
   chip: {
     minHeight: MIN_TOUCH,
@@ -206,49 +206,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center'
   },
-  chipSelected: { backgroundColor: colors.green, borderColor: colors.green },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.green },
-  chipTextSelected: { color: colors.white },
+  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.primary },
+  chipTextSelected: { color: colors.onPrimary },
   list: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   column: { gap: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  hint: { fontSize: 14, color: colors.greenMuted, textAlign: 'center' },
+  hint: { fontSize: 14, color: colors.secondaryForeground, textAlign: 'center' },
   emptyBox: { alignItems: 'center', gap: 12, paddingVertical: 32 },
   boxes: { gap: 12, marginBottom: 12 },
   notice: {
-    backgroundColor: colors.noticeSoft,
+    backgroundColor: colors.warningSoft,
     borderWidth: 1,
-    borderColor: colors.gold,
+    borderColor: colors.accent,
     borderRadius: radius.control,
     padding: 12,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.noticeText
+    color: colors.warningForeground
   },
   errorBox: {
-    backgroundColor: colors.dangerSoft,
+    backgroundColor: colors.destructiveSoft,
     borderRadius: radius.control,
-    padding: 14,
-    gap: 10,
+    padding: 16,
+    gap: 12,
     borderWidth: 1,
-    borderColor: colors.danger
+    borderColor: colors.destructive
   },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
+  errorText: { color: colors.destructive, fontSize: 14, fontWeight: '600' },
   retry: {
     minHeight: MIN_TOUCH,
     minWidth: MIN_TOUCH,
     borderRadius: radius.control,
-    backgroundColor: colors.green,
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'flex-start'
   },
-  retryText: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  retryText: { color: colors.onPrimary, fontSize: 14, fontWeight: '700' },
   cell: { flex: 1 }
 });

@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
 import { Button } from '../components/Button.tsx';
 import { Field } from '../components/Field.tsx';
 import { SIGNUP_ROLES, validateRegister, type SignupRole } from '../lib/forms.ts';
@@ -49,7 +50,7 @@ export function RegisterForm({ onRegistered }: Props): React.JSX.Element {
         {SIGNUP_ROLES.map((item) => {
           const selected = role === item.value;
           return (
-            <Pressable
+            <Tap
               key={item.value}
               accessibilityRole="radio"
               accessibilityState={{ selected, checked: selected }}
@@ -58,7 +59,7 @@ export function RegisterForm({ onRegistered }: Props): React.JSX.Element {
             >
               <View style={[styles.radio, selected && styles.radioSelected]} />
               <Text style={[styles.roleText, selected && styles.roleTextSelected]}>{item.label}</Text>
-            </Pressable>
+            </Tap>
           );
         })}
       </View>
@@ -120,27 +121,27 @@ export function RegisterForm({ onRegistered }: Props): React.JSX.Element {
 
 const styles = StyleSheet.create({
   form: { gap: 16 },
-  label: { fontSize: 13, fontWeight: '700', color: colors.greenDark, letterSpacing: 0.3 },
+  label: { fontSize: 13, fontWeight: '700', color: colors.foreground, letterSpacing: 0.3 },
   roles: { gap: 8 },
   role: {
     minHeight: MIN_TOUCH,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: radius.field,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface
   },
-  roleSelected: { borderColor: colors.green, backgroundColor: colors.greenSoft },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.white },
-  radioSelected: { borderColor: colors.green, backgroundColor: colors.green },
-  roleText: { fontSize: 15, color: colors.greenDark },
+  roleSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.borderStrong, backgroundColor: colors.surface },
+  radioSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
+  roleText: { fontSize: 15, color: colors.foreground },
   roleTextSelected: { fontWeight: '700' },
   error: {
-    color: colors.danger,
-    backgroundColor: colors.dangerSoft,
+    color: colors.destructive,
+    backgroundColor: colors.destructiveSoft,
     borderRadius: radius.field,
     padding: 12,
     fontSize: 14,

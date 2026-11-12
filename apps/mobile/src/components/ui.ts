@@ -3,60 +3,60 @@ import { StyleSheet } from 'react-native';
 import { colors, MIN_TOUCH, radius } from '../theme.ts';
 
 export const ui = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
+  screen: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: 16, gap: 16, paddingBottom: 32 },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: 'rgba(200,230,201,0.8)',
-    padding: 14,
+    borderColor: colors.border,
+    padding: 16,
     gap: 8
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.greenDark },
-  text: { fontSize: 14, color: colors.greenDark },
-  muted: { fontSize: 13, color: colors.textMuted },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.foreground },
+  text: { fontSize: 14, color: colors.foreground },
+  muted: { fontSize: 13, color: colors.mutedForeground },
   error: {
-    color: colors.danger,
-    backgroundColor: colors.dangerSoft,
+    color: colors.destructive,
+    backgroundColor: colors.destructiveSoft,
     borderRadius: radius.field,
     padding: 12,
     fontSize: 14,
     fontWeight: '600'
   },
   success: {
-    color: colors.greenDark,
-    backgroundColor: colors.greenSoft,
+    color: colors.foreground,
+    backgroundColor: colors.primarySoft,
     borderRadius: radius.field,
     padding: 12,
     fontSize: 14,
     fontWeight: '600'
   },
   notice: {
-    backgroundColor: colors.noticeSoft,
+    backgroundColor: colors.warningSoft,
     borderWidth: 1,
-    borderColor: colors.gold,
+    borderColor: colors.accent,
     borderRadius: radius.control,
     padding: 12,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.noticeText
+    color: colors.warningForeground
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   chip: {
     minHeight: MIN_TOUCH,
-    paddingHorizontal: 14,
-    borderRadius: 24,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center'
   },
-  chipSelected: { backgroundColor: colors.green, borderColor: colors.green },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.green },
-  chipTextSelected: { color: colors.white },
-  label: { fontSize: 13, fontWeight: '700', color: colors.greenDark, letterSpacing: 0.3 }
+  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.primary },
+  chipTextSelected: { color: colors.onPrimary },
+  label: { fontSize: 13, fontWeight: '700', color: colors.foreground, letterSpacing: 0.3 }
 });

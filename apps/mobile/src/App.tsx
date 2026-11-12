@@ -58,8 +58,8 @@ export default function App(): React.JSX.Element {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper }}>
-        <ActivityIndicator color={colors.green} />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -146,7 +146,7 @@ export default function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <View style={{ flex: 1, backgroundColor: colors.paper }}>{renderScreen()}</View>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>{renderScreen()}</View>
       {top?.name === 'auth' ? null : (
         <TabBar
           active={nav.tab}
