@@ -1,7 +1,7 @@
 // Cliente HTTP do app: token, 401/403 e erro de rede. Roda no Node, sem React Native.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ApiError, apiRequest } from '../src/services/api.ts';
+import { ApiError, apiRequest, onSessionExpired } from '../src/services/api.ts';
 import { clearSession, getSession, setSession } from '../src/services/storage.ts';
 
 const BASE = 'http://api.test';
@@ -90,4 +90,49 @@ test('204 devolve undefined, sem tentar ler corpo', async () => {
       assert.equal(await apiRequest('/auth/logout', { baseUrl: BASE, method: 'POST' }), undefined);
     }
   );
+});
+
+test('cabeçalho extra (Idempotency-Key) vai junto com o token', async () => {
+  await setSession({ token: 'tok-1', user: { id: 'usr-1' } });
+  let sent: Record<string, string> = {};
+  await withFetch(
+    () => json(201, { ok: true }),
+    async () => {
+      globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+        sent = init?.headers as Record<string, string>;
+        return json(201, { ok: true });
+      }) as typeof fetch;
+      await apiRequest('/orders', { baseUrl: BASE, method: 'POST', body: {}, headers: { 'Idempotency-Key': 'ord-abc12345' } });
+    }
+  );
+  assert.equal(sent['Idempotency-Key'], 'ord-abc12345');
+  assert.equal(sent.Authorization, 'Bearer tok-1');
+  await clearSession();
+});
+
+test('401 de quem tinha token avisa o app (para sair da conta na tela); 403 não avisa', async () => {
+  let expired = 0;
+  onSessionExpired(() => {
+    expired += 1;
+  });
+  try {
+    await setSession({ token: 'tok-velho', user: { id: 'usr-1' } });
+    await withFetch(
+      () => json(403, { message: 'Proibido.' }),
+      async () => {
+        await assert.rejects(apiRequest('/products/1', { baseUrl: BASE, method: 'DELETE' }), ApiError);
+      }
+    );
+    assert.equal(expired, 0);
+    await withFetch(
+      () => json(401, { message: 'Sessão encerrada.' }),
+      async () => {
+        await assert.rejects(apiRequest('/orders', { baseUrl: BASE }), ApiError);
+      }
+    );
+    assert.equal(expired, 1);
+  } finally {
+    onSessionExpired(null);
+    await clearSession();
+  }
 });

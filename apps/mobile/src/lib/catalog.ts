@@ -34,6 +34,14 @@ export function formatPrice(value: number): string {
   return `R$ ${value < 0 ? '-' : ''}${grouped},${decimals}`;
 }
 
+/** Data ISO (ex.: createdAt do pedido) em dd/mm/aaaa, no fuso do aparelho. Vazio se inválida. */
+export function formatDate(iso: string | null | undefined): string {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+}
+
 export function countLabel(count: number): string {
   return count === 1 ? '1 item' : `${count} itens`;
 }
