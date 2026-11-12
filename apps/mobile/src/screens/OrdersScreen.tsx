@@ -3,8 +3,9 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } f
 import { Button } from '../components/Button.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
 import { ui } from '../components/ui.ts';
-import { formatDate, formatPrice } from '../lib/catalog.ts';
+import { formatDate, formatDateTime, formatPrice } from '../lib/catalog.ts';
 import { ApiError } from '../services/api.ts';
+import { withCache } from '../services/offline.ts';
 import { loadOrders, type Order } from '../services/orders.ts';
 import { colors } from '../theme.ts';
 
@@ -15,11 +16,15 @@ export function OrdersScreen({ onBack, onBrowse }: Props): React.JSX.Element {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Data do dado salvo quando a lista veio do aparelho por falta de rede (null = ao vivo).
+  const [savedAt, setSavedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setOrders(await loadOrders());
+      const result = await withCache('cache:orders', loadOrders);
+      setOrders(result.data);
+      setSavedAt(result.savedAt);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erro ao carregar os pedidos.');
       setOrders((current) => current ?? []);
@@ -49,7 +54,15 @@ export function OrdersScreen({ onBack, onBrowse }: Props): React.JSX.Element {
           keyExtractor={(order) => order.id}
           contentContainerStyle={ui.scroll}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
-          ListHeaderComponent={error ? <Text style={ui.error}>{error}</Text> : undefined}
+          ListHeaderComponent={
+            savedAt ? (
+              <Text accessibilityLiveRegion="polite" style={ui.notice}>
+                Sem conexão: pedidos salvos em {formatDateTime(savedAt)}. Puxe a lista para atualizar.
+              </Text>
+            ) : error ? (
+              <Text style={ui.error}>{error}</Text>
+            ) : undefined
+          }
           ListEmptyComponent={
             error ? undefined : (
               <View style={ui.center}>

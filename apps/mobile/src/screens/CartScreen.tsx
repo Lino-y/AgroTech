@@ -8,10 +8,11 @@ import { ScreenHeader } from '../components/ScreenHeader.tsx';
 import { Stepper } from '../components/Stepper.tsx';
 import { ui } from '../components/ui.ts';
 import { validateCouponCode } from '../domain.ts';
-import { cartSummary, setQuantity, removeFromCart, toOrderItems, type CartLine } from '../lib/cart.ts';
+import { cartSummary, describeChange, revalidateCart, setQuantity, removeFromCart, toOrderItems, type CartLine } from '../lib/cart.ts';
 import { formatPrice } from '../lib/catalog.ts';
 import { ApiError } from '../services/api.ts';
 import { newIdempotencyKey, placeOrder, type Order } from '../services/orders.ts';
+import { loadProducts } from '../services/products.ts';
 import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 // Formas da web (renderPaymentScreen). Pagamento simulado: nada daqui vai para o servidor e o app
@@ -38,6 +39,7 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]['value']>('pix');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [changes, setChanges] = useState<string[]>([]);
   // Mesma chave nas tentativas do mesmo carrinho (toque duplo, rede caiu); nova se o carrinho mudar.
   const keyRef = useRef(newIdempotencyKey());
 
@@ -66,7 +68,17 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
     }
     setSending(true);
     setError(null);
+    setChanges([]);
     try {
+      // RN05: antes do pedido, o carrinho (que pode ter sido montado offline ou dias atrás) é conferido
+      // com o catálogo atual. Se algo mudou, atualiza, mostra e para: a pessoa revisa e toca de novo.
+      // Não envia no mesmo toque, porque a chave de idempotência só é trocada depois da renderização.
+      const check = revalidateCart(lines, await loadProducts());
+      if (check.changes.length > 0) {
+        onChange(check.lines);
+        setChanges(check.changes.map(describeChange));
+        return;
+      }
       const order = await placeOrder(toOrderItems(lines), coupon, keyRef.current);
       setCoupon(null);
       setCouponText('');
@@ -75,6 +87,11 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
       Alert.alert('Pedido confirmado', `Pedido ${order.id}\nTotal: ${formatPrice(order.total)}`);
       onOrdered(order);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 0) {
+        // ADR-0001: pedido nunca é feito offline (preço, estoque e frete precisam do servidor).
+        setError('Sem conexão: o pedido só é feito com internet. O carrinho fica guardado no aparelho.');
+        return;
+      }
       setError(err instanceof ApiError ? err.message : 'Não foi possível finalizar a compra. Tente de novo.');
     } finally {
       setSending(false);
@@ -175,6 +192,16 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
           {!summary.freeShipping ? <Text style={ui.muted}>Frete grátis em compras acima de R$ 800,00.</Text> : null}
         </View>
 
+        {changes.length > 0 ? (
+          <View accessibilityLiveRegion="polite" style={ui.notice}>
+            <Text style={styles.changesTitle}>O catálogo mudou desde que você montou o carrinho. Revise e toque em finalizar de novo:</Text>
+            {changes.map((text) => (
+              <Text key={text} style={styles.changesItem}>
+                • {text}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {error ? (
           <Text accessibilityLiveRegion="polite" style={ui.error}>
             {error}
@@ -216,6 +243,8 @@ const styles = StyleSheet.create({
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.borderStrong, backgroundColor: colors.surface },
   radioSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  changesTitle: { fontSize: 14, fontWeight: '700', color: colors.warningForeground },
+  changesItem: { fontSize: 14, color: colors.warningForeground, marginTop: 4 },
   totalLabel: { fontSize: 16, fontWeight: '800', color: colors.foreground },
   totalValue: { fontSize: 18, fontWeight: '800', color: colors.primary }
 });

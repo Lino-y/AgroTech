@@ -12,21 +12,25 @@ import {
   categoriesOf,
   countLabel,
   filterProducts,
+  formatDateTime,
+  offlineCatalog,
   shouldUseSnapshot,
-  snapshotLabel
+  slimProduct,
+  snapshotLabel,
+  type CatalogSource
 } from '../lib/catalog.ts';
+import { readCache, saveCache } from '../services/storage.ts';
 import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
 type Props = { userName: string | null; onOpenProduct: (product: Product) => void };
 
-// Lista na tela e de onde ela veio. snapshot=true é o catálogo embutido, sem passar pelo servidor.
-type Catalog = { items: Product[]; snapshot: boolean };
-const SNAPSHOT: Catalog = { items: OFFLINE_PRODUCTS, snapshot: true };
-const EMPTY: Catalog = { items: [], snapshot: false };
+// Lista na tela e de onde ela veio: servidor (live), último catálogo salvo no aparelho (cache) ou
+// catálogo de demonstração embutido (snapshot), nessa ordem (Fase 3 da spec 08).
+const EMPTY: CatalogSource = { items: [], source: 'live', savedAt: null };
 
 export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Element {
-  const [catalog, setCatalog] = useState<Catalog>(EMPTY);
+  const [catalog, setCatalog] = useState<CatalogSource>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +43,17 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
     else setLoading(true);
     setError(null);
     try {
-      setCatalog({ items: await loadProducts(), snapshot: false });
+      const items = await loadProducts();
+      setCatalog({ items, source: 'live', savedAt: null });
+      // Guarda o catálogo consultado (enxuto) para abrir sem rede da próxima vez.
+      void saveCache('cache:catalog', items.map(slimProduct), null);
     } catch (err) {
       // Falha de carga não apaga o que já estava na tela. Sem rede e com a lista vazia, mostra o
-      // catálogo embutido; erro do servidor (4xx/5xx) não é falta de rede e não troca nada.
+      // último catálogo salvo (ou o de demonstração); erro do servidor (4xx/5xx) não troca nada.
       const status = err instanceof ApiError ? err.status : -1;
       setError(err instanceof ApiError ? err.message : 'Erro ao carregar o catálogo.');
-      setCatalog((current) => (shouldUseSnapshot(status, current.items.length) ? SNAPSHOT : current));
+      const saved = await readCache<Product[]>('cache:catalog', null);
+      setCatalog((current) => (shouldUseSnapshot(status, current.items.length) ? offlineCatalog(saved, OFFLINE_PRODUCTS) : current));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -131,12 +139,14 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
           }
           ListHeaderComponent={
-            catalog.snapshot || error ? (
+            catalog.source !== 'live' || error ? (
               <View style={styles.boxes}>
-                {catalog.snapshot ? (
+                {catalog.source !== 'live' ? (
                   <Text accessibilityLiveRegion="polite" style={styles.notice}>
-                    Modo offline: catálogo de {snapshotLabel(OFFLINE_CATALOG_DATE)}, pode estar desatualizado. Puxe a lista
-                    para atualizar quando tiver conexão.
+                    {catalog.source === 'cache'
+                      ? `Modo offline: catálogo salvo em ${formatDateTime(catalog.savedAt)}, pode estar desatualizado.`
+                      : `Modo offline: catálogo de demonstração de ${snapshotLabel(OFFLINE_CATALOG_DATE)}.`}{' '}
+                    Puxe a lista para atualizar quando tiver conexão.
                   </Text>
                 ) : null}
                 {error ? (

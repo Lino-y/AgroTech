@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TabBar } from './components/TabBar.tsx';
-import { addToCart, cartCount, type CartLine } from './lib/cart.ts';
+import { addToCart, cartCount, serializeCart, type CartLine } from './lib/cart.ts';
 import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogin, type Nav } from './lib/navigation.ts';
 import { AccountScreen } from './screens/AccountScreen.tsx';
 import { AuthScreen } from './screens/AuthScreen.tsx';
@@ -16,10 +17,10 @@ import { ProductDetailScreen } from './screens/ProductDetailScreen.tsx';
 import { SellScreen } from './screens/SellScreen.tsx';
 import { onSessionExpired } from './services/api.ts';
 import { logout, type User } from './services/auth.ts';
-import { getSession, setSecureStore } from './services/storage.ts';
+import { getSession, readCache, saveCache, setKeyValueStore, setSecureStore } from './services/storage.ts';
 import { colors } from './theme.ts';
 
-// Raiz do app: sessão, carrinho (em memória) e navegação (abas + pilha). Como na web, o app abre no
+// Raiz do app: sessão, carrinho (guardado no aparelho, Fase 3) e navegação (abas + pilha). Como na web, o app abre no
 // catálogo; comprar, anunciar, financeiro e pedidos pedem conta e voltam ao destino depois do login.
 export default function App(): React.JSX.Element {
   const [ready, setReady] = useState(false);
@@ -30,8 +31,11 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     setSecureStore(SecureStore);
-    getSession().then((session) => {
+    setKeyValueStore(AsyncStorage);
+    // O carrinho volta como foi deixado; o preço é revalidado no checkout (RN05).
+    Promise.all([getSession(), readCache<CartLine[]>('cart', null)]).then(([session, savedCart]) => {
       setUser(session ? (session.user as unknown as User) : null);
+      if (savedCart) setCart(savedCart.data);
       setReady(true);
     });
     // Sessão que caiu no servidor (token revogado, API reiniciada): volta a visitante, e as abas que
@@ -44,6 +48,11 @@ export default function App(): React.JSX.Element {
     });
     return () => onSessionExpired(null);
   }, []);
+
+  // Guarda o carrinho a cada mudança (só produto e quantidade: nada de pagamento, RN06).
+  useEffect(() => {
+    if (ready) void saveCache('cart', serializeCart(cart), null);
+  }, [cart, ready]);
 
   // Botão voltar do Android: desempilha a tela; no catálogo sem nada empilhado, deixa o app fechar.
   useEffect(() => {

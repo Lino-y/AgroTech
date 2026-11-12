@@ -6,9 +6,10 @@ import { Field } from '../components/Field.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
 import { ui } from '../components/ui.ts';
 import { summarizeFinance } from '../domain.ts';
-import { formatDate, formatPrice } from '../lib/catalog.ts';
+import { formatDate, formatDateTime, formatPrice } from '../lib/catalog.ts';
 import { parsePriceBR } from '../lib/sell.ts';
 import { ApiError } from '../services/api.ts';
+import { withCache } from '../services/offline.ts';
 import { addFinanceEntry, loadFinance, type EntryType, type FinanceEntry } from '../services/finance.ts';
 import { colors, radius } from '../theme.ts';
 
@@ -25,6 +26,7 @@ export function FinanceScreen(): React.JSX.Element {
   const [filter, setFilter] = useState<'ALL' | EntryType>('ALL');
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<EntryType>('EXPENSE');
@@ -34,7 +36,9 @@ export function FinanceScreen(): React.JSX.Element {
   const load = useCallback(async () => {
     setError(null);
     try {
-      setEntries(await loadFinance());
+      const result = await withCache('cache:finance', loadFinance);
+      setEntries(result.data);
+      setSavedAt(result.savedAt);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erro ao carregar o financeiro.');
       setEntries((current) => current ?? []);
@@ -86,6 +90,11 @@ export function FinanceScreen(): React.JSX.Element {
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
         >
+          {savedAt ? (
+            <Text accessibilityLiveRegion="polite" style={ui.notice}>
+              Sem conexão: extrato salvo em {formatDateTime(savedAt)}. Lançamentos novos só com internet.
+            </Text>
+          ) : null}
           {error ? <Text style={ui.error}>{error}</Text> : null}
 
           <View style={styles.cards}>
