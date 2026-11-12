@@ -21,6 +21,8 @@ contra a API antes de qualquer conta de loja.
 | CA07 | Tipos estritos e testes passam | comando | ✅ | `apps/mobile/package.json:10` (`npm test`, 11 de 11) e `apps/mobile/package.json:11` (`npm run typecheck`) |
 | CA08 | APK Android gerado e assinado | build + `apksigner verify` + `aapt2 dump badging` | ✅ | procedimento: `apps/mobile/README.md:19`; evidência: seção 8.1 |
 | CA09 | APK sem permissões que o app não usa | `aapt2 dump badging` | ✅ | `apps/mobile/app.json:11`; evidência: seção 8.2 |
+| CA10 | Layout com a identidade visual da web (cores, cartão, grade, busca, chips, rótulos do login) | leitura do código e comparação com a web | 🟡 | cores em `apps/mobile/src/theme.ts:3`; cartão em `apps/mobile/src/components/ProductCard.tsx:8`; grade em `apps/mobile/src/screens/CatalogScreen.tsx:111`; rótulos em `apps/mobile/src/screens/LoginScreen.tsx:59`; sem comparação visual em aparelho |
+| CA11 | Usabilidade mobile: alvos de toque ≥ 48 dp, puxar para atualizar, estados de carregando, vazio e erro com nova tentativa, teclado sem cobrir campos | leitura do código e teste da lógica | ✅ | alvo mínimo em `apps/mobile/src/theme.ts:18`; atualizar em `apps/mobile/src/screens/CatalogScreen.tsx:116`; estados em `apps/mobile/src/screens/CatalogScreen.tsx:128`; regras de busca e preço testadas em `apps/mobile/__tests__/catalog.test.ts:13` |
 
 ## 3. Contratos (antes do código)
 
@@ -65,6 +67,8 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
 - **`local.properties`:** o caminho do SDK precisa de barras normais (`C\:/Users/...`); com barras
   invertidas o Gradle falha ao ler o arquivo.
 - **Assinatura:** o APK sai com a chave de depuração do React Native. Não é para publicar.
+- **Layout e identidade visual (CA10).** A paleta, o cartão, a grade de 2 colunas, a busca, os chips de categoria e os rótulos do login vêm da web. A fonte da web (Outfit) não entrou: o app usa a fonte do sistema, para não adicionar dependência. Não há comparação visual em aparelho; a verificação é de código.
+- **Skill de UI/UX mobile:** não há skill dessa área instalada. Os princípios de usabilidade mobile (alvos de toque, estados, teclado, puxar para atualizar) foram aplicados direto no código.
 - **Não testado em aparelho.** A verificação é de build e de assinatura; instalar e rodar no celular
   é passo do dono do projeto.
 - **Permissões extras (resolvido).** O APK pedia `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,

@@ -7,6 +7,13 @@ export type Product = {
   price: number;
   unit?: string;
   category?: string;
+  location?: string;
+  rating?: number;
+  /** Emoji e cor de fundo do cartão, como na web (campos imageEmoji e imageBg do servidor). */
+  imageEmoji?: string;
+  imageBg?: string;
+  /** Foto do anúncio (link http(s) ou data URL), quando existir. */
+  image?: string;
 };
 
 export function loadProducts(): Promise<Product[]> {

@@ -5,6 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { CatalogScreen } from './screens/CatalogScreen.tsx';
 import { LoginScreen } from './screens/LoginScreen.tsx';
 import { getSession, setSecureStore } from './services/storage.ts';
+import { colors } from './theme.ts';
 
 type Screen = 'loading' | 'login' | 'catalog';
 
@@ -19,8 +20,8 @@ export default function App(): React.JSX.Element {
 
   if (screen === 'loading') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper }}>
+        <ActivityIndicator color={colors.green} />
       </View>
     );
   }
