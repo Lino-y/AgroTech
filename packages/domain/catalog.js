@@ -1,13 +1,14 @@
-export function getProductCategoryStyle(category = 'Outros') {
-  const styles = {
-    Rações: { emoji: '🐄', bg: '#E8F5E9' },
-    Fertilizantes: { emoji: '🧪', bg: '#E8F5E9' },
-    Grãos: { emoji: '🌽', bg: '#F1F8E9' },
-    Máquinas: { emoji: '🚜', bg: '#E0F2F1' },
-    Outros: { emoji: '📦', bg: '#F4FBF5' }
-  };
+// Categorias de produto e o visual de cada uma. A lista também vira o seletor do app (anunciar).
+export const CATEGORY_STYLES = {
+  Rações: { emoji: '🐄', bg: '#E8F5E9' },
+  Fertilizantes: { emoji: '🧪', bg: '#E8F5E9' },
+  Grãos: { emoji: '🌽', bg: '#F1F8E9' },
+  Máquinas: { emoji: '🚜', bg: '#E0F2F1' },
+  Outros: { emoji: '📦', bg: '#F4FBF5' }
+};
 
-  return Object.hasOwn(styles, category) ? styles[category] : styles.Outros;
+export function getProductCategoryStyle(category = 'Outros') {
+  return Object.hasOwn(CATEGORY_STYLES, category) ? CATEGORY_STYLES[category] : CATEGORY_STYLES.Outros;
 }
 
 export function buildProductDraft({

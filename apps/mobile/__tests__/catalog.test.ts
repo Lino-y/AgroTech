@@ -1,7 +1,7 @@
 // Regras do catálogo na tela: busca sem acento, categoria, preço em reais e contagem. Sem React Native.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { categoriesOf, countLabel, filterProducts, formatPrice } from '../src/lib/catalog.ts';
+import { categoriesOf, countLabel, filterProducts, formatDate, formatPrice } from '../src/lib/catalog.ts';
 
 const products = [
   { id: '1', name: 'Semente de Milho Híbrido', category: 'Sementes', price: 120 },
@@ -45,4 +45,10 @@ test('contagem no singular e no plural', () => {
   assert.equal(countLabel(1), '1 item');
   assert.equal(countLabel(0), '0 itens');
   assert.equal(countLabel(4), '4 itens');
+});
+
+test('data do pedido em dd/mm/aaaa; inválida vira vazio', () => {
+  assert.equal(formatDate('2026-03-05T12:00:00'), '05/03/2026');
+  assert.equal(formatDate(undefined), '');
+  assert.equal(formatDate('não é data'), '');
 });

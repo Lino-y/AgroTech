@@ -20,14 +20,24 @@ export type RequestOptions = {
   body?: unknown;
   baseUrl?: string;
   timeoutMs?: number;
+  /** Cabeçalhos extras da rota (ex.: Idempotency-Key do pedido). */
+  headers?: Record<string, string>;
 };
 
+// Quem ouve a queda da sessão (o App, para voltar a visitante). Um só ouvinte: há uma só tela raiz.
+let sessionExpiredListener: (() => void) | null = null;
+
+export function onSessionExpired(listener: (() => void) | null): void {
+  sessionExpiredListener = listener;
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, baseUrl = API_URL, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const { method = 'GET', body, baseUrl = API_URL, timeoutMs = DEFAULT_TIMEOUT_MS, headers: extra = {} } = options;
 
   const session = await getSession();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...extra,
     ...(session ? { Authorization: `Bearer ${session.token}` } : {})
   };
 
@@ -43,7 +53,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     });
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { message?: string };
-      if (response.status === 401 && session) await clearSession();
+      if (response.status === 401 && session) {
+        await clearSession();
+        sessionExpiredListener?.();
+      }
       throw new ApiError(response.status, payload.message ?? 'Erro ao carregar dados do servidor.');
     }
     if (response.status === 204) return undefined as T;

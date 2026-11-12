@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../services/api.ts';
-import { logout } from '../services/auth.ts';
 import { loadProducts, type Product } from '../services/products.ts';
 import { ProductCard } from '../components/ProductCard.tsx';
 import { OFFLINE_CATALOG_DATE, OFFLINE_PRODUCTS } from '../data/offline-catalog.ts';
@@ -27,14 +26,14 @@ import {
 import { colors, MIN_TOUCH, radius } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
-type Props = { userName: string | null; onSignIn: () => void; onSignedOut: () => void };
+type Props = { userName: string | null; onOpenProduct: (product: Product) => void };
 
 // Lista na tela e de onde ela veio. snapshot=true é o catálogo embutido, sem passar pelo servidor.
 type Catalog = { items: Product[]; snapshot: boolean };
 const SNAPSHOT: Catalog = { items: OFFLINE_PRODUCTS, snapshot: true };
 const EMPTY: Catalog = { items: [], snapshot: false };
 
-export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React.JSX.Element {
+export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Element {
   const [catalog, setCatalog] = useState<Catalog>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,11 +67,6 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
   const categories = useMemo(() => categoriesOf(catalog.items), [catalog.items]);
   const visible = useMemo(() => filterProducts(catalog.items, term, category), [catalog.items, term, category]);
   const searching = term.trim().length > 0 || category !== ALL_CATEGORIES;
-
-  async function signOut(): Promise<void> {
-    await logout();
-    onSignedOut();
-  }
 
   return (
     <View style={styles.screen}>
@@ -126,7 +120,16 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
           numColumns={2}
           columnWrapperStyle={styles.column}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => <ProductCard product={item} />}
+          renderItem={({ item }) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="Abre os detalhes e a compra"
+              onPress={() => onOpenProduct(item)}
+              style={styles.cell}
+            >
+              <ProductCard product={item} />
+            </Pressable>
+          )}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.green} />
           }
@@ -175,16 +178,6 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
           }
         />
       )}
-
-      {/* A barra fica acima dos botões/gestos do Android, nunca por baixo deles. */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={styles.tab}>
-          <Text style={[styles.tabText, styles.tabTextSelected]}>Catálogo</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={userName !== null ? signOut : onSignIn} style={styles.tab}>
-          <Text style={styles.tabText}>{userName !== null ? 'Sair' : 'Entrar'}</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -257,14 +250,5 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start'
   },
   retryText: { color: colors.white, fontSize: 14, fontWeight: '700' },
-  bottomBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 6
-  },
-  tab: { flex: 1, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-  tabText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  tabTextSelected: { color: colors.greenDark, fontWeight: '800' }
+  cell: { flex: 1 }
 });
