@@ -41,14 +41,14 @@ export function OrdersScreen({ onBack, onBrowse }: Props): React.JSX.Element {
       <ScreenHeader title="Meus pedidos" onBack={onBack} />
       {orders === null ? (
         <View style={ui.center}>
-          <ActivityIndicator color={colors.green} />
+          <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <FlatList
           data={orders}
           keyExtractor={(order) => order.id}
           contentContainerStyle={ui.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
           ListHeaderComponent={error ? <Text style={ui.error}>{error}</Text> : undefined}
           ListEmptyComponent={
             error ? undefined : (
@@ -84,7 +84,7 @@ export function OrdersScreen({ onBack, onBrowse }: Props): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  id: { fontSize: 15, fontWeight: '800', color: colors.greenDark },
-  status: { fontSize: 14, fontWeight: '700', color: colors.green },
-  total: { fontSize: 16, fontWeight: '800', color: colors.green }
+  id: { fontSize: 15, fontWeight: '800', color: colors.foreground },
+  status: { fontSize: 14, fontWeight: '700', color: colors.primary },
+  total: { fontSize: 16, fontWeight: '800', color: colors.primary }
 });

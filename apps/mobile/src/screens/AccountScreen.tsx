@@ -53,6 +53,6 @@ export function AccountScreen({ user, onLogin, onRegister, onOrders, onLogout }:
 }
 
 const styles = StyleSheet.create({
-  name: { fontSize: 18, fontWeight: '800', color: colors.greenDark },
-  version: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 8 }
+  name: { fontSize: 18, fontWeight: '800', color: colors.foreground },
+  version: { fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 8 }
 });

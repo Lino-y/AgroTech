@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { Button } from '../components/Button.tsx';
 import { Field } from '../components/Field.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
@@ -9,7 +11,7 @@ import { formatPrice } from '../lib/catalog.ts';
 import { parsePriceBR, validateProduct } from '../lib/sell.ts';
 import { ApiError } from '../services/api.ts';
 import { createProduct, deleteProduct, loadProducts, type Product } from '../services/products.ts';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 // Categorias do domínio compartilhado: o servidor escolhe emoji e cor por elas (getProductCategoryStyle).
 const CATEGORIES = Object.keys(CATEGORY_STYLES);
@@ -105,7 +107,7 @@ export function SellScreen({ email }: Props): React.JSX.Element {
             {CATEGORIES.map((category) => {
               const selected = form.category === category;
               return (
-                <Pressable
+                <Tap
                   key={category}
                   accessibilityRole="radio"
                   accessibilityState={{ selected, checked: selected }}
@@ -115,7 +117,7 @@ export function SellScreen({ email }: Props): React.JSX.Element {
                   <Text style={[ui.chipText, selected && ui.chipTextSelected]}>
                     {CATEGORY_STYLES[category as keyof typeof CATEGORY_STYLES].emoji} {category}
                   </Text>
-                </Pressable>
+                </Tap>
               );
             })}
           </View>
@@ -146,7 +148,7 @@ export function SellScreen({ email }: Props): React.JSX.Element {
           {mine.length === 0 && !listError ? <Text style={ui.muted}>Você ainda não tem anúncios.</Text> : null}
           {mine.map((product) => (
             <View key={product.id} style={styles.item}>
-              <View style={[styles.thumb, { backgroundColor: product.imageBg ?? colors.greenSoft }]}>
+              <View style={[styles.thumb, { backgroundColor: product.imageBg ?? colors.primarySoft }]}>
                 <Text style={styles.thumbEmoji}>{product.imageEmoji ?? '📦'}</Text>
               </View>
               <View style={styles.itemInfo}>
@@ -155,14 +157,15 @@ export function SellScreen({ email }: Props): React.JSX.Element {
                 </Text>
                 <Text style={styles.itemPrice}>{formatPrice(product.price)}</Text>
               </View>
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 accessibilityLabel={`Excluir ${product.name}`}
                 onPress={() => confirmDelete(product)}
                 style={styles.delete}
               >
+                <Icon name="trash-outline" size={iconSize.sm} color={colors.destructive} />
                 <Text style={styles.deleteText}>Excluir</Text>
-              </Pressable>
+              </Tap>
             </View>
           ))}
         </View>
@@ -174,11 +177,11 @@ export function SellScreen({ email }: Props): React.JSX.Element {
 const styles = StyleSheet.create({
   categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   description: { minHeight: 96, textAlignVertical: 'top', paddingTop: 12 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   thumb: { width: 48, height: 48, borderRadius: radius.field, alignItems: 'center', justifyContent: 'center' },
   thumbEmoji: { fontSize: 24 },
   itemInfo: { flex: 1 },
-  itemPrice: { fontSize: 14, fontWeight: '800', color: colors.green },
-  delete: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 8 },
-  deleteText: { fontSize: 14, fontWeight: '700', color: colors.danger }
+  itemPrice: { fontSize: 14, fontWeight: '800', color: colors.primary },
+  delete: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
+  deleteText: { fontSize: 14, fontWeight: '700', color: colors.destructive }
 });

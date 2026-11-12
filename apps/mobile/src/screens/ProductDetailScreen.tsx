@@ -30,7 +30,7 @@ export function ProductDetailScreen({ product, onBack, onAdd, onGoToCart }: Prop
     <View style={ui.screen}>
       <ScreenHeader title="Detalhes do produto" onBack={onBack} />
       <ScrollView contentContainerStyle={ui.scroll}>
-        <View style={[styles.media, { backgroundColor: product.imageBg ?? colors.greenSoft }]}>
+        <View style={[styles.media, { backgroundColor: product.imageBg ?? colors.primarySoft }]}>
           {product.image && !photoFailed ? (
             <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" onError={() => setPhotoFailed(true)} />
           ) : (
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   media: { height: 180, borderRadius: radius.card, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
   emoji: { fontSize: 72 },
-  name: { fontSize: 20, fontWeight: '800', color: colors.greenDark },
-  price: { fontSize: 22, fontWeight: '800', color: colors.green },
+  name: { fontSize: 20, fontWeight: '800', color: colors.foreground },
+  price: { fontSize: 22, fontWeight: '800', color: colors.primary },
   description: { marginTop: 4, lineHeight: 20 }
 });

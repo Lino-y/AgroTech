@@ -73,8 +73,8 @@ export function LoginForm({ onLoggedIn }: Props): React.JSX.Element {
 const styles = StyleSheet.create({
   form: { gap: 16 },
   error: {
-    color: colors.danger,
-    backgroundColor: colors.dangerSoft,
+    color: colors.destructive,
+    backgroundColor: colors.destructiveSoft,
     borderRadius: radius.field,
     padding: 12,
     fontSize: 14,

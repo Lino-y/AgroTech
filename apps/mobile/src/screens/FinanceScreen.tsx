@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
 import { Button } from '../components/Button.tsx';
 import { Field } from '../components/Field.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
@@ -77,24 +78,31 @@ export function FinanceScreen(): React.JSX.Element {
       <ScreenHeader title="Financeiro" subtitle="Últimos 6 meses" />
       {entries === null ? (
         <View style={ui.center}>
-          <ActivityIndicator color={colors.green} />
+          <ActivityIndicator color={colors.primary} />
         </View>
       ) : (
         <ScrollView
           contentContainerStyle={ui.scroll}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.green} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
         >
           {error ? <Text style={ui.error}>{error}</Text> : null}
 
           <View style={styles.cards}>
-            <SummaryCard label="Receitas" value={summary.income} color={colors.green} />
-            <SummaryCard label="Despesas" value={summary.expense} color={colors.danger} />
+            <SummaryCard label="Receitas" value={summary.income} color={colors.primary} />
+            <SummaryCard label="Despesas" value={summary.expense} color={colors.destructive} />
           </View>
-          <SummaryCard label="Saldo" value={summary.balance} color={summary.balance >= 0 ? colors.green : colors.danger} />
+          <SummaryCard label="Saldo" value={summary.balance} color={summary.balance >= 0 ? colors.primary : colors.destructive} />
 
           <View style={ui.card}>
             <Text style={ui.sectionTitle}>Receitas e despesas por mês</Text>
+            {/* Legenda: a cor não é a única pista (barra da esquerda = receita, da direita = despesa). */}
+            <View style={ui.row}>
+              <View style={[styles.swatch, styles.income]} />
+              <Text style={ui.muted}>Receitas (esquerda)</Text>
+              <View style={[styles.swatch, styles.expense]} />
+              <Text style={ui.muted}>Despesas (direita)</Text>
+            </View>
             <View style={styles.chart} accessibilityLabel="Gráfico de receitas e despesas dos últimos 6 meses">
               {summary.chart.map((bucket) => (
                 <View key={bucket.key} style={styles.month}>
@@ -114,7 +122,7 @@ export function FinanceScreen(): React.JSX.Element {
               {(['INCOME', 'EXPENSE'] as const).map((value) => {
                 const selected = type === value;
                 return (
-                  <Pressable
+                  <Tap
                     key={value}
                     accessibilityRole="radio"
                     accessibilityState={{ selected, checked: selected }}
@@ -122,7 +130,7 @@ export function FinanceScreen(): React.JSX.Element {
                     style={[ui.chip, styles.flex, selected && ui.chipSelected]}
                   >
                     <Text style={[ui.chipText, selected && ui.chipTextSelected]}>{value === 'INCOME' ? 'Receita' : 'Despesa'}</Text>
-                  </Pressable>
+                  </Tap>
                 );
               })}
             </View>
@@ -138,7 +146,7 @@ export function FinanceScreen(): React.JSX.Element {
               {FILTERS.map((item) => {
                 const selected = filter === item.value;
                 return (
-                  <Pressable
+                  <Tap
                     key={item.value}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
@@ -146,7 +154,7 @@ export function FinanceScreen(): React.JSX.Element {
                     style={[ui.chip, selected && ui.chipSelected]}
                   >
                     <Text style={[ui.chipText, selected && ui.chipTextSelected]}>{item.label}</Text>
-                  </Pressable>
+                  </Tap>
                 );
               })}
             </View>
@@ -161,7 +169,7 @@ export function FinanceScreen(): React.JSX.Element {
                     {formatDate(entry.date)} · {entry.source === 'MANUAL' ? 'Manual' : entry.source === 'COMPRA' ? 'Compra' : 'Venda'}
                   </Text>
                 </View>
-                <Text style={[styles.amount, { color: entry.type === 'INCOME' ? colors.green : colors.danger }]}>
+                <Text style={[styles.amount, { color: entry.type === 'INCOME' ? colors.primary : colors.destructive }]}>
                   {entry.type === 'INCOME' ? '+' : '−'} {formatPrice(Number(entry.amount))}
                 </Text>
               </View>
@@ -190,15 +198,16 @@ const styles = StyleSheet.create({
   month: { alignItems: 'center', gap: 4, flex: 1 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 90 },
   bar: { width: 10, borderRadius: 3, minHeight: 2 },
-  income: { backgroundColor: colors.green },
-  expense: { backgroundColor: colors.danger },
+  swatch: { width: 12, height: 12, borderRadius: 3 },
+  income: { backgroundColor: colors.primary },
+  expense: { backgroundColor: colors.destructive },
   entry: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: colors.greenSoft,
+    borderTopColor: colors.primarySoft,
     borderRadius: radius.field
   },
   amount: { fontSize: 15, fontWeight: '800' }

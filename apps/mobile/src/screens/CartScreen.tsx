@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { Button } from '../components/Button.tsx';
 import { Field } from '../components/Field.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
@@ -10,7 +12,7 @@ import { cartSummary, setQuantity, removeFromCart, toOrderItems, type CartLine }
 import { formatPrice } from '../lib/catalog.ts';
 import { ApiError } from '../services/api.ts';
 import { newIdempotencyKey, placeOrder, type Order } from '../services/orders.ts';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 // Formas da web (renderPaymentScreen). Pagamento simulado: nada daqui vai para o servidor e o app
 // nunca pede dado de cartão (ADR-0001: nunca guardar nem enviar cartão).
@@ -84,7 +86,7 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
       <View style={ui.screen}>
         <ScreenHeader title="Carrinho" />
         <View style={ui.center}>
-          <Text style={styles.bigEmoji}>🛒</Text>
+          <Icon name="cart-outline" size={iconSize.xl} color={colors.secondaryForeground} />
           <Text style={ui.sectionTitle}>Seu carrinho está vazio</Text>
           <Text style={ui.muted}>Escolha insumos no catálogo e adicione aqui.</Text>
           <Button title="Ver catálogo" variant="outline" onPress={onBrowse} />
@@ -100,7 +102,7 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
         {lines.map((line) => (
           <View key={line.product.id} style={ui.card}>
             <View style={ui.row}>
-              <View style={[styles.thumb, { backgroundColor: line.product.imageBg ?? colors.greenSoft }]}>
+              <View style={[styles.thumb, { backgroundColor: line.product.imageBg ?? colors.primarySoft }]}>
                 <Text style={styles.thumbEmoji}>{line.product.imageEmoji ?? '📦'}</Text>
               </View>
               <View style={styles.lineInfo}>
@@ -116,14 +118,15 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
                 value={line.quantity}
                 onChange={(value) => onChange(setQuantity(lines, line.product.id, value))}
               />
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 accessibilityLabel={`Remover ${line.product.name}`}
                 onPress={() => onChange(removeFromCart(lines, line.product.id))}
                 style={styles.remove}
               >
+                <Icon name="trash-outline" size={iconSize.sm} color={colors.destructive} />
                 <Text style={styles.removeText}>Remover</Text>
-              </Pressable>
+              </Tap>
             </View>
           </View>
         ))}
@@ -148,7 +151,7 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
           {PAYMENTS.map((item) => {
             const selected = payment === item.value;
             return (
-              <Pressable
+              <Tap
                 key={item.value}
                 accessibilityRole="radio"
                 accessibilityState={{ selected, checked: selected }}
@@ -157,7 +160,7 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
               >
                 <View style={[styles.radio, selected && styles.radioSelected]} />
                 <Text style={ui.text}>{item.label}</Text>
-              </Pressable>
+              </Tap>
             );
           })}
           <Text style={ui.muted}>Pagamento simulado nesta versão: nenhum dado de pagamento é pedido nem enviado.</Text>
@@ -193,13 +196,12 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 const styles = StyleSheet.create({
-  bigEmoji: { fontSize: 48 },
   thumb: { width: 56, height: 56, borderRadius: radius.field, alignItems: 'center', justifyContent: 'center' },
   thumbEmoji: { fontSize: 28 },
   lineInfo: { flex: 1, gap: 2 },
-  linePrice: { fontSize: 15, fontWeight: '800', color: colors.green },
-  remove: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 8 },
-  removeText: { fontSize: 14, fontWeight: '700', color: colors.danger },
+  linePrice: { fontSize: 15, fontWeight: '800', color: colors.primary },
+  remove: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
+  removeText: { fontSize: 14, fontWeight: '700', color: colors.destructive },
   option: {
     minHeight: MIN_TOUCH,
     flexDirection: 'row',
@@ -208,12 +210,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.field,
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: colors.borderStrong
   },
-  optionSelected: { borderColor: colors.green, backgroundColor: colors.greenSoft },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.white },
-  radioSelected: { borderColor: colors.green, backgroundColor: colors.green },
+  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.borderStrong, backgroundColor: colors.surface },
+  radioSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
-  totalLabel: { fontSize: 16, fontWeight: '800', color: colors.greenDark },
-  totalValue: { fontSize: 18, fontWeight: '800', color: colors.green }
+  totalLabel: { fontSize: 16, fontWeight: '800', color: colors.foreground },
+  totalValue: { fontSize: 18, fontWeight: '800', color: colors.primary }
 });
