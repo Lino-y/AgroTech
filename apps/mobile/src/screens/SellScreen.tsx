@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Tap } from '../components/Tap.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Button } from '../components/Button.tsx';
@@ -9,7 +11,7 @@ import { ui } from '../components/ui.ts';
 import { CATEGORY_STYLES, draftFromPrompt } from '../domain.ts';
 import { formatPrice } from '../lib/catalog.ts';
 import type { OutboxItem } from '../lib/outbox.ts';
-import { draftToForm, parsePriceBR, validateProduct } from '../lib/sell.ts';
+import { draftToForm, parsePriceBR, photoDataUrl, validateProduct } from '../lib/sell.ts';
 import { ApiError } from '../services/api.ts';
 import { newIdempotencyKey } from '../services/orders.ts';
 import { discardOutboxItem, enqueueListing, flushOutbox, readOutbox } from '../services/outbox.ts';
@@ -37,6 +39,8 @@ export function SellScreen({ email, userId }: Props): React.JSX.Element {
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [queue, setQueue] = useState<OutboxItem[]>([]);
   const [flushing, setFlushing] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   // Mesma chave nas tentativas do mesmo anúncio (toque duplo); nova quando o formulário muda.
   const keyRef = useRef(newIdempotencyKey());
 
@@ -80,6 +84,26 @@ export function SellScreen({ email, userId }: Props): React.JSX.Element {
     setAiMessage(found.length ? `IA preencheu: título, descrição, ${found.join(', ')}. Confira antes de publicar.` : 'IA preencheu título e descrição; complete os demais campos.');
   }
 
+  // Foto só da galeria (o APK não pede câmera): reduzida para 1280 px de largura e JPEG, e conferida
+  // contra o limite da web (1,4 MB) antes de ir no anúncio.
+  async function pickPhoto(): Promise<void> {
+    setPhotoError(null);
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    try {
+      const context = ImageManipulator.manipulate(asset.uri);
+      if (asset.width > 1280) context.resize({ width: 1280 });
+      const image = await context.renderAsync();
+      const saved = await image.saveAsync({ compress: 0.6, format: SaveFormat.JPEG, base64: true });
+      const url = photoDataUrl(saved.base64 ?? '');
+      if (url) setPhoto(url);
+      else setPhotoError('A foto ficou grande demais (limite de 1,4 MB). Escolha outra.');
+    } catch {
+      setPhotoError('Não foi possível usar essa foto. Escolha outra.');
+    }
+  }
+
   async function discard(item: OutboxItem): Promise<void> {
     await discardOutboxItem(userId, item.key);
     setQueue(await readOutbox(userId));
@@ -103,19 +127,29 @@ export function SellScreen({ email, userId }: Props): React.JSX.Element {
       description: form.description.trim(),
       unit: form.unit.trim() || 'unidade',
       stock: Number(form.stock.trim()),
-      location: form.location.trim() || 'Região Agrícola - BR'
+      location: form.location.trim() || 'Região Agrícola - BR',
+      ...(photo ? { imageUrl: photo } : {})
     };
     try {
       const product = await createProduct(payload, keyRef.current);
       setForm(EMPTY_FORM);
+      setPhoto(null);
       setSuccess(`"${product.name}" publicado no catálogo.`);
       await loadMine();
     } catch (err) {
       if (err instanceof ApiError && err.status === 0) {
-        // Sem rede: guarda na fila desta conta e envia quando houver internet.
-        await enqueueListing(payload, userId);
+        // Sem rede: guarda na fila desta conta e envia quando houver internet. A foto não vai na fila
+        // (o armazenamento local é pequeno): só o texto.
+        const textOnly = { ...payload };
+        delete textOnly.imageUrl;
+        await enqueueListing(textOnly, userId);
         setForm(EMPTY_FORM);
-        setSuccess('Sem conexão: o anúncio ficou guardado no aparelho e será publicado quando houver internet.');
+        setSuccess(
+          photo
+            ? 'Sem conexão: o anúncio (sem a foto) ficou guardado e será publicado quando houver internet.'
+            : 'Sem conexão: o anúncio ficou guardado no aparelho e será publicado quando houver internet.'
+        );
+        setPhoto(null);
         setQueue(await readOutbox(userId));
         return;
       }
@@ -226,6 +260,19 @@ export function SellScreen({ email, userId }: Props): React.JSX.Element {
             value={form.description}
             onChangeText={set('description')}
           />
+          <Text style={ui.label}>FOTO (OPCIONAL)</Text>
+          {photo ? (
+            <View style={styles.photoRow}>
+              <Image source={{ uri: photo }} style={styles.photo} accessibilityLabel="Foto escolhida para o anúncio" />
+              <View style={styles.photoActions}>
+                <Button title="Trocar foto" variant="outline" onPress={pickPhoto} />
+                <Button title="Remover foto" variant="outline" onPress={() => setPhoto(null)} />
+              </View>
+            </View>
+          ) : (
+            <Button title="Escolher foto da galeria" variant="outline" onPress={pickPhoto} />
+          )}
+          {photoError ? <Text style={ui.error}>{photoError}</Text> : null}
           {error ? <Text style={ui.error}>{error}</Text> : null}
           {success ? (
             <Text accessibilityLiveRegion="polite" style={ui.success}>
@@ -276,6 +323,9 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemPrice: { fontSize: 14, fontWeight: '800', color: colors.primary },
   delete: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
+  photoRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  photo: { width: 120, height: 90, borderRadius: radius.field },
+  photoActions: { flex: 1, gap: 8 },
   queueItem: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
   failed: { fontSize: 13, color: colors.destructive },
   deleteText: { fontSize: 14, fontWeight: '700', color: colors.destructive }

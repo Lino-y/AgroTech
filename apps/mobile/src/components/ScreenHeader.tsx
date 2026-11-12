@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSize, iconSize, MIN_TOUCH, space } from '../theme.ts';
+import { colors, fonts, fontSize, iconSize, MIN_TOUCH, space } from '../theme.ts';
 import { Icon } from './Icon.tsx';
 import { Tap } from './Tap.tsx';
 
@@ -30,6 +30,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: space.lg, paddingBottom: space.sm, backgroundColor: colors.background },
   back: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 2 },
   backText: { fontSize: fontSize.body, fontWeight: '700', color: colors.primary },
-  title: { fontSize: fontSize.heading, fontWeight: '800', color: colors.foreground },
+  title: { fontSize: fontSize.heading, fontFamily: fonts.heading, color: colors.foreground },
   subtitle: { fontSize: fontSize.small, color: colors.secondaryForeground, marginTop: 2 }
 });

@@ -5,7 +5,7 @@ import app from '../../app.json';
 import { Button } from '../components/Button.tsx';
 import type { User } from '../services/auth.ts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, MIN_TOUCH } from '../theme.ts';
+import { colors, MIN_TOUCH, fonts } from '../theme.ts';
 import { LoginForm } from './LoginForm.tsx';
 import { RegisterForm } from './RegisterForm.tsx';
 import { ResetForm } from './ResetForm.tsx';
@@ -39,6 +39,8 @@ export function AuthScreen({ onAuthenticated, onBack, initialMode = 'login', rea
         <Image
           source={require('../../assets/logo.png')}
           style={styles.logo}
+          // A logo é um traço verde-escuro: no tema escuro, tingida com a cor do texto para aparecer.
+          tintColor={colors.foreground}
           resizeMode="contain"
           accessibilityLabel="Logo AgroTech"
         />
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, paddingHorizontal: 24 },
   logo: { width: 160, height: 90, alignSelf: 'center', marginBottom: 8 },
-  brand: { fontSize: 30, fontWeight: '800', color: colors.foreground, textAlign: 'center' },
+  brand: { fontSize: 30, fontFamily: fonts.heading, color: colors.foreground, textAlign: 'center' },
   subtitle: { fontSize: 14, color: colors.secondaryForeground, textAlign: 'center', marginTop: 8, marginBottom: 24 },
   tabs: {
     flexDirection: 'row',

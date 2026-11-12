@@ -1,6 +1,6 @@
 // Estilos repetidos entre as telas (cartão, título de seção, mensagens), com os tokens do tema.
 import { StyleSheet } from 'react-native';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { colors, fonts, MIN_TOUCH, radius } from '../theme.ts';
 
 export const ui = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
@@ -13,7 +13,7 @@ export const ui = StyleSheet.create({
     padding: 16,
     gap: 8
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.foreground },
+  sectionTitle: { fontSize: 16, fontFamily: fonts.heading, color: colors.foreground },
   text: { fontSize: 14, color: colors.foreground },
   muted: { fontSize: 13, color: colors.mutedForeground },
   error: {

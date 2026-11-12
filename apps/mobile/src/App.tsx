@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit';
 import { TabBar } from './components/TabBar.tsx';
 import { addToCart, cartCount, serializeCart, type CartLine } from './lib/cart.ts';
 import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogin, type Nav } from './lib/navigation.ts';
@@ -25,7 +26,7 @@ import { flushOutbox, readOutbox } from './services/outbox.ts';
 import type { Product } from './services/products.ts';
 import { logout, type User } from './services/auth.ts';
 import { getSession, readCache, saveCache, setKeyValueStore, setSecureStore } from './services/storage.ts';
-import { colors } from './theme.ts';
+import { colors, isDark } from './theme.ts';
 
 // Raiz do app: sessão, carrinho (guardado no aparelho, Fase 3) e navegação (abas + pilha). Como na web, o app abre no
 // catálogo; comprar, anunciar, financeiro e pedidos pedem conta e voltam ao destino depois do login.
@@ -37,6 +38,8 @@ export default function App(): React.JSX.Element {
   const [favorites, setFavorites] = useState<Product[]>([]);
   // Versão mínima pedida pela API (426): o app inteiro dá lugar à tela de atualizar.
   const [outdated, setOutdated] = useState<string | null>(null);
+  // Fonte dos títulos (a da web). Se não carregar, segue com a do sistema em vez de travar.
+  const [fontsLoaded, fontError] = useFonts({ Outfit_700Bold });
   const loggedIn = user !== null;
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function App(): React.JSX.Element {
     return () => subscription.remove();
   }, [nav]);
 
-  if (!ready) {
+  if (!ready || (!fontsLoaded && !fontError)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator color={colors.primary} />
@@ -227,7 +230,7 @@ export default function App(): React.JSX.Element {
   if (outdated !== null) {
     return (
       <SafeAreaProvider>
-        <StatusBar style="dark" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <UpdateScreen minVersion={outdated} onRetry={() => setOutdated(null)} />
       </SafeAreaProvider>
     );
@@ -235,7 +238,7 @@ export default function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <View style={{ flex: 1, backgroundColor: colors.background }}>{renderScreen()}</View>
       {top?.name === 'auth' ? null : (
         <TabBar

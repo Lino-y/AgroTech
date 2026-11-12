@@ -39,6 +39,8 @@ export type NewProduct = {
   unit: string;
   stock: number;
   location: string;
+  /** Foto em data URL (JPEG) ou link http(s). Não vai para a fila offline (só o texto). */
+  imageUrl?: string;
 };
 
 /** idempotencyKey: a mesma em toda tentativa do mesmo anúncio (toque duplo, fila offline). */

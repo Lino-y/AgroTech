@@ -17,7 +17,7 @@ contra a API antes de qualquer conta de loja.
 | CA03 | 401 de quem tinha token encerra a sessão; 403 não | teste | ✅ | `apps/mobile/src/services/api.ts:46`, `apps/mobile/__tests__/api.test.ts:39`, `apps/mobile/__tests__/api.test.ts:55` |
 | CA04 | O token fica no armazenamento seguro, não no código | teste | ✅ | `apps/mobile/src/services/storage.ts:31`, `apps/mobile/__tests__/storage.test.ts:22` |
 | CA05 | A API configurada entra no bundle (`EXPO_PUBLIC_API_URL`) | build | ✅ | `apps/mobile/src/config.ts:3`; bundle exportado com o endereço (`npx expo export --platform android`) |
-| CA06 | Tráfego HTTP em texto claro liberado só para o build de teste | build | ✅ | `apps/mobile/app.json:25` (plugin `expo-build-properties`) |
+| CA06 | Tráfego HTTP em texto claro liberado só para o build de teste | build | ✅ | `apps/mobile/app.json:27` (plugin `expo-build-properties`) |
 | CA07 | Tipos estritos e testes passam | comando | ✅ | `apps/mobile/package.json:10` (`npm test`, 11 de 11) e `apps/mobile/package.json:11` (`npm run typecheck`) |
 | CA08 | APK Android gerado e assinado | build + `apksigner verify` + `aapt2 dump badging` | ✅ | procedimento: `apps/mobile/README.md:19`; evidência: seção 8.1 |
 | CA09 | APK sem permissões que o app não usa | `aapt2 dump badging` | ✅ | `apps/mobile/app.json:11`; evidência: seção 8.2 |
@@ -86,7 +86,7 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
 - **Permissões extras (resolvido).** O APK pedia `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,
   `VIBRATE`, `USE_BIOMETRIC` e `USE_FINGERPRINT`, que o app não usa. O manifesto gerado pelo prebuild
   declara as três primeiras; as biométricas vêm do `androidx.biometric`. Bloqueadas em
-  `apps/mobile/app.json:11` a `:17` (`android.blockedPermissions`, suportado pelo Expo 58). Verificação
+  `apps/mobile/app.json:11` a `:20` (`android.blockedPermissions`, suportado pelo Expo 58). Verificação
   do APK novo na seção 8.2.
 - **IP da API a confirmar.** Até o 0.1.3 o endereço gravado no APK era `10.210.61.27:3001` (Ethernet 2). Em
   12/11 o PC passou para o Wi-Fi (`192.168.1.34`), e o 0.1.4 aponta para `192.168.1.34:3001`. Trocar o

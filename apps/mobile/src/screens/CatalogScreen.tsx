@@ -20,7 +20,7 @@ import {
   type CatalogSource
 } from '../lib/catalog.ts';
 import { readCache, saveCache } from '../services/storage.ts';
-import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
+import { colors, iconSize, MIN_TOUCH, radius, fonts } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
 /** onLive: o catálogo veio do servidor (há rede), hora de enviar a fila de anúncios guardados. */
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   top: { paddingHorizontal: 16, paddingBottom: 12, backgroundColor: colors.background, gap: 12 },
   greeting: { fontSize: 13, fontWeight: '600', color: colors.secondaryForeground },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 18, fontWeight: '700', color: colors.foreground },
+  title: { fontSize: 18, fontFamily: fonts.heading, color: colors.foreground },
   count: { fontSize: 12, fontWeight: '600', color: colors.secondaryForeground },
   search: {
     minHeight: MIN_TOUCH,

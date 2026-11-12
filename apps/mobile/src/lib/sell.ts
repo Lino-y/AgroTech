@@ -58,3 +58,14 @@ export function draftToForm(draft: Draft, categories: string[]): Partial<Product
   if (draft.location) form.location = draft.location;
   return form;
 }
+
+/** Limite da foto do anúncio, igual ao da web (MAX_IMAGE_BYTES em src/modules/catalog.js): em base64 ela
+ * fica 1,37 vez maior e precisa caber no corpo de 2 MB que a API aceita. */
+export const MAX_PHOTO_BYTES = Math.floor(1.4 * 1024 * 1024);
+
+/** JPEG em base64 vira o data URL que a API aceita (safeImageUrl); null se passar do limite. */
+export function photoDataUrl(base64: string): string | null {
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  const bytes = (base64.length * 3) / 4 - padding;
+  return bytes > MAX_PHOTO_BYTES ? null : `data:image/jpeg;base64,${base64}`;
+}
