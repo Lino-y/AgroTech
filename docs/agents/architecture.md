@@ -10,6 +10,9 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - SPA em JavaScript puro com módulos ES, **sem framework e sem build**
   (`.ai/specs/04-arquitetura-e-engenharia.md`). Nada de React, Vue, bundler
   ou TypeScript compilado; tipos só em JSDoc (ver "Contratos").
+  **Exceção registrada (ADR-0001, 2026-11-11):** `apps/mobile` usa React Native,
+  Expo, Metro e TypeScript, isolado em `apps/mobile/` com lockfile próprio. Só
+  o build Android (APK) está previsto. A SPA e a API continuam sem build.
 - Mobile-first, 360–430px, sem recarregar a página
   (`.ai/specs/03-requisitos-nao-funcionais.md`, RNF02; contêiner de 430px em
   `src/styles/tokens.css:31`).
@@ -54,7 +57,7 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - Entrada do usuário é validada no `apps/api/server.js`, nunca só no front:
   - texto que vai virar HTML passa por `cleanText` (`apps/api/server.js:257`);
   - link de imagem passa por `safeImageUrl` (`apps/api/server.js:262`);
-  - perfil no cadastro só entre `SIGNUP_ROLES` (`apps/api/server.js:251`), e ADMIN nunca
+  - perfil no cadastro só entre `SIGNUP_ROLES` (`apps/api/server.js:264`; inclui `AMBOS`), e ADMIN nunca
     vem do corpo da requisição;
   - preço e total saem do catálogo e de `calculateCartSummary`, nunca do valor
     que o cliente manda (`apps/api/server.js:638`);

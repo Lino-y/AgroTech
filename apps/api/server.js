@@ -260,7 +260,8 @@ async function writeDb(db) {
 }
 
 // Perfis que o próprio usuário pode escolher no cadastro; ADMIN nunca vem do corpo da requisição.
-const SIGNUP_ROLES = ['PRODUTOR', 'VENDEDOR'];
+// AMBOS = comprador e vendedor na mesma conta (issue #83).
+const SIGNUP_ROLES = ['PRODUTOR', 'VENDEDOR', 'AMBOS'];
 
 // ponytail: o front monta HTML com innerHTML, então o texto do usuário é escapado aqui, na entrada,
 // num lugar só. Teto: o JSON da API sai com entidades (&amp;); se outro cliente consumir a API,
@@ -414,7 +415,7 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ message: 'Nome, e-mail e senha são obrigatórios.' });
   }
   if (!SIGNUP_ROLES.includes(role)) {
-    return res.status(400).json({ message: 'Perfil inválido: use PRODUTOR ou VENDEDOR.' });
+    return res.status(400).json({ message: 'Perfil inválido: use PRODUTOR, VENDEDOR ou AMBOS.' });
   }
 
   const db = await readDb();

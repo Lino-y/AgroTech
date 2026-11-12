@@ -1160,6 +1160,7 @@ function renderRegisterForm() {
             <select id="regRole" style="width: 100%; padding: 12px 14px; border: 1px solid #C8E6C9; border-radius: 10px; font-size: 13px; background: #F4FBF7; color: #1B5E20; box-sizing: border-box; outline: none;">
               <option value="PRODUTOR">Comprador Rural (Produtor)</option>
               <option value="VENDEDOR">Vendedor / Fornecedor Agro</option>
+              <option value="AMBOS">Comprador e Vendedor</option>
             </select>
           </div>
 

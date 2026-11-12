@@ -52,6 +52,10 @@ test('cadastro não aceita perfil ADMIN vindo do corpo da requisição', async (
   assert.equal(vendedor.status, 201);
   assert.equal(vendedor.body.user.role, 'VENDEDOR');
 
+  const ambos = await newUser({ role: 'AMBOS' });
+  assert.equal(ambos.status, 201);
+  assert.equal(ambos.body.user.role, 'AMBOS');
+
   const padrao = await newUser();
   assert.equal(padrao.body.user.role, 'PRODUTOR');
 });

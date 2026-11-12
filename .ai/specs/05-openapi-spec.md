@@ -38,7 +38,7 @@ components:
         name: { type: string }
         propertyOrCompany: { type: string }
         email: { type: string }
-        role: { type: string, enum: [PRODUTOR, VENDEDOR, ADMIN] }
+        role: { type: string, enum: [PRODUTOR, VENDEDOR, AMBOS, ADMIN] }
         storeProfileImage: { type: string, nullable: true, description: link http(s) ou foto enviada }
         storeCoverImage: { type: string, nullable: true, description: link http(s) ou foto enviada }
         storeBio: { type: string, description: até 500 caracteres }
@@ -136,7 +136,7 @@ paths:
                 email: { type: string }
                 password: { type: string }
                 propertyOrCompany: { type: string }
-                role: { type: string, enum: [PRODUTOR, VENDEDOR], default: PRODUTOR, description: 'ADMIN não é aceito' }
+                role: { type: string, enum: [PRODUTOR, VENDEDOR, AMBOS], default: PRODUTOR, description: 'AMBOS = comprador e vendedor; ADMIN não é aceito' }
       responses:
         '201': { description: 'conta criada', content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
         '400': { description: 'campo obrigatório ausente ou perfil inválido', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
