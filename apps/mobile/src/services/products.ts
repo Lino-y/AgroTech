@@ -16,6 +16,9 @@ export type Product = {
   image?: string;
 };
 
+// O app abre no catálogo: sem servidor alcançável, o aviso offline aparece em 5 s, não nos 10 s padrão.
+const CATALOG_TIMEOUT_MS = 5000;
+
 export function loadProducts(): Promise<Product[]> {
-  return apiRequest<Product[]>('/products');
+  return apiRequest<Product[]>('/products', { timeoutMs: CATALOG_TIMEOUT_MS });
 }

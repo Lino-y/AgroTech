@@ -25,17 +25,17 @@ import {
 } from '../lib/catalog.ts';
 import { colors, MIN_TOUCH, radius, STATUS_BAR_INSET } from '../theme.ts';
 
-/** guest: catálogo sem conta, que abre já com o catálogo embutido (modo offline). */
-type Props = { guest: boolean; onLoggedOut: () => void };
+/** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
+type Props = { userName: string | null; onSignIn: () => void; onSignedOut: () => void };
 
 // Lista na tela e de onde ela veio. snapshot=true é o catálogo embutido, sem passar pelo servidor.
 type Catalog = { items: Product[]; snapshot: boolean };
 const SNAPSHOT: Catalog = { items: OFFLINE_PRODUCTS, snapshot: true };
 const EMPTY: Catalog = { items: [], snapshot: false };
 
-export function CatalogScreen({ guest, onLoggedOut }: Props): React.JSX.Element {
-  const [catalog, setCatalog] = useState<Catalog>(guest ? SNAPSHOT : EMPTY);
-  const [loading, setLoading] = useState(!guest);
+export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React.JSX.Element {
+  const [catalog, setCatalog] = useState<Catalog>(EMPTY);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [term, setTerm] = useState('');
@@ -60,23 +60,22 @@ export function CatalogScreen({ guest, onLoggedOut }: Props): React.JSX.Element 
   }, []);
 
   useEffect(() => {
-    // O modo offline abre na hora com o catálogo embutido; puxar a lista tenta o servidor.
-    if (!guest) void load(false);
-  }, [guest, load]);
+    void load(false);
+  }, [load]);
 
   const categories = useMemo(() => categoriesOf(catalog.items), [catalog.items]);
   const visible = useMemo(() => filterProducts(catalog.items, term, category), [catalog.items, term, category]);
   const searching = term.trim().length > 0 || category !== ALL_CATEGORIES;
 
   async function signOut(): Promise<void> {
-    // Sem conta não há sessão a encerrar: só volta para o login.
-    if (!guest) await logout();
-    onLoggedOut();
+    await logout();
+    onSignedOut();
   }
 
   return (
     <View style={styles.screen}>
       <View style={[styles.top, { paddingTop: STATUS_BAR_INSET + 12 }]}>
+        {userName ? <Text style={styles.greeting}>Olá, {userName.split(' ')[0]}</Text> : null}
         <View style={styles.titleRow}>
           <Text style={styles.title}>Catálogo de Insumos</Text>
           <Text style={styles.count} accessibilityLiveRegion="polite">
@@ -179,8 +178,8 @@ export function CatalogScreen({ guest, onLoggedOut }: Props): React.JSX.Element 
         <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={styles.tab}>
           <Text style={[styles.tabText, styles.tabTextSelected]}>Catálogo</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={signOut} style={styles.tab}>
-          <Text style={styles.tabText}>{guest ? 'Entrar' : 'Sair'}</Text>
+        <Pressable accessibilityRole="button" onPress={userName !== null ? signOut : onSignIn} style={styles.tab}>
+          <Text style={styles.tabText}>{userName !== null ? 'Sair' : 'Entrar'}</Text>
         </Pressable>
       </View>
     </View>
@@ -190,6 +189,7 @@ export function CatalogScreen({ guest, onLoggedOut }: Props): React.JSX.Element 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   top: { paddingHorizontal: 16, paddingBottom: 12, backgroundColor: colors.paper, gap: 12 },
+  greeting: { fontSize: 13, fontWeight: '600', color: colors.greenMuted },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 18, fontWeight: '700', color: colors.greenDark },
   count: { fontSize: 12, fontWeight: '600', color: colors.greenMuted },

@@ -2,22 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
+import { AuthScreen } from './screens/AuthScreen.tsx';
 import { CatalogScreen } from './screens/CatalogScreen.tsx';
-import { LoginScreen } from './screens/LoginScreen.tsx';
-import { RegisterScreen } from './screens/RegisterScreen.tsx';
+import type { User } from './services/auth.ts';
 import { getSession, setSecureStore } from './services/storage.ts';
 import { colors } from './theme.ts';
 
-// guest: catálogo sem conta (modo offline). catalog: catálogo com sessão aberta.
-type Screen = 'loading' | 'login' | 'register' | 'catalog' | 'guest';
+// Mesmo fluxo da web: o app abre no catálogo, com ou sem conta; entrar é uma escolha.
+type Screen = 'loading' | 'catalog' | 'auth';
 
 // Troca de tela fica aqui; token e HTTP ficam nos services (camadas da ADR-0001).
 export default function App(): React.JSX.Element {
   const [screen, setScreen] = useState<Screen>('loading');
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
     setSecureStore(SecureStore);
-    getSession().then((session) => setScreen(session ? 'catalog' : 'login'));
+    getSession().then((session) => {
+      setUserName(session ? String(session.user.name ?? '') : null);
+      setScreen('catalog');
+    });
   }, []);
 
   if (screen === 'loading') {
@@ -28,19 +32,18 @@ export default function App(): React.JSX.Element {
     );
   }
 
+  function authenticated(user: User): void {
+    setUserName(user.name);
+    setScreen('catalog');
+  }
+
   return (
     <>
       <StatusBar style="dark" />
-      {screen === 'login' ? (
-        <LoginScreen
-          onLoggedIn={() => setScreen('catalog')}
-          onRegister={() => setScreen('register')}
-          onOffline={() => setScreen('guest')}
-        />
-      ) : screen === 'register' ? (
-        <RegisterScreen onRegistered={() => setScreen('catalog')} onBack={() => setScreen('login')} />
+      {screen === 'auth' ? (
+        <AuthScreen onAuthenticated={authenticated} onBack={() => setScreen('catalog')} />
       ) : (
-        <CatalogScreen guest={screen === 'guest'} onLoggedOut={() => setScreen('login')} />
+        <CatalogScreen userName={userName} onSignIn={() => setScreen('auth')} onSignedOut={() => setUserName(null)} />
       )}
     </>
   );
