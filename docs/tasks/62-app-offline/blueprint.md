@@ -64,3 +64,15 @@ A ADR-0001 (política offline) e a spec 08 mandam no "o quê"; este blueprint, n
   foi derrubada: pedidos e extrato vieram do aparelho com a data, o catálogo veio do último salvo, o
   carrinho voltou só com produto e quantidade, o pedido ficou bloqueado por falta de rede, e sair da
   conta apagou pedidos e extrato salvos (o catálogo ficou). No aparelho ainda não (CA08).
+
+### 8.1 Evidência do APK 0.3.0
+
+Arquivo: `C:/Users/Rooselt/AgroTech-APK/agrotech-0.3.0.apk` (substitui o 0.2.1), 67.781.838 bytes,
+SHA-256 `269fff44eb6431b5b97bf02572d88e3b15aa4c74b168267a264981a84b153277`.
+
+- `aapt2 dump badging`: `versionCode` 9, `versionName` 0.3.0, permissão `INTERNET` apenas. `apksigner verify`: válido.
+- Módulo nativo do AsyncStorage em `classes.dex`. Bundle extraído do APK com as chaves do cache, os
+  avisos de dado salvo, o bloqueio do pedido sem rede e a revalidação do carrinho.
+- Testes: app 86 de 86; raiz 258 de 258; spec-guard ok. `BUILD SUCCESSFUL` em 8 min 09 s.
+- Não visto em aparelho (CA08).
+
