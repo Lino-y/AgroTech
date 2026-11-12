@@ -10,6 +10,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../services/api.ts';
 import { logout } from '../services/auth.ts';
 import { loadProducts, type Product } from '../services/products.ts';
@@ -23,7 +24,7 @@ import {
   shouldUseSnapshot,
   snapshotLabel
 } from '../lib/catalog.ts';
-import { colors, MIN_TOUCH, radius, STATUS_BAR_INSET } from '../theme.ts';
+import { colors, MIN_TOUCH, radius } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
 type Props = { userName: string | null; onSignIn: () => void; onSignedOut: () => void };
@@ -40,6 +41,7 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
   const [error, setError] = useState<string | null>(null);
   const [term, setTerm] = useState('');
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(async (fromPullToRefresh: boolean) => {
     if (fromPullToRefresh) setRefreshing(true);
@@ -74,7 +76,7 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.top, { paddingTop: STATUS_BAR_INSET + 12 }]}>
+      <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
         {userName ? <Text style={styles.greeting}>Olá, {userName.split(' ')[0]}</Text> : null}
         <View style={styles.titleRow}>
           <Text style={styles.title}>Catálogo de Insumos</Text>
@@ -174,7 +176,8 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
         />
       )}
 
-      <View style={styles.bottomBar}>
+      {/* A barra fica acima dos botões/gestos do Android, nunca por baixo deles. */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
         <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={styles.tab}>
           <Text style={[styles.tabText, styles.tabTextSelected]}>Catálogo</Text>
         </Pressable>
@@ -259,7 +262,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingBottom: 12,
     paddingTop: 6
   },
   tab: { flex: 1, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },

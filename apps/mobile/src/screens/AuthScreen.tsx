@@ -3,7 +3,8 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import app from '../../app.json';
 import { Button } from '../components/Button.tsx';
 import type { User } from '../services/auth.ts';
-import { colors, MIN_TOUCH, STATUS_BAR_INSET } from '../theme.ts';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, MIN_TOUCH } from '../theme.ts';
 import { LoginForm } from './LoginForm.tsx';
 import { RegisterForm } from './RegisterForm.tsx';
 
@@ -18,10 +19,11 @@ const TABS: { mode: Mode; label: string }[] = [
 // Mesma tela da web: um só lugar com as abas Entrar | Criar Conta e a volta para o catálogo.
 export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Element {
   const [mode, setMode] = useState<Mode>('login');
+  const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: STATUS_BAR_INSET + 24 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
       >
         {/* PNG gerado de assets/logo.svg da web: o RN não desenha SVG sem biblioteca nativa. */}
@@ -65,7 +67,7 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  content: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 32 },
+  content: { flexGrow: 1, paddingHorizontal: 24 },
   logo: { width: 160, height: 90, alignSelf: 'center', marginBottom: 8 },
   brand: { fontSize: 30, fontWeight: '800', color: colors.greenDark, textAlign: 'center' },
   subtitle: { fontSize: 14, color: colors.greenMuted, textAlign: 'center', marginTop: 6, marginBottom: 24 },

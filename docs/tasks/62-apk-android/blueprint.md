@@ -27,6 +27,7 @@ contra a API antes de qualquer conta de loja.
 | CA13 | Cadastro pelo app (perfil, nome, e-mail, propriedade opcional, senha) com a conta já logada; só os perfis que o servidor aceita (inclui AMBOS, issue #83) | teste | ✅ | serviço em `apps/mobile/src/services/auth.ts:27`; formulário em `apps/mobile/src/screens/RegisterForm.tsx:27`; perfis em `apps/mobile/src/lib/forms.ts:6`; testes em `apps/mobile/__tests__/auth.test.ts:97`, `:120` e `apps/mobile/__tests__/forms.test.ts:14` |
 | CA14 | Mesmo fluxo da web: o app abre no catálogo, com ou sem conta; "Entrar" na barra leva à tela única Entrar | Criar Conta, com a logo, rótulos visíveis, "Voltar ao catálogo" e a versão instalada; logado, a barra mostra "Sair" | leitura do código | 🟡 | abre no catálogo em `apps/mobile/src/App.tsx:23`; Entrar/Sair em `apps/mobile/src/screens/CatalogScreen.tsx:181`; logo em `apps/mobile/src/screens/AuthScreen.tsx:28`; abas em `apps/mobile/src/screens/AuthScreen.tsx:31`; voltar em `apps/mobile/src/screens/AuthScreen.tsx:50`; versão em `apps/mobile/src/screens/AuthScreen.tsx:53` (de `apps/mobile/app.json:5`); rótulos em `apps/mobile/src/screens/LoginForm.tsx:38`; não visto em aparelho |
 | CA15 | Recuperar senha pelo app | — | 🔴 | bloqueado: não há endpoint na API (spec 05) nem serviço de e-mail; ver seção 8 |
+| CA16 | Nada do app fica por baixo das barras do aparelho: a barra Catálogo/Entrar e o fim da tela de entrada ficam acima dos botões ou gestos do Android, e o topo abaixo da barra de status | leitura do código | 🟡 | medição em `apps/mobile/src/App.tsx:44`; barra inferior em `apps/mobile/src/screens/CatalogScreen.tsx:180`; tela de entrada em `apps/mobile/src/screens/AuthScreen.tsx:26`; dependência em `apps/mobile/package.json:20`; não visto em aparelho |
 
 ## 3. Contratos (antes do código)
 
@@ -41,6 +42,7 @@ contra a API antes de qualquer conta de loja.
 - **Sem `@react-navigation` nesta fase:** duas telas com troca de estado. A navegação
   real entra na Fase 1 completa (ADR-0001 cita a biblioteca).
 - **Build local, sem EAS:** o EAS exige conta Expo. O Gradle roda na máquina, com o SDK do usuário.
+- **Dependência nova na 0.1.5:** `react-native-safe-area-context@~5.11.1` (`npm view` conferido: repositório appandflow, versão que o Expo 58 lista como compatível). O Android desenha o app por baixo das barras (ponta a ponta, obrigatório com `targetSdk` 36) e o React Native puro não informa a altura da barra de navegação; um valor fixo erraria entre navegação por 3 botões e por gestos. Substitui a constante `STATUS_BAR_INSET`, que só cuidava do topo.
 - **Dependências novas** (todas com `npm view` conferido): `expo-build-properties@~58.0.12`
   (cleartext; o `app.json` sozinho não liga essa opção no Expo 58), `expo-secure-store@~58.0.3`,
   `expo-status-bar@~58.0.5`, `@types/node@^22.20.5`, e as do template (`expo`, `react`,

@@ -1,5 +1,3 @@
-import { Platform, StatusBar } from 'react-native';
-
 // Identidade visual da web (src/styles/tokens.css e src/modules/catalog.js), em valores para o app.
 // A fonte da web (Outfit) não entra aqui: usa a fonte do sistema para não adicionar dependência.
 export const colors = {
@@ -23,6 +21,3 @@ export const colors = {
 export const MIN_TOUCH = 48;
 
 export const radius = { card: 16, control: 12, field: 10 } as const;
-
-// Altura da barra de status do Android (o app é de ponta a ponta); no iOS, a área segura fixa.
-export const STATUS_BAR_INSET: number = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 44;

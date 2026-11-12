@@ -2,12 +2,12 @@
   "expo": {
     "name": "AgroTech",
     "slug": "agrotech",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "orientation": "portrait",
     "scheme": "agrotech",
     "android": {
       "package": "br.com.agrotech.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",

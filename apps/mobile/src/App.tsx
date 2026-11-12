@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthScreen } from './screens/AuthScreen.tsx';
 import { CatalogScreen } from './screens/CatalogScreen.tsx';
 import type { User } from './services/auth.ts';
@@ -37,14 +38,16 @@ export default function App(): React.JSX.Element {
     setScreen('catalog');
   }
 
+  // SafeAreaProvider mede as barras do aparelho (status em cima, navegação embaixo): o Android desenha
+  // o app por baixo delas (ponta a ponta), então cada tela reserva esse espaço.
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="dark" />
       {screen === 'auth' ? (
         <AuthScreen onAuthenticated={authenticated} onBack={() => setScreen('catalog')} />
       ) : (
         <CatalogScreen userName={userName} onSignIn={() => setScreen('auth')} onSignedOut={() => setUserName(null)} />
       )}
-    </>
+    </SafeAreaProvider>
   );
 }
