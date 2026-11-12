@@ -15,6 +15,8 @@ type Props = {
   onFavorites: () => void;
   onSupport: () => void;
   onAdmin: () => void;
+  onServer: () => void;
+  serverUrl: string;
   onLogout: () => void;
 };
 
@@ -28,7 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
 // Conta: entrar ou criar conta (visitante); dados, pedidos, favoritos e sair (logado); suporte para
 // todos; usuários e códigos de senha só para o ADMIN.
 export function AccountScreen(props: Props): React.JSX.Element {
-  const { user, onLogin, onRegister, onOrders, onFavorites, onSupport, onAdmin, onLogout } = props;
+  const { user, onLogin, onRegister, onOrders, onFavorites, onSupport, onAdmin, onLogout, onServer, serverUrl } = props;
   return (
     <View style={ui.screen}>
       <ScreenHeader title={user ? `Olá, ${user.name.split(' ')[0] || 'produtor'}` : 'Conta'} />
@@ -55,7 +57,10 @@ export function AccountScreen(props: Props): React.JSX.Element {
             <Button title="Suporte" variant="outline" onPress={onSupport} />
           </View>
         )}
-        <Text style={styles.version}>AgroTech v{app.expo.version} · versão de teste</Text>
+        <Button title="Servidor" variant="outline" onPress={onServer} />
+        <Text style={styles.version}>
+          AgroTech v{app.expo.version} · versão de teste · servidor {serverUrl}
+        </Text>
       </ScrollView>
     </View>
   );

@@ -38,8 +38,20 @@ export function onAppOutdated(listener: ((minVersion: string) => void) | null): 
   appOutdatedListener = listener;
 }
 
+// Endereço do servidor escolhido na tela "Servidor" (salvo no aparelho); sem ele, o do build (API_URL).
+// O App aplica o salvo antes da primeira requisição.
+let baseUrlOverride: string | null = null;
+
+export function setApiBaseUrl(url: string | null): void {
+  baseUrlOverride = url;
+}
+
+export function getApiBaseUrl(): string {
+  return baseUrlOverride ?? API_URL;
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, baseUrl = API_URL, timeoutMs = DEFAULT_TIMEOUT_MS, headers: extra = {} } = options;
+  const { method = 'GET', body, baseUrl = getApiBaseUrl(), timeoutMs = DEFAULT_TIMEOUT_MS, headers: extra = {} } = options;
 
   const session = await getSession();
   const headers: Record<string, string> = {

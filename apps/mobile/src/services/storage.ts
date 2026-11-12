@@ -64,7 +64,9 @@ export type CacheKey =
   | 'cart'
   // Fila de anúncios e favoritos: uma chave por conta (dono no nome e na entrada). Não somem ao sair.
   | `outbox:listings:${string}`
-  | `favorites:${string}`;
+  | `favorites:${string}`
+  // Endereço do servidor escolhido no app (não é de uma conta; não some ao sair).
+  | 'server';
 const USER_CACHE_KEYS: CacheKey[] = ['cache:orders', 'cache:finance'];
 
 function memoryKeyValue(): KeyValueStore {
@@ -101,6 +103,14 @@ export async function saveCache<T>(key: CacheKey, data: T, owner: string | null,
 }
 
 /** Lê o que foi salvo para este dono; null se não há, se está corrompido ou se é de outra conta. */
+export async function removeCache(key: CacheKey): Promise<void> {
+  try {
+    await keyValue.removeItem(key);
+  } catch {
+    // Sem efeito no fluxo: o próximo saveCache sobrescreve.
+  }
+}
+
 export async function readCache<T>(key: CacheKey, owner: string | null): Promise<{ savedAt: string; data: T } | null> {
   try {
     const raw = await keyValue.getItem(key);

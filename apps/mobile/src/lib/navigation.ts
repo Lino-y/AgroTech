@@ -11,6 +11,7 @@ export type Route =
   | { name: 'support' }
   | { name: 'favorites' }
   | { name: 'admin' }
+  | { name: 'server' }
   | { name: 'auth'; pending: Target | null; mode?: AuthMode };
 /** Para onde ir depois de entrar: uma aba ou uma tela. */
 export type Target = { tab: Tab } | { route: Exclude<Route, { name: 'auth' }> };

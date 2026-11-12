@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Linking, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,7 @@ import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogi
 import { AccountScreen } from './screens/AccountScreen.tsx';
 import { AdminUsersScreen } from './screens/AdminUsersScreen.tsx';
 import { FavoritesScreen } from './screens/FavoritesScreen.tsx';
+import { ServerScreen } from './screens/ServerScreen.tsx';
 import { SupportScreen } from './screens/SupportScreen.tsx';
 import { UpdateScreen } from './screens/UpdateScreen.tsx';
 import { AuthScreen } from './screens/AuthScreen.tsx';
@@ -22,12 +23,15 @@ import { FinanceScreen } from './screens/FinanceScreen.tsx';
 import { OrdersScreen } from './screens/OrdersScreen.tsx';
 import { ProductDetailScreen } from './screens/ProductDetailScreen.tsx';
 import { SellScreen } from './screens/SellScreen.tsx';
-import { onAppOutdated, onSessionExpired } from './services/api.ts';
+import { getApiBaseUrl, onAppOutdated, onSessionExpired, setApiBaseUrl } from './services/api.ts';
+import { APP_VERSION } from './config.ts';
+import { availableUpdate } from './lib/server.ts';
+import { loadAppConfig, loadSavedServer, saveServer } from './services/server.ts';
 import { loadFavorites, toggleFavorite } from './services/favorites.ts';
 import { flushOutbox, readOutbox } from './services/outbox.ts';
 import type { Product } from './services/products.ts';
 import { logout, type User } from './services/auth.ts';
-import { getSession, readCache, saveCache, setKeyValueStore, setSecureStore } from './services/storage.ts';
+import { clearSession, getSession, readCache, removeCache, saveCache, setKeyValueStore, setSecureStore } from './services/storage.ts';
 import { colors, isDark } from './theme.ts';
 
 // Raiz do app: sessão, carrinho (guardado no aparelho, Fase 3) e navegação (abas + pilha). Como na web, o app abre no
@@ -40,6 +44,11 @@ export default function App(): React.JSX.Element {
   const [favorites, setFavorites] = useState<Product[]>([]);
   // Versão mínima pedida pela API (426): o app inteiro dá lugar à tela de atualizar.
   const [outdated, setOutdated] = useState<string | null>(null);
+  // Versão nova anunciada pela API (link completo para baixar) e o link do APK para a tela do 426.
+  const [update, setUpdate] = useState<{ version: string; url: string } | null>(null);
+  const [downloadLink, setDownloadLink] = useState<string | null>(null);
+  // Muda quando o servidor muda: recria o catálogo e busca a configuração do servidor novo.
+  const [serverKey, setServerKey] = useState(0);
   // Fonte dos títulos (a da web). Se não carregar, segue com a do sistema em vez de travar.
   const [fontsLoaded, fontError] = useFonts({ Outfit_700Bold });
   const loggedIn = user !== null;
@@ -48,7 +57,9 @@ export default function App(): React.JSX.Element {
     setSecureStore(SecureStore);
     setKeyValueStore(AsyncStorage);
     // O carrinho volta como foi deixado; o preço é revalidado no checkout (RN05).
-    Promise.all([getSession(), readCache<CartLine[]>('cart', null)]).then(([session, savedCart]) => {
+    // O endereço salvo entra antes de qualquer tela pedir algo ao servidor.
+    Promise.all([getSession(), readCache<CartLine[]>('cart', null), loadSavedServer()]).then(([session, savedCart, server]) => {
+      setApiBaseUrl(server);
       setUser(session ? (session.user as unknown as User) : null);
       if (savedCart) setCart(savedCart.data);
       setReady(true);
@@ -67,6 +78,19 @@ export default function App(): React.JSX.Element {
       onAppOutdated(null);
     };
   }, []);
+
+  // Versão nova para baixar: pergunta ao servidor ao abrir o app e quando o servidor muda.
+  useEffect(() => {
+    if (!ready) return;
+    loadAppConfig()
+      .then((config) => {
+        setUpdate(availableUpdate(config, APP_VERSION, getApiBaseUrl()));
+        setDownloadLink(config.downloadUrl ? `${getApiBaseUrl()}${config.downloadUrl}` : null);
+      })
+      .catch(() => {
+        // Sem rede ou servidor antigo sem esses campos: sem aviso, o resto do app segue.
+      });
+  }, [ready, serverKey, outdated]);
 
   // Ao entrar (ou abrir já logado): favoritos da conta e envio da fila de anúncios guardados offline.
   useEffect(() => {
@@ -110,6 +134,36 @@ export default function App(): React.JSX.Element {
     setUser(null);
     setNav(INITIAL_NAV);
   }
+
+  // Troca de servidor: a sessão e o catálogo salvo são do servidor antigo e saem. Anúncio na fila
+  // também era para o servidor antigo: avisa antes. O carrinho fica (revalidado no checkout).
+  async function applyServer(url: string | null): Promise<void> {
+    await saveServer(url);
+    setApiBaseUrl(url);
+    await clearSession();
+    await removeCache('cache:catalog');
+    setUser(null);
+    setUpdate(null);
+    setServerKey((key) => key + 1);
+    setNav(INITIAL_NAV);
+  }
+
+  async function changeServer(url: string | null): Promise<void> {
+    const waiting = user ? (await readOutbox(user.id)).filter((item) => item.status === 'pending').length : 0;
+    if (waiting === 0) return applyServer(url);
+    Alert.alert(
+      'Anúncios aguardando internet',
+      `${waiting} ${waiting === 1 ? 'anúncio guardado foi feito' : 'anúncios guardados foram feitos'} para o servidor atual e só sai quando você voltar a ele.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Trocar mesmo assim', onPress: () => void applyServer(url) }
+      ]
+    );
+  }
+
+  const openDownload = (url: string) => {
+    void Linking.openURL(url);
+  };
 
   // Anúncio guardado offline fica na fila da conta e sai quando ela entrar de novo: avisa antes de sair.
   async function signOut(): Promise<void> {
@@ -181,6 +235,9 @@ export default function App(): React.JSX.Element {
     if (top?.name === 'admin') {
       return <AdminUsersScreen onBack={goBack} />;
     }
+    if (top?.name === 'server') {
+      return <ServerScreen onBack={goBack} onSave={(url) => void changeServer(url)} />;
+    }
 
     const account = (
       <AccountScreen
@@ -191,6 +248,8 @@ export default function App(): React.JSX.Element {
         onFavorites={() => setNav((current) => open(current, { name: 'favorites' }, loggedIn))}
         onSupport={() => setNav((current) => open(current, { name: 'support' }, loggedIn))}
         onAdmin={() => setNav((current) => open(current, { name: 'admin' }, loggedIn))}
+        onServer={() => setNav((current) => open(current, { name: 'server' }, loggedIn))}
+        serverUrl={getApiBaseUrl()}
         onLogout={signOut}
       />
     );
@@ -219,7 +278,12 @@ export default function App(): React.JSX.Element {
       default:
         return (
           <CatalogScreen
+            key={serverKey}
             userName={user?.name ?? null}
+            update={update}
+            onDownloadUpdate={() => update && openDownload(update.url)}
+            onDismissUpdate={() => setUpdate(null)}
+            onConfigureServer={() => setNav((current) => open(current, { name: 'server' }, loggedIn))}
             onOpenProduct={(product) => setNav((current) => open(current, { name: 'product', product }, loggedIn))}
             onLive={() => {
               if (user) void flushOutbox(user.id);
@@ -233,7 +297,11 @@ export default function App(): React.JSX.Element {
     return (
       <SafeAreaProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} />
-        <UpdateScreen minVersion={outdated} onRetry={() => setOutdated(null)} />
+        <UpdateScreen
+          minVersion={outdated}
+          onRetry={() => setOutdated(null)}
+          onDownload={downloadLink ? () => openDownload(downloadLink) : undefined}
+        />
       </SafeAreaProvider>
     );
   }
