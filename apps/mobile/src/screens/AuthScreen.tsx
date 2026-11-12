@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import app from '../../app.json';
 import { Button } from '../components/Button.tsx';
 import type { User } from '../services/auth.ts';
@@ -24,6 +24,13 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
         contentContainerStyle={[styles.content, { paddingTop: STATUS_BAR_INSET + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* PNG gerado de assets/logo.svg da web: o RN não desenha SVG sem biblioteca nativa. */}
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Logo AgroTech"
+        />
         <Text style={styles.brand}>AgroTech</Text>
         <Text style={styles.subtitle}>Faça login ou crie uma conta para comprar e anunciar.</Text>
 
@@ -59,6 +66,7 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   content: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 32 },
+  logo: { width: 160, height: 90, alignSelf: 'center', marginBottom: 8 },
   brand: { fontSize: 30, fontWeight: '800', color: colors.greenDark, textAlign: 'center' },
   subtitle: { fontSize: 14, color: colors.greenMuted, textAlign: 'center', marginTop: 6, marginBottom: 24 },
   tabs: {
