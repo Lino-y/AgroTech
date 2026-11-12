@@ -840,7 +840,7 @@ function renderRegisterForm() {
 
           <div>
             <label style="font-size: 12px; font-weight: 600; color: #1B5E20; display: block; margin-bottom: 6px; letter-spacing: 0.2px;">SENHA</label>
-            <input type="password" id="regPassword" placeholder="••••••••" required style="width: 100%; padding: 12px 14px; border: 1px solid #C8E6C9; border-radius: 10px; font-size: 13px; background: #FFFFFF; box-sizing: border-box; outline: none;">
+            <input type="password" id="regPassword" placeholder="Mínimo de 8 caracteres" minlength="8" autocomplete="new-password" required style="width: 100%; padding: 12px 14px; border: 1px solid #C8E6C9; border-radius: 10px; font-size: 13px; background: #FFFFFF; box-sizing: border-box; outline: none;">
           </div>
 
           <button type="submit" style="width: 100%; background: #2E7D32; color: #FFFFFF; border: none; padding: 15px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 14px; margin-top: 6px; letter-spacing: 0.3px; box-shadow: none !important; text-shadow: none !important; filter: none !important;">Cadastrar Conta</button>

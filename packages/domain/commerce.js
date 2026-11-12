@@ -92,6 +92,19 @@ export function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
+export const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * Regra de senha para cadastro e redefinição (o login não aplica: contas antigas continuam entrando).
+ * @param {unknown} password
+ * @returns {string | null} mensagem de erro, ou null quando a senha serve
+ */
+export function validatePassword(password) {
+  return String(password ?? '').length >= MIN_PASSWORD_LENGTH
+    ? null
+    : `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`;
+}
+
 /**
  * @param {{ id?: string, name?: string, propertyOrCompany?: string, email?: string,
  *   password?: string, role?: string }} [payload]

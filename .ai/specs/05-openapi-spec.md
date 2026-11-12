@@ -118,7 +118,7 @@ paths:
   /api/app-config:
     get:
       summary: Versão mínima do app aceita pela API (pública, sem token)
-      description: 'Vem da variável de ambiente APP_MIN_VERSION (MAJOR.MINOR.PATCH); padrão 0.0.0. Valor inválido derruba o servidor na subida. A API não bloqueia versões antigas; só informa.'
+      description: 'Vem da variável de ambiente APP_MIN_VERSION (MAJOR.MINOR.PATCH); padrão 0.0.0. Valor inválido derruba o servidor na subida. Requisição com o cabeçalho X-App-Version abaixo da mínima recebe 426 { message, minVersion } em qualquer rota /api, menos /api/health e /api/app-config; sem o cabeçalho (a SPA) nada é bloqueado.'
       responses:
         '200': { description: 'ok', content: { application/json: { schema: { type: object, properties: { minVersion: { type: string, example: '1.2.0' } } } } } }
   /api/auth/register:
@@ -134,12 +134,12 @@ paths:
               properties:
                 name: { type: string }
                 email: { type: string }
-                password: { type: string }
+                password: { type: string, minLength: 8, description: 'mínimo de 8 caracteres (validatePassword, packages/domain/commerce.js); vale para cadastro e redefinição, não para o login' }
                 propertyOrCompany: { type: string }
                 role: { type: string, enum: [PRODUTOR, VENDEDOR, AMBOS], default: PRODUTOR, description: 'AMBOS = comprador e vendedor; ADMIN não é aceito' }
       responses:
         '201': { description: 'conta criada', content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
-        '400': { description: 'campo obrigatório ausente ou perfil inválido', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '400': { description: 'campo obrigatório ausente, senha com menos de 8 caracteres ou perfil inválido', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 'e-mail já cadastrado', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/auth/login:
     post:
@@ -212,6 +212,12 @@ paths:
     post:
       summary: Publica um anúncio
       security: [{ bearer: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: 'Chave do cliente (8 a 64 letras, números, _ ou -) para reenviar com segurança, como no pedido: a fila offline do app manda a mesma chave a cada tentativa. Mesma chave da mesma conta e mesmo anúncio devolvem o anúncio já criado (200); mesma chave com outro anúncio dá 409. A chave não aparece no catálogo público.'
+          schema: { type: string, minLength: 8, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$' }
       requestBody:
         required: true
         content:
@@ -231,8 +237,10 @@ paths:
                 shippingType: { type: string, default: 'CIF - Entrega na Fazenda' }
                 certification: { type: string, default: 'Emite Nota Fiscal e Certificado MAPA' }
       responses:
+        '200': { description: 'reenvio com a mesma Idempotency-Key e o mesmo anúncio: devolve o anúncio já criado', content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }
         '201': { description: 'anúncio criado', content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }
-        '400': { description: 'dados incompletos, preço/estoque inválidos ou imagem inválida' }
+        '400': { description: 'dados incompletos, preço/estoque inválidos, imagem inválida ou Idempotency-Key malformada' }
+        '409': { description: 'Idempotency-Key já usada com outro anúncio' }
         '401': { description: 'sem token ou token inválido' }
   /api/auth/store:
     put:
@@ -331,7 +339,7 @@ paths:
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
         '400': { description: 'lista vazia, produto fora do catálogo, quantidade que não é inteira de 1 a 10.000 ou Idempotency-Key malformada' }
         '401': { description: 'sem token ou token inválido' }
-        '409': { description: 'Idempotency-Key já usada com outros itens ou cupom' }
+        '409': { description: 'Idempotency-Key já usada com outros itens ou cupom, ou estoque insuficiente (produto com stock numérico): a mensagem diz o produto e quanto há. O pedido aceito baixa o estoque; o reenvio com a mesma chave não baixa de novo.' }
   /api/finance/entries:
     get:
       summary: Extrato financeiro da conta da sessão, do mais recente ao mais antigo (ADMIN também vê só o dele)
@@ -365,6 +373,37 @@ paths:
         '200': { description: 'totais', content: { application/json: { schema: { type: object, properties: { totalUsers: { type: integer }, totalProducts: { type: integer }, totalOrders: { type: integer }, revenue: { type: number } } } } } }
         '401': { description: 'sem token ou token inválido' }
         '403': { description: 'não é ADMIN' }
+  /api/admin/users/{id}/reset-code:
+    post:
+      summary: Gera um código de redefinição de senha para o usuário (o ADMIN repassa por fora)
+      description: 'Código aleatório de 8 caracteres, guardado só como hash, válido por 30 minutos e de uso único. Gerar outro invalida o anterior. Não existe envio por e-mail (decisão pendente do dono).'
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '201': { description: 'código gerado', content: { application/json: { schema: { type: object, properties: { code: { type: string, example: 'K7P2X9QM' }, expiresAt: { type: string, format: date-time } } } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'não é ADMIN' }
+        '404': { description: 'usuário inexistente' }
+  /api/auth/reset-password:
+    post:
+      summary: Troca a senha com o código gerado pelo ADMIN
+      description: 'E-mail ou código errado, vencido ou já usado dão a mesma resposta 400, sem dizer qual. As tentativas passam pelo mesmo limite do login (429 com Retry-After). Ao trocar, as sessões abertas da conta caem (tokenVersion).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code, password]
+              properties:
+                email: { type: string }
+                code: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        '204': { description: 'senha trocada' }
+        '400': { description: 'código inválido ou vencido (mesma mensagem para e-mail errado) ou senha com menos de 8 caracteres' }
+        '429': { description: 'muitas tentativas; tente de novo depois do Retry-After' }
   /api/admin/users:
     get:
       summary: Lista os usuários (sem senha)
