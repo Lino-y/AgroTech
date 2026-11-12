@@ -13,7 +13,7 @@ import { startServer as startServerProcess } from './helpers/start-server.js';
 async function withServer(extraEnv, fn) {
   const dir = mkdtempSync(path.join(tmpdir(), 'agrotech-appconfig-'));
   const started = await startServerProcess({
-    env: { DATA_FILE: path.join(dir, 'db.json'), JWT_SECRET: '', APP_MIN_VERSION: undefined, ...extraEnv }
+    env: { DATA_FILE: path.join(dir, 'db.json'), JWT_SECRET: '', APP_MIN_VERSION: undefined, APP_LATEST_VERSION: undefined, APP_APK_FILE: undefined, ...extraEnv }
   });
   try {
     return await fn(started.base);
@@ -27,7 +27,7 @@ test('sem APP_MIN_VERSION, o padrão é 0.0.0, sem token', async () => {
   await withServer({}, async (base) => {
     const res = await fetch(`${base}/api/app-config`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { minVersion: '0.0.0' });
+    assert.deepEqual(await res.json(), { minVersion: '0.0.0', latestVersion: null, downloadUrl: null });
   });
 });
 
@@ -35,7 +35,7 @@ test('com APP_MIN_VERSION=1.2.0, devolve a versão configurada', async () => {
   await withServer({ APP_MIN_VERSION: '1.2.0' }, async (base) => {
     const res = await fetch(`${base}/api/app-config`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { minVersion: '1.2.0' });
+    assert.deepEqual(await res.json(), { minVersion: '1.2.0', latestVersion: null, downloadUrl: null });
   });
 });
 
