@@ -71,3 +71,16 @@ A spec 08 manda no escopo das fases; este blueprint manda no "como".
   com cópia do banco (login, pedido, reenvio com a mesma chave devolvendo o mesmo pedido, pedidos,
   anunciar, Minha Loja, excluir, extrato, lançamento manual). O total do servidor bateu com o da tela
   (R$ 412,73). As telas não foram vistas em aparelho.
+
+### 8.1 Evidência do APK 0.2.0
+
+Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.2.0.apk` (substitui o 0.1.5), 67.401.370 bytes,
+SHA-256 `c2a5ea1364b6a7b330c0d69f6d228b2264f4d1419970f714b3db56516fbaa13b`.
+
+- `aapt2 dump badging`: `versionCode` 7, `versionName` 0.2.0, permissão `INTERNET` apenas.
+  `apksigner verify`: válido (chave de depuração).
+- Bundle extraído do APK: contém as mensagens de cupom de `packages/domain`, as telas de compra,
+  anúncio, financeiro e pedidos, o `Idempotency-Key` e o endereço `192.168.1.34:3001`.
+- Build numa pasta que espelha o repositório (`C:\b\apps\mobile` e `C:\b\packages\domain`):
+  `BUILD SUCCESSFUL` em 9 min 53 s. Testes do app: 54 de 54; suíte do raiz: 226 de 226.
+- Não visto em aparelho.
