@@ -10,10 +10,10 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { getProductCategoryStyle } from '../../packages/domain/catalog.js';
-import { calculateCartSummary } from '../../packages/domain/commerce.js';
+import { calculateCartSummary, validatePassword } from '../../packages/domain/commerce.js';
 import { buildFinanceEntries } from '../../packages/domain/finance.js';
 import { createTurnQueue } from './write-queue.js';
-import { readAppMinVersion } from './app-version.js';
+import { isBelowMinVersion, readAppMinVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
 dotenv.config();
@@ -352,6 +352,17 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '2mb' }));
 
+// App abaixo da versão mínima (APP_MIN_VERSION) recebe 426 em toda rota /api, menos saúde e a própria
+// configuração, que o app lê para mostrar a tela de atualização. Sem o cabeçalho X-App-Version (a SPA),
+// nada é barrado.
+const VERSION_FREE = new Set(['/api/health', '/api/app-config']);
+app.use((req, res, next) => {
+  const version = req.get('X-App-Version');
+  if (version === undefined || !/^\/api(\/|$)/i.test(req.path) || VERSION_FREE.has(req.path.toLowerCase())) return next();
+  if (!isBelowMinVersion(version, APP_MIN_VERSION)) return next();
+  return res.status(426).json({ message: `Atualize o app: a versão mínima é ${APP_MIN_VERSION}.`, minVersion: APP_MIN_VERSION });
+});
+
 // Uma gravação por vez (ver createTurnQueue). Entra depois do parse do corpo: um cliente lento, que
 // demora a mandar o corpo, não segura a fila de ninguém. O caminho casa sem diferenciar maiúsculas,
 // como o roteamento do Express (/API/orders chega na mesma rota). A vez é devolvida quando a rota
@@ -414,6 +425,8 @@ app.post('/api/auth/register', async (req, res) => {
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Nome, e-mail e senha são obrigatórios.' });
   }
+  const passwordError = validatePassword(password);
+  if (passwordError) return res.status(400).json({ message: passwordError });
   if (!SIGNUP_ROLES.includes(role)) {
     return res.status(400).json({ message: 'Perfil inválido: use PRODUTOR, VENDEDOR ou AMBOS.' });
   }
@@ -465,6 +478,48 @@ app.post('/api/auth/login', async (req, res) => {
 
   const token = signToken(user);
   res.json({ user: sanitizeUser(user), token });
+});
+
+// Redefinição de senha por código que o ADMIN gera e repassa por fora (não há e-mail: decisão pendente
+// do dono). Código de 8 caracteres de um alfabeto de 32 (sem 0, O, 1, I), guardado só como hash,
+// válido por 30 minutos e de uso único. E-mail errado e código errado dão a mesma resposta, com o
+// mesmo custo de bcrypt (hash falso), e as tentativas contam no mesmo limite do login.
+const RESET_CODE_TTL_MS = 30 * 60 * 1000;
+const RESET_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const RESET_DECOY_HASH = bcrypt.hashSync('codigo-que-nunca-confere', 10);
+const RESET_FAILED = 'Código inválido ou vencido. Peça um novo ao suporte.';
+
+function newResetCode() {
+  // 256 é múltiplo de 32: o resto da divisão não favorece nenhuma letra.
+  return [...crypto.randomBytes(8)].map((byte) => RESET_ALPHABET[byte % RESET_ALPHABET.length]).join('');
+}
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { email, code, password } = req.body || {};
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const wait = blockedSeconds(loginFailures, normalizedEmail, Date.now());
+  if (wait > 0) {
+    res.set('Retry-After', String(wait));
+    return res.status(429).json({ message: 'Muitas tentativas. Tente de novo em alguns minutos.' });
+  }
+  const passwordError = validatePassword(password);
+  if (passwordError) return res.status(400).json({ message: passwordError });
+
+  const db = await readDb();
+  const user = db.users.find((item) => item.email === normalizedEmail);
+  const live = Boolean(user?.resetCodeHash) && Date.now() < Date.parse(user.resetCodeExpiresAt || '');
+  const matches = bcrypt.compareSync(String(code || '').trim().toUpperCase(), live ? user.resetCodeHash : RESET_DECOY_HASH);
+  if (!user || !live || !matches) {
+    recordFailure(loginFailures, normalizedEmail, Date.now());
+    return res.status(400).json({ message: RESET_FAILED });
+  }
+  clearFailures(loginFailures, normalizedEmail);
+  user.password = bcrypt.hashSync(String(password), 10);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  delete user.resetCodeHash;
+  delete user.resetCodeExpiresAt;
+  await writeDb(db);
+  res.status(204).end();
 });
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
@@ -575,7 +630,13 @@ const parseInteger = (raw) => (/^\d+$/.test(raw) ? Number(raw) : NaN);
 // Lista pública: o e-mail de quem avaliou fica no banco (é o vínculo para excluir a conta e a própria
 // avaliação), mas não sai na resposta. A SPA mostra só autor, nota e texto.
 const publicComment = (comment) => ({ id: comment.id, author: comment.author, text: comment.text, rating: comment.rating });
-const publicProduct = (product) => (product.comments ? { ...product, comments: product.comments.map(publicComment) } : product);
+// A chave e o hash de idempotência do anúncio são do dono: não saem no catálogo público.
+const publicProduct = (stored) => {
+  const product = { ...stored };
+  delete product.idempotencyKey;
+  delete product.requestHash;
+  return product.comments ? { ...product, comments: product.comments.map(publicComment) } : product;
+};
 
 app.get('/api/products', async (req, res) => {
   const { page, limit } = req.query;
@@ -624,17 +685,27 @@ function idempotencyFields(key, lines, coupon) {
 
 // Resposta de reenvio: 200 com o pedido já criado; 409 se a chave veio com outros itens; 400 se for
 // malformada. Devolve null quando a chave é nova ou não foi enviada (aí o pedido é criado).
-function replayOrderResponse(db, email, key, lines, coupon) {
+function replayResponse(records, email, key, fingerprint, what) {
   if (key === undefined) return null;
   if (!IDEMPOTENCY_KEY_RE.test(key)) {
     return { status: 400, body: { message: 'Idempotency-Key inválida: use de 8 a 64 letras, números, _ ou -.' } };
   }
-  const previous = db.orders.find((order) => order.ownerEmail === email && order.idempotencyKey === key);
+  const previous = records.find((record) => record.ownerEmail === email && record.idempotencyKey === key);
   if (!previous) return null;
-  if (previous.requestHash !== orderFingerprint(lines, coupon)) {
-    return { status: 409, body: { message: 'Essa Idempotency-Key já foi usada com outro pedido.' } };
+  if (previous.requestHash !== fingerprint) {
+    return { status: 409, body: { message: `Essa Idempotency-Key já foi usada com outro ${what}.` } };
   }
   return { status: 200, body: previous };
+}
+
+function replayOrderResponse(db, email, key, lines, coupon) {
+  return replayResponse(db.orders, email, key, key === undefined ? '' : orderFingerprint(lines, coupon), 'pedido');
+}
+
+// Hash do anúncio pedido (os campos do corpo, já com os padrões): diferencia o reenvio da fila offline
+// do app de um anúncio novo que reaproveitou a chave.
+function productFingerprint(fields) {
+  return crypto.createHash('sha256').update(JSON.stringify(fields)).digest('hex');
 }
 
 app.post('/api/products', authenticate, async (req, res) => {
@@ -659,10 +730,15 @@ app.post('/api/products', authenticate, async (req, res) => {
     return res.status(400).json({ message: 'Imagem inválida: use um link http(s) ou envie uma foto.' });
   }
   const style = getProductCategoryStyle(String(category).trim());
+  const idempotencyKey = req.get('Idempotency-Key');
+  const fingerprint = productFingerprint([name, priceValue, category, description, imageUrl ?? null, unit, location, stockValue, shippingType, certification]);
 
   const db = await readDb();
+  const replay = replayResponse(db.products, req.user.email, idempotencyKey, fingerprint, 'anúncio');
+  if (replay) return res.status(replay.status).json(replay.status === 200 ? publicProduct(replay.body) : replay.body);
   const product = {
     id: newProductId(),
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey, requestHash: fingerprint }),
     name: cleanText(name),
     price: priceValue,
     category: cleanText(category),
@@ -684,7 +760,7 @@ app.post('/api/products', authenticate, async (req, res) => {
 
   db.products.unshift(product);
   await writeDb(db);
-  res.status(201).json(product);
+  res.status(201).json(publicProduct(product));
 });
 
 app.post('/api/products/:id/reviews', authenticate, async (req, res) => {
@@ -783,6 +859,16 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const replay = replayOrderResponse(db, req.user.email, idempotencyKey, lines, coupon);
   if (replay) return res.status(replay.status).json(replay.body);
 
+  // Estoque: só produto com stock numérico (os de demonstração não têm). Soma as linhas do mesmo
+  // produto. O reenvio com a mesma chave voltou acima, então nunca baixa duas vezes.
+  const wanted = new Map();
+  for (const { product, quantity } of lines) wanted.set(product, (wanted.get(product) || 0) + quantity);
+  for (const [product, quantity] of wanted) {
+    if (typeof product.stock === 'number' && quantity > product.stock) {
+      return res.status(409).json({ message: `Estoque insuficiente para ${product.name}: há ${product.stock} disponível(is).` });
+    }
+  }
+
   const orderItems = lines.map(({ product, quantity }) => ({
     id: product.id,
     name: product.name,
@@ -821,6 +907,9 @@ app.post('/api/orders', authenticate, async (req, res) => {
     ]
   };
 
+  for (const [product, quantity] of wanted) {
+    if (typeof product.stock === 'number') product.stock -= quantity;
+  }
   db.orders.unshift(order);
   await writeDb(db);
   res.status(201).json(order);
@@ -867,6 +956,18 @@ app.get('/api/admin/summary', authenticate, requireAdmin, async (_, res) => {
     totalOrders: db.orders.length,
     revenue
   });
+});
+
+app.post('/api/admin/users/:id/reset-code', authenticate, requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find((item) => item.id === req.params.id);
+  if (!user) return res.status(404).json({ message: 'Usuário não encontrado.' });
+  const code = newResetCode();
+  const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MS).toISOString();
+  user.resetCodeHash = bcrypt.hashSync(code, 10);
+  user.resetCodeExpiresAt = expiresAt;
+  await writeDb(db);
+  res.status(201).json({ code, expiresAt });
 });
 
 app.get('/api/admin/users', authenticate, requireAdmin, async (_, res) => {

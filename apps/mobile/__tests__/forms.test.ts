@@ -12,11 +12,11 @@ test('e-mail precisa de usuário, arroba e domínio', () => {
 });
 
 test('cadastro exige nome, e-mail válido e senha, nessa ordem', () => {
-  assert.equal(validateRegister({ name: '', email: 'a@b.co', password: 'x' }), 'Informe seu nome.');
-  assert.equal(validateRegister({ name: '  ', email: 'a@b.co', password: 'x' }), 'Informe seu nome.');
-  assert.equal(validateRegister({ name: 'Ana', email: 'ana', password: 'x' }), 'Informe um e-mail válido.');
+  assert.equal(validateRegister({ name: '', email: 'a@b.co', password: 'senha-123' }), 'Informe seu nome.');
+  assert.equal(validateRegister({ name: '  ', email: 'a@b.co', password: 'senha-123' }), 'Informe seu nome.');
+  assert.equal(validateRegister({ name: 'Ana', email: 'ana', password: 'senha-123' }), 'Informe um e-mail válido.');
   assert.equal(validateRegister({ name: 'Ana', email: 'a@b.co', password: '' }), 'Informe uma senha.');
-  assert.equal(validateRegister({ name: 'Ana', email: 'a@b.co', password: 'x' }), null);
+  assert.equal(validateRegister({ name: 'Ana', email: 'a@b.co', password: 'senha-123' }), null);
 });
 
 test('perfis do cadastro são só os que o servidor aceita (ADMIN nunca)', () => {

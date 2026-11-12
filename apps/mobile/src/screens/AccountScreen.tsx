@@ -12,6 +12,9 @@ type Props = {
   onLogin: () => void;
   onRegister: () => void;
   onOrders: () => void;
+  onFavorites: () => void;
+  onSupport: () => void;
+  onAdmin: () => void;
   onLogout: () => void;
 };
 
@@ -22,8 +25,10 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Administrador'
 };
 
-// Conta: entrar ou criar conta (visitante); dados, pedidos e sair (logado).
-export function AccountScreen({ user, onLogin, onRegister, onOrders, onLogout }: Props): React.JSX.Element {
+// Conta: entrar ou criar conta (visitante); dados, pedidos, favoritos e sair (logado); suporte para
+// todos; usuários e códigos de senha só para o ADMIN.
+export function AccountScreen(props: Props): React.JSX.Element {
+  const { user, onLogin, onRegister, onOrders, onFavorites, onSupport, onAdmin, onLogout } = props;
   return (
     <View style={ui.screen}>
       <ScreenHeader title={user ? `Olá, ${user.name.split(' ')[0] || 'produtor'}` : 'Conta'} />
@@ -36,6 +41,9 @@ export function AccountScreen({ user, onLogin, onRegister, onOrders, onLogout }:
               <Text style={ui.text}>{ROLE_LABELS[user.role] ?? user.role}</Text>
             </View>
             <Button title="Meus pedidos" variant="outline" onPress={onOrders} />
+            <Button title="Meus favoritos" variant="outline" onPress={onFavorites} />
+            <Button title="Suporte" variant="outline" onPress={onSupport} />
+            {user.role === 'ADMIN' ? <Button title="Usuários (gerar código de senha)" variant="outline" onPress={onAdmin} /> : null}
             <Button title="Sair da conta" variant="outline" onPress={onLogout} />
           </>
         ) : (
@@ -44,6 +52,7 @@ export function AccountScreen({ user, onLogin, onRegister, onOrders, onLogout }:
             <Text style={ui.muted}>Com a conta você compra, anuncia seus produtos e acompanha o financeiro.</Text>
             <Button title="Entrar" onPress={onLogin} />
             <Button title="Criar conta" variant="outline" onPress={onRegister} />
+            <Button title="Suporte" variant="outline" onPress={onSupport} />
           </View>
         )}
         <Text style={styles.version}>AgroTech v{app.expo.version} · versão de teste</Text>

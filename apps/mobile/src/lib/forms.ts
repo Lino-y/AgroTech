@@ -1,4 +1,5 @@
 // Regras de formulário do cadastro. Funções puras: o servidor valida tudo de novo (apps/api/server.js).
+import { validatePassword } from '../domain.ts';
 
 export type SignupRole = 'PRODUTOR' | 'VENDEDOR' | 'AMBOS';
 
@@ -19,5 +20,8 @@ export function validateRegister(form: { name: string; email: string; password: 
   if (!form.name.trim()) return 'Informe seu nome.';
   if (!isValidEmail(form.email)) return 'Informe um e-mail válido.';
   if (!form.password) return 'Informe uma senha.';
+  // Mesma regra do servidor (packages/domain/commerce.js): mínimo de 8 caracteres.
+  const passwordError = validatePassword(form.password);
+  if (passwordError) return passwordError;
   return null;
 }

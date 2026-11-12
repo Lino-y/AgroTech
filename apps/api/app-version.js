@@ -18,3 +18,17 @@ export function readAppMinVersion(raw) {
   }
   return { version: raw };
 }
+
+/**
+ * O app (cabeçalho X-App-Version) está abaixo da versão mínima? Versão fora do formato conta como
+ * abaixo: um app que não informa direito a própria versão não deve passar pela checagem.
+ * @param {string} version
+ * @param {string} min
+ */
+export function isBelowMinVersion(version, min) {
+  if (!FORMAT.test(version)) return true;
+  const a = version.split('.').map(Number);
+  const b = min.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i];
+  return false;
+}

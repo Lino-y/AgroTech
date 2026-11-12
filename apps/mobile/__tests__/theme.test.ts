@@ -2,7 +2,7 @@
 // ui-ux-pro-max, prioridade 1). Falha se um token novo ou alterado ficar ilegível.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { colors } from '../src/theme.ts';
+import { darkColors, lightColors } from '../src/theme.ts';
 
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5]
@@ -16,7 +16,8 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const TEXT_PAIRS: [keyof typeof colors, keyof typeof colors][] = [
+type Colors = typeof lightColors;
+const TEXT_PAIRS: [keyof Colors, keyof Colors][] = [
   ['foreground', 'background'],
   ['foreground', 'surface'],
   ['mutedForeground', 'background'],
@@ -33,14 +34,20 @@ const TEXT_PAIRS: [keyof typeof colors, keyof typeof colors][] = [
   ['onOverlay', 'overlay']
 ];
 
-for (const [text, bg] of TEXT_PAIRS) {
-  test(`texto ${text} sobre ${bg} tem contraste >= 4,5:1`, () => {
-    const ratio = contrast(colors[text], colors[bg]);
-    assert.ok(ratio >= 4.5, `${colors[text]} sobre ${colors[bg]}: ${ratio.toFixed(2)}`);
+for (const [theme, colors] of [['claro', lightColors], ['escuro', darkColors]] as const) {
+  for (const [text, bg] of TEXT_PAIRS) {
+    test(`tema ${theme}: texto ${text} sobre ${bg} tem contraste >= 4,5:1`, () => {
+      const ratio = contrast(colors[text], colors[bg]);
+      assert.ok(ratio >= 4.5, `${colors[text]} sobre ${colors[bg]}: ${ratio.toFixed(2)}`);
+    });
+  }
+
+  test(`tema ${theme}: contorno de campo e controle tem contraste >= 3:1 na superfície e no fundo`, () => {
+    assert.ok(contrast(colors.borderStrong, colors.surface) >= 3);
+    assert.ok(contrast(colors.borderStrong, colors.background) >= 3);
   });
 }
 
-test('contorno de campo e controle tem contraste >= 3:1 no branco e no fundo', () => {
-  assert.ok(contrast(colors.borderStrong, colors.surface) >= 3);
-  assert.ok(contrast(colors.borderStrong, colors.background) >= 3);
+test('os dois temas têm as mesmas chaves', () => {
+  assert.deepEqual(Object.keys(darkColors).sort(), Object.keys(lightColors).sort());
 });

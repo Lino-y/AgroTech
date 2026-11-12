@@ -4,7 +4,7 @@ import { apiRequest } from './api.ts';
 import type { SignupRole } from '../lib/forms.ts';
 import { clearSession, setSession } from './storage.ts';
 
-export type User = { id: string; name: string; email: string; role: string };
+export type User = { id: string; name: string; email: string; role: string; propertyOrCompany?: string };
 
 export async function login(email: string, password: string): Promise<User> {
   const res = await apiRequest<{ token: string; user: User }>('/auth/login', {
@@ -28,6 +28,11 @@ export async function register(input: RegisterInput): Promise<User> {
   const res = await apiRequest<{ token: string; user: User }>('/auth/register', { method: 'POST', body: input });
   await setSession({ token: res.token, user: res.user as unknown as Record<string, unknown> });
   return res.user;
+}
+
+/** Troca a senha com o código que o ADMIN gerou (POST /api/auth/reset-password, spec 05). */
+export async function resetPassword(email: string, code: string, password: string): Promise<void> {
+  await apiRequest<void>('/auth/reset-password', { method: 'POST', body: { email, code, password } });
 }
 
 export async function logout(): Promise<void> {

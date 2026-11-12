@@ -1,7 +1,7 @@
 // Tokens do app. Cores da marca vêm da web (src/styles/tokens.css e src/modules/catalog.js); os nomes
 // são semânticos (papel, não tom), como pede a skill ui-ux-pro-max, e o contraste de cada par de
-// texto é testado em __tests__/theme.test.ts. A fonte da web (Outfit) não entra: fonte do sistema.
-export const colors = {
+// texto é testado em __tests__/theme.test.ts, nos dois temas. Títulos na fonte da web (Outfit).
+export const lightColors = {
   background: '#F4FBF7',
   surface: '#FFFFFF',
   foreground: '#1B5E20',
@@ -27,7 +27,38 @@ export const colors = {
   onOverlay: '#FFFFFF',
   /** Ripple do Android ao tocar. */
   ripple: '#C8E6C9'
-} as const;
+};
+
+/** Tema escuro: mesmas chaves e os mesmos contrastes mínimos (testados). */
+export const darkColors: typeof lightColors = {
+  background: '#0F1A14',
+  surface: '#17241C',
+  foreground: '#E3F2E6',
+  mutedForeground: '#A9BFB0',
+  secondaryForeground: '#8FD19E',
+  primary: '#7CCB82',
+  onPrimary: '#0B1F10',
+  primarySoft: '#1E3326',
+  border: '#2C4434',
+  borderStrong: '#5E8A6A',
+  accent: '#FBBF24',
+  destructive: '#FF8A80',
+  destructiveSoft: '#3A1B1B',
+  warningSoft: '#3A2E12',
+  warningForeground: '#FFD27A',
+  overlay: '#0B1F10',
+  onOverlay: '#FFFFFF',
+  ripple: '#2C4434'
+};
+
+// ponytail: o tema é escolhido uma vez, ao abrir o app (index.ts lê o tema do aparelho antes de
+// carregar as telas), porque os estilos são criados quando cada tela é carregada. Trocar o tema do
+// aparelho com o app aberto só vale na próxima abertura; tema ao vivo pede estilos por hook.
+export const isDark = (globalThis as { agroColorScheme?: string }).agroColorScheme === 'dark';
+export const colors = isDark ? darkColors : lightColors;
+
+/** Família dos títulos (Outfit, carregada no App). Corpo de texto na fonte do sistema. */
+export const fonts = { heading: 'Outfit_700Bold' } as const;
 
 // Alvo de toque mínimo recomendado para o Android (48 dp) e para o iOS (44 pt).
 export const MIN_TOUCH = 48;

@@ -1,7 +1,7 @@
 // Cliente HTTP único do app (RN03 da spec 08): põe o token, aplica timeout e trata erro com tipo.
 // Política igual à da web (src/services/api.js): só 401 de quem tinha token encerra a sessão.
 // 403 é regra de negócio (ex.: excluir o anúncio de outro) e não encerra nada.
-import { API_URL } from '../config.ts';
+import { API_URL, APP_VERSION } from '../config.ts';
 import { clearSession, getSession } from './storage.ts';
 
 export class ApiError extends Error {
@@ -31,12 +31,20 @@ export function onSessionExpired(listener: (() => void) | null): void {
   sessionExpiredListener = listener;
 }
 
+// Quem ouve "app desatualizado" (426 da API, versão abaixo da mínima): o App mostra a tela de atualizar.
+let appOutdatedListener: ((minVersion: string) => void) | null = null;
+
+export function onAppOutdated(listener: ((minVersion: string) => void) | null): void {
+  appOutdatedListener = listener;
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, baseUrl = API_URL, timeoutMs = DEFAULT_TIMEOUT_MS, headers: extra = {} } = options;
 
   const session = await getSession();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-App-Version': APP_VERSION,
     ...extra,
     ...(session ? { Authorization: `Bearer ${session.token}` } : {})
   };
@@ -52,7 +60,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       signal: controller.signal
     });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { message?: string };
+      const payload = (await response.json().catch(() => ({}))) as { message?: string; minVersion?: string };
+      if (response.status === 426) appOutdatedListener?.(payload.minVersion ?? '');
       if (response.status === 401 && session) {
         await clearSession();
         sessionExpiredListener?.();

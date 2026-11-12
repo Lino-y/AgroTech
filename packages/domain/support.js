@@ -1,3 +1,10 @@
+// @ts-check
+// Respostas do robô de suporte (web e app usam a mesma regra; ADR-0002).
+/**
+ * @param {string} [userText]
+ * @param {{ propertyOrCompany?: string }} [user]
+ * @returns {{ text: string, nextScreen: string | null, isHuman: boolean }}
+ */
 export function buildSupportReply(userText = '', user = {}) {
   const lower = String(userText).toLowerCase();
   const propName = user.propertyOrCompany || 'sua propriedade';

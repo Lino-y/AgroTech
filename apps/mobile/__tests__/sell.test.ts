@@ -1,7 +1,7 @@
 // Anúncio: preço em formato brasileiro e validação antes de enviar (o servidor valida de novo).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePriceBR, validateProduct } from '../src/lib/sell.ts';
+import { MAX_PHOTO_BYTES, parsePriceBR, photoDataUrl, validateProduct } from '../src/lib/sell.ts';
 
 test('preço aceita vírgula decimal e ponto de milhar', () => {
   assert.equal(parsePriceBR('89,90'), 89.9);
@@ -35,4 +35,13 @@ test('estoque é inteiro de 0 a 1.000.000', () => {
   assert.equal(validateProduct({ ...ok, stock: '2,5' }), 'O estoque é um número inteiro de 0 a 1.000.000.');
   assert.equal(validateProduct({ ...ok, stock: '-1' }), 'O estoque é um número inteiro de 0 a 1.000.000.');
   assert.equal(validateProduct({ ...ok, stock: '1000001' }), 'O estoque é um número inteiro de 0 a 1.000.000.');
+});
+
+test('foto vira data URL JPEG; acima de 1,4 MB (o limite da web) é recusada', () => {
+  const small = Buffer.alloc(1000, 1).toString('base64');
+  assert.equal(photoDataUrl(small), `data:image/jpeg;base64,${small}`);
+  const big = Buffer.alloc(MAX_PHOTO_BYTES + 1, 1).toString('base64');
+  assert.equal(photoDataUrl(big), null);
+  const exact = Buffer.alloc(MAX_PHOTO_BYTES, 1).toString('base64');
+  assert.ok(photoDataUrl(exact));
 });

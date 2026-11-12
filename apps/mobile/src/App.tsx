@@ -1,13 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
+// Só o peso usado (Bold): o índice do pacote levaria as 9 variações da família para o APK.
+import { Outfit_700Bold } from '@expo-google-fonts/outfit/700Bold';
 import { TabBar } from './components/TabBar.tsx';
 import { addToCart, cartCount, serializeCart, type CartLine } from './lib/cart.ts';
 import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogin, type Nav } from './lib/navigation.ts';
 import { AccountScreen } from './screens/AccountScreen.tsx';
+import { AdminUsersScreen } from './screens/AdminUsersScreen.tsx';
+import { FavoritesScreen } from './screens/FavoritesScreen.tsx';
+import { SupportScreen } from './screens/SupportScreen.tsx';
+import { UpdateScreen } from './screens/UpdateScreen.tsx';
 import { AuthScreen } from './screens/AuthScreen.tsx';
 import { CartScreen } from './screens/CartScreen.tsx';
 import { CatalogScreen } from './screens/CatalogScreen.tsx';
@@ -15,10 +22,13 @@ import { FinanceScreen } from './screens/FinanceScreen.tsx';
 import { OrdersScreen } from './screens/OrdersScreen.tsx';
 import { ProductDetailScreen } from './screens/ProductDetailScreen.tsx';
 import { SellScreen } from './screens/SellScreen.tsx';
-import { onSessionExpired } from './services/api.ts';
+import { onAppOutdated, onSessionExpired } from './services/api.ts';
+import { loadFavorites, toggleFavorite } from './services/favorites.ts';
+import { flushOutbox, readOutbox } from './services/outbox.ts';
+import type { Product } from './services/products.ts';
 import { logout, type User } from './services/auth.ts';
 import { getSession, readCache, saveCache, setKeyValueStore, setSecureStore } from './services/storage.ts';
-import { colors } from './theme.ts';
+import { colors, isDark } from './theme.ts';
 
 // Raiz do app: sessão, carrinho (guardado no aparelho, Fase 3) e navegação (abas + pilha). Como na web, o app abre no
 // catálogo; comprar, anunciar, financeiro e pedidos pedem conta e voltam ao destino depois do login.
@@ -27,6 +37,11 @@ export default function App(): React.JSX.Element {
   const [user, setUser] = useState<User | null>(null);
   const [nav, setNav] = useState<Nav>(INITIAL_NAV);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [favorites, setFavorites] = useState<Product[]>([]);
+  // Versão mínima pedida pela API (426): o app inteiro dá lugar à tela de atualizar.
+  const [outdated, setOutdated] = useState<string | null>(null);
+  // Fonte dos títulos (a da web). Se não carregar, segue com a do sistema em vez de travar.
+  const [fontsLoaded, fontError] = useFonts({ Outfit_700Bold });
   const loggedIn = user !== null;
 
   useEffect(() => {
@@ -46,8 +61,22 @@ export default function App(): React.JSX.Element {
         current.tab === 'sell' || current.tab === 'finance' ? requireLogin(INITIAL_NAV, { tab: current.tab }) : current
       );
     });
-    return () => onSessionExpired(null);
+    onAppOutdated((minVersion) => setOutdated(minVersion));
+    return () => {
+      onSessionExpired(null);
+      onAppOutdated(null);
+    };
   }, []);
+
+  // Ao entrar (ou abrir já logado): favoritos da conta e envio da fila de anúncios guardados offline.
+  useEffect(() => {
+    if (!user) {
+      setFavorites([]);
+      return;
+    }
+    void loadFavorites(user.id).then(setFavorites);
+    void flushOutbox(user.id);
+  }, [user]);
 
   // Guarda o carrinho a cada mudança (só produto e quantidade: nada de pagamento, RN06).
   useEffect(() => {
@@ -65,7 +94,7 @@ export default function App(): React.JSX.Element {
     return () => subscription.remove();
   }, [nav]);
 
-  if (!ready) {
+  if (!ready || (!fontsLoaded && !fontError)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator color={colors.primary} />
@@ -76,10 +105,24 @@ export default function App(): React.JSX.Element {
   const goBack = () => setNav((current) => back(current) ?? INITIAL_NAV);
   const top = nav.stack[nav.stack.length - 1];
 
-  async function signOut(): Promise<void> {
+  async function finishSignOut(): Promise<void> {
     await logout();
     setUser(null);
     setNav(INITIAL_NAV);
+  }
+
+  // Anúncio guardado offline fica na fila da conta e sai quando ela entrar de novo: avisa antes de sair.
+  async function signOut(): Promise<void> {
+    const waiting = user ? (await readOutbox(user.id)).filter((item) => item.status === 'pending').length : 0;
+    if (waiting === 0) return finishSignOut();
+    Alert.alert(
+      'Anúncios aguardando internet',
+      `${waiting} ${waiting === 1 ? 'anúncio ainda não foi publicado' : 'anúncios ainda não foram publicados'}. Eles ficam guardados e saem quando você entrar de novo com internet.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair mesmo assim', onPress: () => void finishSignOut() }
+      ]
+    );
   }
 
   function renderScreen(): React.JSX.Element {
@@ -101,14 +144,42 @@ export default function App(): React.JSX.Element {
       return (
         <ProductDetailScreen
           product={top.product}
+          loggedIn={loggedIn}
+          isFavorite={favorites.some((item) => item.id === top.product.id)}
           onBack={goBack}
           onAdd={(product, quantity) => setCart((lines) => addToCart(lines, product, quantity))}
           onGoToCart={() => setNav((current) => openTab(current, 'cart', loggedIn))}
+          onToggleFavorite={(product) => {
+            if (user) void toggleFavorite(user.id, product).then(setFavorites);
+          }}
+          onNeedLogin={() => setNav((current) => requireLogin(current, null))}
         />
       );
     }
     if (top?.name === 'orders') {
       return <OrdersScreen onBack={goBack} onBrowse={() => setNav(INITIAL_NAV)} />;
+    }
+    if (top?.name === 'support') {
+      return (
+        <SupportScreen
+          propertyOrCompany={user?.propertyOrCompany}
+          onBack={goBack}
+          onOpenOrders={() => setNav((current) => open(current, { name: 'orders' }, loggedIn))}
+        />
+      );
+    }
+    if (top?.name === 'favorites') {
+      return (
+        <FavoritesScreen
+          favorites={favorites}
+          onBack={goBack}
+          onOpenProduct={(product) => setNav((current) => open(current, { name: 'product', product }, loggedIn))}
+          onBrowse={() => setNav(INITIAL_NAV)}
+        />
+      );
+    }
+    if (top?.name === 'admin') {
+      return <AdminUsersScreen onBack={goBack} />;
     }
 
     const account = (
@@ -117,6 +188,9 @@ export default function App(): React.JSX.Element {
         onLogin={() => setNav((current) => requireLogin(current, null))}
         onRegister={() => setNav((current) => requireLogin(current, null, 'register'))}
         onOrders={() => setNav((current) => open(current, { name: 'orders' }, loggedIn))}
+        onFavorites={() => setNav((current) => open(current, { name: 'favorites' }, loggedIn))}
+        onSupport={() => setNav((current) => open(current, { name: 'support' }, loggedIn))}
+        onAdmin={() => setNav((current) => open(current, { name: 'admin' }, loggedIn))}
         onLogout={signOut}
       />
     );
@@ -137,7 +211,7 @@ export default function App(): React.JSX.Element {
           />
         );
       case 'sell':
-        return user ? <SellScreen email={user.email} /> : account;
+        return user ? <SellScreen email={user.email} userId={user.id} /> : account;
       case 'finance':
         return user ? <FinanceScreen /> : account;
       case 'account':
@@ -147,14 +221,26 @@ export default function App(): React.JSX.Element {
           <CatalogScreen
             userName={user?.name ?? null}
             onOpenProduct={(product) => setNav((current) => open(current, { name: 'product', product }, loggedIn))}
+            onLive={() => {
+              if (user) void flushOutbox(user.id);
+            }}
           />
         );
     }
   }
 
+  if (outdated !== null) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <UpdateScreen minVersion={outdated} onRetry={() => setOutdated(null)} />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <View style={{ flex: 1, backgroundColor: colors.background }}>{renderScreen()}</View>
       {top?.name === 'auth' ? null : (
         <TabBar

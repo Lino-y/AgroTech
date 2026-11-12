@@ -6,9 +6,9 @@ import { ApiError } from '../services/api.ts';
 import { login, type User } from '../services/auth.ts';
 import { colors, radius } from '../theme.ts';
 
-type Props = { onLoggedIn: (user: User) => void };
+type Props = { onLoggedIn: (user: User) => void; onForgot: () => void };
 
-export function LoginForm({ onLoggedIn }: Props): React.JSX.Element {
+export function LoginForm({ onLoggedIn, onForgot }: Props): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,6 +66,7 @@ export function LoginForm({ onLoggedIn }: Props): React.JSX.Element {
       ) : null}
 
       <Button title="Entrar" onPress={submit} loading={loading} />
+      <Button title="Esqueci minha senha" variant="outline" onPress={onForgot} />
     </View>
   );
 }
