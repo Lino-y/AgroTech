@@ -164,6 +164,16 @@ Substitui o 0.1.3. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.4.apk`, 
 - API reiniciada com o código novo: recusa `ADMIN` com "Perfil inválido: use PRODUTOR, VENDEDOR ou AMBOS." e responde em `192.168.1.34:3001`.
 - Não visto em aparelho.
 
+### 8.8 Evidência do APK 0.1.5 (barras do aparelho)
+
+Substitui o 0.1.4. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.5.apk`, 67.341.222 bytes, SHA-256
+`19f60bf99949bc32c47ba2d8e4e65ca9690b9b8a66cdc415a085b1b1bd6434ed`.
+
+- `aapt2 dump badging`: `versionCode` 6, `versionName` 0.1.5, permissão `INTERNET` apenas. `apksigner verify`: válido.
+- Bundle extraído do APK: usa `SafeAreaProvider`, aponta para `192.168.1.34:3001`, sem o IP antigo. A parte nativa (`RNCSafeAreaProvider`) está em `classes.dex` e no `libappmodules.so` das 4 arquiteturas.
+- O build falhou duas vezes por caminho com mais de 260 caracteres no código nativo da biblioteca (o `ninja` 1.10.2 do CMake 3.22.1 não aceita caminho longo). Resolvido com o CMake 3.31.6 do SDK (`ninja` 1.12.1) e a pasta de build movida para `C:\b`. Passos em `apps/mobile/README.md`. `BUILD SUCCESSFUL` em 7 min 05 s.
+- Testes do app: 27 de 27; `tsc` sem erro. Não visto em aparelho: falta confirmar no celular que a barra Catálogo/Entrar fica acima dos botões.
+
 ### 8.2 Evidência do APK sem permissões extras
 
 O APK de 8.1 foi substituído pelo build seguinte (mesma versão, `versionCode` 1). Arquivo atual:

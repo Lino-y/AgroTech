@@ -28,6 +28,12 @@ Cuidado: o Gradle não vê a troca de `EXPO_PUBLIC_API_URL` como mudança e reap
 antigo (o build termina em segundos, com o endereço velho dentro). Ao trocar o endereço, force o
 bundle: `./gradlew :app:createBundleReleaseJsAndAssets --rerun :app:assembleRelease`.
 
+No Windows, o código nativo do `react-native-safe-area-context` gera caminhos com mais de 260
+caracteres, e o `ninja` do CMake 3.22.1 não aceita caminho longo. Use o CMake 3.31.6 do SDK (traz o
+`ninja` 1.12.1) e aponte para ele no `android/local.properties`:
+`cmake.dir=C\:/Users/<você>/Android/Sdk/cmake/3.31.6`. Gere o build numa pasta de caminho curto
+(por exemplo `C:`) e deixe ligado o `LongPathsEnabled` do Windows.
+
 ## Limitações conhecidas
 
 - O APK é assinado com a chave de depuração do React Native (não há keystore de
