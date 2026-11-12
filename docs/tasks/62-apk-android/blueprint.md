@@ -20,6 +20,7 @@ contra a API antes de qualquer conta de loja.
 | CA06 | Tráfego HTTP em texto claro liberado só para o build de teste | build | ✅ | `apps/mobile/app.json:17` (plugin `expo-build-properties`) |
 | CA07 | Tipos estritos e testes passam | comando | ✅ | `apps/mobile/package.json:10` (`npm test`, 11 de 11) e `apps/mobile/package.json:11` (`npm run typecheck`) |
 | CA08 | APK Android gerado e assinado | build + `apksigner verify` + `aapt2 dump badging` | ✅ | procedimento: `apps/mobile/README.md:19`; evidência: seção 8.1 |
+| CA09 | APK sem permissões que o app não usa | `aapt2 dump badging` | ✅ | `apps/mobile/app.json:11`; evidência: seção 8.2 |
 
 ## 3. Contratos (antes do código)
 
@@ -66,9 +67,11 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
 - **Assinatura:** o APK sai com a chave de depuração do React Native. Não é para publicar.
 - **Não testado em aparelho.** A verificação é de build e de assinatura; instalar e rodar no celular
   é passo do dono do projeto.
-- **Permissões extras.** O APK pede `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,
-  `VIBRATE`, `USE_BIOMETRIC` e `USE_FINGERPRINT`, vindas das bibliotecas. O app não usa nenhuma delas.
-  Remover antes de publicar (`android.blockedPermissions` no `app.json`); não foi feito nesta entrega.
+- **Permissões extras (resolvido).** O APK pedia `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,
+  `VIBRATE`, `USE_BIOMETRIC` e `USE_FINGERPRINT`, que o app não usa. O manifesto gerado pelo prebuild
+  declara as três primeiras; as biométricas vêm do `androidx.biometric`. Bloqueadas em
+  `apps/mobile/app.json:11` a `:17` (`android.blockedPermissions`, suportado pelo Expo 58). Verificação
+  do APK novo na seção 8.2.
 - **IP da API a confirmar.** O endereço gravado no APK é `10.210.61.27:3001` (Ethernet 2). O
   adaptador Wi-Fi não apareceu com IPv4 na verificação. Se o celular não alcançar esse endereço, gerar de
   novo com `EXPO_PUBLIC_API_URL` correto. A API precisa estar rodando (`npm start`) e a porta 3001
@@ -88,3 +91,14 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
 - Build: `./gradlew assembleRelease` com JDK 17 e SDK em `C:\Users\Rooselt\Android\Sdk`
   (platform 37, build-tools 35.0.0, NDK 27.1.12297006, CMake 3.22.1). `BUILD SUCCESSFUL` em 14 min 41 s.
 - Não instalado nem executado em aparelho.
+
+### 8.2 Evidência do APK sem permissões extras
+
+O APK de 8.1 foi substituído pelo build seguinte (mesma versão, `versionCode` 1). Arquivo atual:
+`C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.0.apk`, 66.579.973 bytes, SHA-256
+`f9df7d5d7e459c680c7dbdbcfcb4e4ab004fd4f8601936dd5867cfbbe4357097`.
+
+- `aapt2 dump badging`: única permissão declarada `android.permission.INTERNET` (mais a
+  `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, interna do Android, sem pedido ao usuário).
+- `apksigner verify`: válido (chave de depuração), pacote `br.com.agrotech.app` inalterado.
+- Build: `BUILD SUCCESSFUL` em 14 min 44 s.
