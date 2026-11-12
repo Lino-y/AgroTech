@@ -340,7 +340,7 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
     seguir exatamente a documentação.
   - Dependência nova só com aprovação e `npm view`.
 - **App:** o retorno do Checkout Pro ao app usa deep link `agrotech://pagamento/...`; o `app.json`
-  ainda não declara `scheme`.
+  já declara `"scheme": "agrotech"` (`apps/mobile/app.json:7`).
   - Abrir numa aba do navegador pede o `expo-web-browser` `[NOVO]` (aprovação e `npm view`). A
     alternativa sem dependência é `Linking.openURL`.
 - **Pré-requisito de infraestrutura, que bloqueia produção e teste de ponta a ponta:**
