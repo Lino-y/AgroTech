@@ -63,3 +63,15 @@ As regras da skill são recomendação: as do repositório e o pedido do dono ma
   para o teste no celular (CA07).
 - **Busca da skill sem resultado** para ícones no catálogo de React Native; a nova tentativa no domínio
   de ícones trouxe a regra de família única e semântica de acessibilidade, aplicada aqui.
+
+### 8.1 Evidência do APK 0.2.1
+
+Arquivo: `C:/Users/Rooselt/AgroTech-APK/agrotech-0.2.1.apk` (substitui o 0.2.0), 67.679.486 bytes,
+SHA-256 `acab23cdf6df0b0486f15302112fa5b28343494686661982a527e862c3ab84da`.
+
+- `aapt2 dump badging`: `versionCode` 8, `versionName` 0.2.1, permissão `INTERNET` apenas. `apksigner verify`: válido.
+- Dentro do APK: a fonte do Ionicons (`res/CU.ttf`, 389.724 bytes, só essa família) e o módulo nativo do
+  `expo-font` (`classes.dex`). Bundle com os nomes dos ícones, as cores novas e sem `#6C8574`.
+- Testes: app 69 de 69 (15 de contraste); raiz 241 de 241. `BUILD SUCCESSFUL` em 11 min 05 s.
+- Não visto em aparelho (CA07).
+
