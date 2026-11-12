@@ -115,6 +115,18 @@ Arquivo atual: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.0.apk`, 66.589.385 by
 - Build: `BUILD SUCCESSFUL` em 3 min 04 s (incremental).
 - Não instalado nem visto em aparelho: a comparação visual com a web é de código (CA10).
 
+### 8.4 Evidência do APK 0.1.1 (offline, cadastro e entrada completa)
+
+Substitui o 0.1.0. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.1.apk`, 66.600.777 bytes, SHA-256
+`28ca851ed71326692f045db7ab84b1db68b7da22d818c55a2c319a270277b826`.
+
+- `aapt2 dump badging`: pacote `br.com.agrotech.app`, `versionCode` 2, `versionName` 0.1.1, permissão `INTERNET` apenas.
+- `apksigner verify`: válido (chave de depuração).
+- Bundle: contém os textos do login (Continuar offline, Criar conta, versão de teste), do cadastro (perfis, NOME COMPLETO), o aviso do modo offline, a rota `/auth/register` e o endereço da API.
+- Testes do app: 27 de 27; `tsc` sem erro; Metro empacota 612 módulos.
+- Build: `BUILD SUCCESSFUL` em 3 min 31 s. `versionCode` e `versionName` foram ajustados no `build.gradle` gerado (o que o `prebuild` escreveria a partir do `app.json`) e confirmados pelo `aapt2`.
+- Não instalado nem visto em aparelho; o cadastro não foi exercitado contra a API real (só contra o servidor de teste, na rota existente).
+
 ### 8.2 Evidência do APK sem permissões extras
 
 O APK de 8.1 foi substituído pelo build seguinte (mesma versão, `versionCode` 1). Arquivo atual:
