@@ -19,6 +19,9 @@ export type Product = {
   ownerEmail?: string;
   sellerName?: string;
   stock?: number;
+  reviewsCount?: number;
+  /** Avaliações (só vêm do servidor; o catálogo salvo para offline não as guarda). */
+  comments?: Review[];
 };
 
 // O app abre no catálogo: sem servidor alcançável, o aviso offline aparece em 5 s, não nos 10 s padrão.
@@ -38,8 +41,19 @@ export type NewProduct = {
   location: string;
 };
 
-export function createProduct(input: NewProduct): Promise<Product> {
-  return apiRequest<Product>('/products', { method: 'POST', body: input });
+/** idempotencyKey: a mesma em toda tentativa do mesmo anúncio (toque duplo, fila offline). */
+export function createProduct(input: NewProduct, idempotencyKey?: string): Promise<Product> {
+  return apiRequest<Product>('/products', {
+    method: 'POST',
+    body: input,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}
+  });
+}
+
+export type Review = { id: string; author?: string; text: string; rating: number };
+
+export function addReview(productId: string, review: { text: string; rating: number }): Promise<{ review: Review; rating: number; reviewsCount: number }> {
+  return apiRequest(`/products/${encodeURIComponent(productId)}/reviews`, { method: 'POST', body: review });
 }
 
 export function deleteProduct(id: string): Promise<void> {

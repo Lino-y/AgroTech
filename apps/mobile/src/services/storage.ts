@@ -57,7 +57,14 @@ export interface KeyValueStore {
 }
 
 /** Catálogo e carrinho não são de uma conta; pedidos e extrato são (dono = id do usuário). */
-export type CacheKey = 'cache:catalog' | 'cache:orders' | 'cache:finance' | 'cart';
+export type CacheKey =
+  | 'cache:catalog'
+  | 'cache:orders'
+  | 'cache:finance'
+  | 'cart'
+  // Fila de anúncios e favoritos: uma chave por conta (dono no nome e na entrada). Não somem ao sair.
+  | `outbox:listings:${string}`
+  | `favorites:${string}`;
 const USER_CACHE_KEYS: CacheKey[] = ['cache:orders', 'cache:finance'];
 
 function memoryKeyValue(): KeyValueStore {

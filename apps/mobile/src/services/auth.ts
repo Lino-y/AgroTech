@@ -30,6 +30,11 @@ export async function register(input: RegisterInput): Promise<User> {
   return res.user;
 }
 
+/** Troca a senha com o código que o ADMIN gerou (POST /api/auth/reset-password, spec 05). */
+export async function resetPassword(email: string, code: string, password: string): Promise<void> {
+  await apiRequest<void>('/auth/reset-password', { method: 'POST', body: { email, code, password } });
+}
+
 export async function logout(): Promise<void> {
   try {
     await apiRequest<void>('/auth/logout', { method: 'POST' });

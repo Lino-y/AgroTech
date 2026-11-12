@@ -33,3 +33,28 @@ export function validateProduct(form: ProductForm): string | null {
   if (!/^\d+$/.test(form.stock.trim()) || stock > MAX_STOCK) return 'O estoque é um número inteiro de 0 a 1.000.000.';
   return null;
 }
+
+export type Draft = {
+  name: string;
+  price: number | null;
+  unit: string | null;
+  category: string | null;
+  stock: number | null;
+  location: string | null;
+  description: string;
+};
+
+/**
+ * Rascunho da "IA" do anúncio (draftFromPrompt, packages/domain/listing.js) no formato do formulário do
+ * app: preço em reais com vírgula, categoria só se for uma das do app. Campo que a IA não achou fica de
+ * fora, para não apagar o que a pessoa já digitou.
+ */
+export function draftToForm(draft: Draft, categories: string[]): Partial<ProductForm & { unit: string; location: string }> {
+  const form: Partial<ProductForm & { unit: string; location: string }> = { name: draft.name, description: draft.description };
+  if (draft.price) form.price = draft.price.toFixed(2).replace('.', ',');
+  if (draft.category && categories.includes(draft.category)) form.category = draft.category;
+  if (draft.stock) form.stock = String(draft.stock);
+  if (draft.unit) form.unit = draft.unit;
+  if (draft.location) form.location = draft.location;
+  return form;
+}
