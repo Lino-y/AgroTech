@@ -37,7 +37,9 @@ A funcionalidade tem quatro mecanismos **independentes**, cada um com regra e se
    aparece primeiro. "Mais vendido" é um selo **separado e gratuito**, por venda real.
 4. **O master é o perfil `ADMIN` que já existe** (`requireAdmin`, `apps/api/server.js:335`), sem
    perfil novo. O pagamento acontece fora do app (PIX/boleto); depois de receber, o ADMIN cadastra a
-   campanha. Pagamento dentro do app fica para outra fase.
+   campanha. O pagamento dentro do app, pelo Mercado Pago, está em
+   `.ai/specs/10-pagamentos-mercado-pago.md` (RF-06): lá a campanha nasce `PENDENTE` e ativa com o
+   pagamento aprovado. O cadastro manual pelo ADMIN continua valendo para o que for pago por fora.
 
 ## 4. Escopo
 
@@ -51,7 +53,8 @@ A funcionalidade tem quatro mecanismos **independentes**, cada um com regra e se
 
 ### Não inclui
 
-- Pagamento dentro do app, nota fiscal ou cobrança automática.
+- Pagamento dentro do app: fica na spec 10 (Mercado Pago). Nota fiscal e cobrança recorrente
+  também não entram.
 - Envio da posição do comprador ou do histórico de interesse ao servidor.
 - "Perto de você" e "Do seu interesse" na web (a regra compartilhada permite adotar depois:
   `navigator.geolocation` já existe no navegador).
