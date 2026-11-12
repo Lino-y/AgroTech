@@ -140,6 +140,16 @@ Substitui o 0.1.1. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.2.apk`, 
 - Testes do app: 27 de 27; `tsc` sem erro; Metro empacota 613 módulos. Build: `BUILD SUCCESSFUL` em 3 min 33 s.
 - Não visto em aparelho.
 
+### 8.6 Evidência do APK 0.1.3 (logo)
+
+Substitui o 0.1.2. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.3.apk`, 66.612.033 bytes, SHA-256
+`28a33ced54e179b8ce255eb0fe2dc09c6c4f6373c46a1e679c5594cbc29b58dd`.
+
+- `aapt2 dump badging`: `versionCode` 4, `versionName` 0.1.3, permissão `INTERNET` apenas. `apksigner verify`: válido.
+- Logo: o Android encurta os nomes dos recursos no release, então o arquivo não aparece como `logo`. Achado pelas dimensões: `res/4z.png`, 480x270, recomprimido para 9.789 bytes, e a imagem extraída do APK é o trator da web.
+- Metro empacota 615 módulos com o `assets/logo.png`. Build: `BUILD SUCCESSFUL` em 2 min 27 s.
+- Não visto em aparelho: o tamanho da logo na tela (160x90) é verificação de código.
+
 ### 8.2 Evidência do APK sem permissões extras
 
 O APK de 8.1 foi substituído pelo build seguinte (mesma versão, `versionCode` 1). Arquivo atual:
