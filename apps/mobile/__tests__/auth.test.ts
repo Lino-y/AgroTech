@@ -1,8 +1,9 @@
-// Login e logout do app: a sessão vai para o storage seguro, e sair limpa mesmo sem rede.
+// Login, cadastro e logout do app: a sessão vai para o storage seguro, e sair limpa mesmo sem rede.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { API_URL } from '../src/config.ts';
-import { login, logout } from '../src/services/auth.ts';
+import { ApiError } from '../src/services/api.ts';
+import { login, logout, register } from '../src/services/auth.ts';
 import { clearSession, getSession, setSecureStore, setSession, type SecureStoreLike } from '../src/services/storage.ts';
 
 function fakeStore(): SecureStoreLike & { data: Map<string, string> } {
@@ -89,4 +90,45 @@ test('logout sem rede ainda limpa a sessão local (o aparelho não fica preso lo
   assert.equal(await getSession(), null);
   assert.equal(store.data.has('agrotech_session'), false);
   setSecureStore(null);
+});
+
+const NEW_ACCOUNT = { name: 'Ana Souza', email: 'ana@fazenda.com', password: 'segredo', role: 'PRODUTOR' as const, propertyOrCompany: 'Fazenda Boa' };
+
+test('cadastro envia os dados, grava a sessão e devolve o usuário', async () => {
+  const store = fakeStore();
+  setSecureStore(store);
+  await clearSession();
+  await withFetch(
+    (url, init) => {
+      assert.match(url, /\/api\/auth\/register$/);
+      assert.equal(init?.method, 'POST');
+      assert.deepEqual(JSON.parse(String(init?.body)), NEW_ACCOUNT);
+      return new Response(JSON.stringify({ token: 'tok-reg', user: { id: 'usr-9', name: 'Ana Souza', email: 'ana@fazenda.com', role: 'PRODUTOR' } }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    },
+    async () => {
+      const user = await register(NEW_ACCOUNT);
+      assert.equal(user.id, 'usr-9');
+      const session = await getSession();
+      assert.equal(session?.token, 'tok-reg');
+    }
+  );
+});
+
+test('cadastro com e-mail já usado devolve a mensagem do servidor e não grava sessão', async () => {
+  const store = fakeStore();
+  setSecureStore(store);
+  await clearSession();
+  await withFetch(
+    () => new Response(JSON.stringify({ message: 'Este e-mail já está cadastrado.' }), { status: 409, headers: { 'Content-Type': 'application/json' } }),
+    async () => {
+      await assert.rejects(
+        () => register(NEW_ACCOUNT),
+        (error: unknown) => error instanceof ApiError && error.status === 409 && error.message === 'Este e-mail já está cadastrado.'
+      );
+      assert.equal(await getSession(), null);
+    }
+  );
 });

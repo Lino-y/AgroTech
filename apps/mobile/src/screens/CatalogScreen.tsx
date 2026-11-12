@@ -2,11 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -16,17 +14,28 @@ import { ApiError } from '../services/api.ts';
 import { logout } from '../services/auth.ts';
 import { loadProducts, type Product } from '../services/products.ts';
 import { ProductCard } from '../components/ProductCard.tsx';
-import { ALL_CATEGORIES, categoriesOf, countLabel, filterProducts } from '../lib/catalog.ts';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { OFFLINE_CATALOG_DATE, OFFLINE_PRODUCTS } from '../data/offline-catalog.ts';
+import {
+  ALL_CATEGORIES,
+  categoriesOf,
+  countLabel,
+  filterProducts,
+  shouldUseSnapshot,
+  snapshotLabel
+} from '../lib/catalog.ts';
+import { colors, MIN_TOUCH, radius, STATUS_BAR_INSET } from '../theme.ts';
 
-type Props = { onLoggedOut: () => void };
+/** guest: catálogo sem conta, que abre já com o catálogo embutido (modo offline). */
+type Props = { guest: boolean; onLoggedOut: () => void };
 
-// Espaço da barra de status (no Android, o conteúdo sobe por baixo dela quando o app é de ponta a ponta).
-const TOP_INSET = (Platform.OS === 'android' ? StatusBar.currentHeight ?? 24 : 44) + 12;
+// Lista na tela e de onde ela veio. snapshot=true é o catálogo embutido, sem passar pelo servidor.
+type Catalog = { items: Product[]; snapshot: boolean };
+const SNAPSHOT: Catalog = { items: OFFLINE_PRODUCTS, snapshot: true };
+const EMPTY: Catalog = { items: [], snapshot: false };
 
-export function CatalogScreen({ onLoggedOut }: Props): React.JSX.Element {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+export function CatalogScreen({ guest, onLoggedOut }: Props): React.JSX.Element {
+  const [catalog, setCatalog] = useState<Catalog>(guest ? SNAPSHOT : EMPTY);
+  const [loading, setLoading] = useState(!guest);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [term, setTerm] = useState('');
@@ -37,10 +46,13 @@ export function CatalogScreen({ onLoggedOut }: Props): React.JSX.Element {
     else setLoading(true);
     setError(null);
     try {
-      setProducts(await loadProducts());
+      setCatalog({ items: await loadProducts(), snapshot: false });
     } catch (err) {
-      // Falha de carga não apaga o que já estava na tela: mostra o erro e deixa tentar de novo.
+      // Falha de carga não apaga o que já estava na tela. Sem rede e com a lista vazia, mostra o
+      // catálogo embutido; erro do servidor (4xx/5xx) não é falta de rede e não troca nada.
+      const status = err instanceof ApiError ? err.status : -1;
       setError(err instanceof ApiError ? err.message : 'Erro ao carregar o catálogo.');
+      setCatalog((current) => (shouldUseSnapshot(status, current.items.length) ? SNAPSHOT : current));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -48,21 +60,23 @@ export function CatalogScreen({ onLoggedOut }: Props): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    void load(false);
-  }, [load]);
+    // O modo offline abre na hora com o catálogo embutido; puxar a lista tenta o servidor.
+    if (!guest) void load(false);
+  }, [guest, load]);
 
-  const categories = useMemo(() => categoriesOf(products), [products]);
-  const visible = useMemo(() => filterProducts(products, term, category), [products, term, category]);
+  const categories = useMemo(() => categoriesOf(catalog.items), [catalog.items]);
+  const visible = useMemo(() => filterProducts(catalog.items, term, category), [catalog.items, term, category]);
   const searching = term.trim().length > 0 || category !== ALL_CATEGORIES;
 
   async function signOut(): Promise<void> {
-    await logout();
+    // Sem conta não há sessão a encerrar: só volta para o login.
+    if (!guest) await logout();
     onLoggedOut();
   }
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.top, { paddingTop: TOP_INSET }]}>
+      <View style={[styles.top, { paddingTop: STATUS_BAR_INSET + 12 }]}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Catálogo de Insumos</Text>
           <Text style={styles.count} accessibilityLiveRegion="polite">
@@ -99,7 +113,7 @@ export function CatalogScreen({ onLoggedOut }: Props): React.JSX.Element {
         ) : null}
       </View>
 
-      {loading && products.length === 0 ? (
+      {loading && catalog.items.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.green} />
           <Text style={styles.hint}>Carregando catálogo...</Text>
@@ -116,12 +130,22 @@ export function CatalogScreen({ onLoggedOut }: Props): React.JSX.Element {
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.green} />
           }
           ListHeaderComponent={
-            error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-                <Pressable accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
-                  <Text style={styles.retryText}>Tentar novamente</Text>
-                </Pressable>
+            catalog.snapshot || error ? (
+              <View style={styles.boxes}>
+                {catalog.snapshot ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.notice}>
+                    Modo offline: catálogo de {snapshotLabel(OFFLINE_CATALOG_DATE)}, pode estar desatualizado. Puxe a lista
+                    para atualizar quando tiver conexão.
+                  </Text>
+                ) : null}
+                {error ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{error}</Text>
+                    <Pressable accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
+                      <Text style={styles.retryText}>Tentar novamente</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             ) : undefined
           }
@@ -156,7 +180,7 @@ export function CatalogScreen({ onLoggedOut }: Props): React.JSX.Element {
           <Text style={[styles.tabText, styles.tabTextSelected]}>Catálogo</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={signOut} style={styles.tab}>
-          <Text style={styles.tabText}>Sair</Text>
+          <Text style={styles.tabText}>{guest ? 'Entrar' : 'Sair'}</Text>
         </Pressable>
       </View>
     </View>
@@ -199,12 +223,22 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   hint: { fontSize: 14, color: colors.greenMuted, textAlign: 'center' },
   emptyBox: { alignItems: 'center', gap: 12, paddingVertical: 32 },
+  boxes: { gap: 12, marginBottom: 12 },
+  notice: {
+    backgroundColor: colors.noticeSoft,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.control,
+    padding: 12,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.noticeText
+  },
   errorBox: {
     backgroundColor: colors.dangerSoft,
     borderRadius: radius.control,
     padding: 14,
     gap: 10,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.danger
   },

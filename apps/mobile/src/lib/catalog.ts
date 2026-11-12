@@ -37,3 +37,16 @@ export function formatPrice(value: number): string {
 export function countLabel(count: number): string {
   return count === 1 ? '1 item' : `${count} itens`;
 }
+
+/** Data AAAA-MM-DD do instantâneo embutido, no formato dd/mm/aaaa. */
+export function snapshotLabel(isoDate: string): string {
+  return isoDate.split('-').reverse().join('/');
+}
+
+/**
+ * Só troca pelo catálogo embutido quando a rede falhou (status 0) e não há produto na tela.
+ * Erro do servidor (4xx/5xx) é outro problema, e dado velho nunca cobre dado que já está na tela.
+ */
+export function shouldUseSnapshot(status: number, productsOnScreen: number): boolean {
+  return status === 0 && productsOnScreen === 0;
+}

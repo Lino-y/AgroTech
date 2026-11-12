@@ -17,16 +17,20 @@ contra a API antes de qualquer conta de loja.
 | CA03 | 401 de quem tinha token encerra a sessão; 403 não | teste | ✅ | `apps/mobile/src/services/api.ts:46`, `apps/mobile/__tests__/api.test.ts:39`, `apps/mobile/__tests__/api.test.ts:55` |
 | CA04 | O token fica no armazenamento seguro, não no código | teste | ✅ | `apps/mobile/src/services/storage.ts:31`, `apps/mobile/__tests__/storage.test.ts:22` |
 | CA05 | A API configurada entra no bundle (`EXPO_PUBLIC_API_URL`) | build | ✅ | `apps/mobile/src/config.ts:3`; bundle exportado com o endereço (`npx expo export --platform android`) |
-| CA06 | Tráfego HTTP em texto claro liberado só para o build de teste | build | ✅ | `apps/mobile/app.json:17` (plugin `expo-build-properties`) |
+| CA06 | Tráfego HTTP em texto claro liberado só para o build de teste | build | ✅ | `apps/mobile/app.json:25` (plugin `expo-build-properties`) |
 | CA07 | Tipos estritos e testes passam | comando | ✅ | `apps/mobile/package.json:10` (`npm test`, 11 de 11) e `apps/mobile/package.json:11` (`npm run typecheck`) |
 | CA08 | APK Android gerado e assinado | build + `apksigner verify` + `aapt2 dump badging` | ✅ | procedimento: `apps/mobile/README.md:19`; evidência: seção 8.1 |
 | CA09 | APK sem permissões que o app não usa | `aapt2 dump badging` | ✅ | `apps/mobile/app.json:11`; evidência: seção 8.2 |
-| CA10 | Layout com a identidade visual da web (cores, cartão, grade, busca, chips, rótulos do login) | leitura do código e comparação com a web | 🟡 | cores em `apps/mobile/src/theme.ts:3`; cartão em `apps/mobile/src/components/ProductCard.tsx:8`; grade em `apps/mobile/src/screens/CatalogScreen.tsx:111`; rótulos em `apps/mobile/src/screens/LoginScreen.tsx:59`; sem comparação visual em aparelho |
-| CA11 | Usabilidade mobile: alvos de toque ≥ 48 dp, puxar para atualizar, estados de carregando, vazio e erro com nova tentativa, teclado sem cobrir campos | leitura do código e teste da lógica | ✅ | alvo mínimo em `apps/mobile/src/theme.ts:18`; atualizar em `apps/mobile/src/screens/CatalogScreen.tsx:116`; estados em `apps/mobile/src/screens/CatalogScreen.tsx:128`; regras de busca e preço testadas em `apps/mobile/__tests__/catalog.test.ts:13` |
+| CA10 | Layout com a identidade visual da web (cores, cartão, grade, busca, chips, rótulos do login) | leitura do código e comparação com a web | 🟡 | cores em `apps/mobile/src/theme.ts:5`; cartão em `apps/mobile/src/components/ProductCard.tsx:8`; grade em `apps/mobile/src/screens/CatalogScreen.tsx:125`; rótulos em `apps/mobile/src/screens/LoginScreen.tsx:53`; sem comparação visual em aparelho |
+| CA11 | Usabilidade mobile: alvos de toque ≥ 48 dp, puxar para atualizar, estados de carregando, vazio e erro com nova tentativa, teclado sem cobrir campos | leitura do código e teste da lógica | ✅ | alvo mínimo em `apps/mobile/src/theme.ts:23`; atualizar em `apps/mobile/src/screens/CatalogScreen.tsx:130`; estados em `apps/mobile/src/screens/CatalogScreen.tsx:152`; regras de busca e preço testadas em `apps/mobile/__tests__/catalog.test.ts:13` |
+| CA12 | Modo offline: "Continuar offline" abre o catálogo sem conta e sem rede; só cai no catálogo embutido por falha de rede com a lista vazia; sem conta, "Entrar" não chama o logout; foto que não carrega vira emoji | teste da regra + leitura do código | ✅ | botão em `apps/mobile/src/screens/LoginScreen.tsx:94`; regra em `apps/mobile/src/lib/catalog.ts:50`, usada em `apps/mobile/src/screens/CatalogScreen.tsx:55`; sem logout em `apps/mobile/src/screens/CatalogScreen.tsx:73`; catálogo em `apps/mobile/src/data/offline-catalog.ts:10`; testes em `apps/mobile/__tests__/offline.test.ts:19` e `:31`; foto em `apps/mobile/src/components/ProductCard.tsx:16` |
+| CA13 | Cadastro pelo app (perfil, nome, e-mail, propriedade opcional, senha) com a conta já logada; só os perfis que o servidor aceita | teste | ✅ | serviço em `apps/mobile/src/services/auth.ts:27`; tela em `apps/mobile/src/screens/RegisterScreen.tsx:35`; perfis em `apps/mobile/src/lib/forms.ts:6`; testes em `apps/mobile/__tests__/auth.test.ts:97`, `:120` e `apps/mobile/__tests__/forms.test.ts:14` |
+| CA14 | Tela de entrada com rótulos sempre visíveis, atalhos para criar conta e continuar offline, e a versão instalada à vista | leitura do código | 🟡 | rótulos em `apps/mobile/src/screens/LoginScreen.tsx:53`; atalhos em `apps/mobile/src/screens/LoginScreen.tsx:93` e `:94`; versão em `apps/mobile/src/screens/LoginScreen.tsx:98` (de `apps/mobile/app.json:5`); não vista em aparelho |
+| CA15 | Recuperar senha pelo app | — | 🔴 | bloqueado: não há endpoint na API (spec 05) nem serviço de e-mail; ver seção 8 |
 
 ## 3. Contratos (antes do código)
 
-- Endpoints usados: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/products`
+- Endpoints usados: `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/logout`, `GET /api/products`
   (`.ai/specs/05-openapi-spec.md`). Nenhum endpoint novo.
 - Sessão local: `{ token, user }` no armazenamento seguro, chave `agrotech_session`.
 - Endereço da API: `EXPO_PUBLIC_API_URL`, lido no build.
@@ -47,7 +51,7 @@ contra a API antes de qualquer conta de loja.
 
 ## 5. Must have
 
-- CA01 a CA08 acima.
+- CA01 a CA09 e CA12 a CA14 acima.
 
 ## 6. Nice to have
 
@@ -69,6 +73,10 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
 - **Assinatura:** o APK sai com a chave de depuração do React Native. Não é para publicar.
 - **Layout e identidade visual (CA10).** A paleta, o cartão, a grade de 2 colunas, a busca, os chips de categoria e os rótulos do login vêm da web. A fonte da web (Outfit) não entrou: o app usa a fonte do sistema, para não adicionar dependência. Não há comparação visual em aparelho; a verificação é de código.
 - **Skill de UI/UX mobile:** não há skill dessa área instalada. Os princípios de usabilidade mobile (alvos de toque, estados, teclado, puxar para atualizar) foram aplicados direto no código.
+- **Offline é um catálogo embutido, não o cache da ADR-0001.** A política da ADR-0001 pede o "catálogo já consultado" em cache, com data e aviso de desatualização. O app traz um instantâneo fixo dos 4 produtos de demonstração (copiados à mão, só com os campos do cartão: sem dono, comentário nem foto) e mostra a data dele. O cache do que o usuário de fato consultou exige armazenamento persistente (`@react-native-async-storage/async-storage`, dependência nativa nova e outra rebuild completa) e continua na Fase 3 da spec 08. Isto antecipa só a entrada offline; carrinho, pedido e fila seguem fora.
+- **Recuperação de senha não entregue (CA15).** A API não tem endpoint para isso e o projeto não tem serviço de e-mail. Entregar exige primeiro a spec 05 (endpoint, validade e uso único do token, sem revelar se o e-mail existe) e a escolha de como o usuário recebe o código. Sem isso, um link no app seria um beco sem saída, então não foi colocado.
+- **Achado fora do escopo: o servidor não tem política de senha.** `POST /api/auth/register` aceita senha de 1 caractere (`apps/api/server.js:411`). O app só exige que não esteja vazia, como a web. Definir o mínimo é decisão de `apps/api` e da spec 05.
+- **Versão 0.1.1 (`versionCode` 2).** O APK 0.1.0 não tinha os rótulos do login nem os atalhos, e os dois builds tinham o mesmo `versionCode`, então não dava para saber qual estava instalado. A versão agora aparece no rodapé do login.
 - **Não testado em aparelho.** A verificação é de build e de assinatura; instalar e rodar no celular
   é passo do dono do projeto.
 - **Permissões extras (resolvido).** O APK pedia `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`,

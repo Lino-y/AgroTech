@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { formatPrice } from '../lib/catalog.ts';
 import { colors, radius } from '../theme.ts';
@@ -7,11 +7,13 @@ import type { Product } from '../services/products.ts';
 // Cartão da grade de 2 colunas, como o da web: bloco de cor (ou foto), nome, local, nota e preço.
 export function ProductCard({ product }: { product: Product }): React.JSX.Element {
   const place = product.location ? product.location.split(' - ')[0] : null;
+  // Foto que não carrega (sem rede, link quebrado) cai no emoji, como na web.
+  const [photoFailed, setPhotoFailed] = useState(false);
   return (
     <View style={styles.card} accessibilityLabel={`${product.name}, ${formatPrice(product.price)}`}>
       <View style={[styles.media, { backgroundColor: product.imageBg ?? colors.greenSoft }]}>
-        {product.image ? (
-          <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
+        {product.image && !photoFailed ? (
+          <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" onError={() => setPhotoFailed(true)} />
         ) : (
           <Text style={styles.emoji}>{product.imageEmoji ?? '📦'}</Text>
         )}
