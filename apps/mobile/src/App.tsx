@@ -4,7 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit';
+import { useFonts } from 'expo-font';
+// Só o peso usado (Bold): o índice do pacote levaria as 9 variações da família para o APK.
+import { Outfit_700Bold } from '@expo-google-fonts/outfit/700Bold';
 import { TabBar } from './components/TabBar.tsx';
 import { addToCart, cartCount, serializeCart, type CartLine } from './lib/cart.ts';
 import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogin, type Nav } from './lib/navigation.ts';

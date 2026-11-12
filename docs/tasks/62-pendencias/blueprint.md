@@ -76,3 +76,24 @@ Spec 08 e spec 05 mandam no "o quê"; este blueprint, no "como".
   fila, continuou pendente com a API fora, saiu uma vez só quando ela voltou, e o reenvio com a mesma
   chave não duplicou; app 0.3.0 com mínimo 0.4.0 recebeu 426; o ADMIN gerou o código e a senha foi
   trocada pelo app.
+
+### 8.1 Evidência do APK 0.4.0
+
+Arquivo: `C:/Users/Rooselt/AgroTech-APK/agrotech-0.4.0.apk` (substitui o 0.3.0), 68.129.138 bytes, SHA-256
+`9704e28b558a04ee42df3ab8a0dcf8a15bc947d7f7411b12512c7d1bb3079a62`.
+
+- `aapt2 dump badging`: `versionCode` 10, `versionName` 0.4.0, permissão `INTERNET` apenas: o seletor de fotos
+  não trouxe câmera, microfone nem armazenamento (bloqueados no `app.json`; a galeria usa o seletor de fotos
+  do Android, que não pede permissão). `apksigner verify`: válido.
+- Módulos nativos no `classes.dex`: seletor de imagem, redimensionador, AsyncStorage e fontes. Fontes no APK:
+  só Ionicons e Outfit Bold (o primeiro build levou os 9 pesos da Outfit; corrigido importando só o Bold e
+  limpando os recursos gerados).
+- Bundle extraído do APK com a fila de anúncios, a foto, o "esqueci a senha", o 426 e o endereço
+  `192.168.1.34:3001`.
+- Build: `expo prebuild --clean` (plugins novos) e `BUILD SUCCESSFUL` em 10 min 47 s; depois 1 min 46 s
+  com a fonte corrigida. Testes: app 118 de 118; raiz com `tests/pending-api.test.js` (17) e
+  `tests/listing.test.js` (6).
+- API do celular (porta 3001) reiniciada com o código novo: quem estava logado precisa entrar de novo.
+- No Android 12 ou mais antigo, escolher foto depende do seletor de fotos dos serviços do Google Play
+  (o armazenamento antigo está bloqueado). Não visto em aparelho (CA12).
+
