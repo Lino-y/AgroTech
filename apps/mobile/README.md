@@ -34,6 +34,10 @@ caracteres, e o `ninja` do CMake 3.22.1 não aceita caminho longo. Use o CMake 3
 `cmake.dir=C\:/Users/<você>/Android/Sdk/cmake/3.31.6`. Gere o build numa pasta de caminho curto
 (por exemplo `C:\b`) e deixe ligado o `LongPathsEnabled` do Windows.
 
+O app importa as regras de `packages/domain` (ADR-0002) pelo caminho relativo `../../packages/domain`.
+Numa pasta de build fora do repositório, espelhe o layout: `C:\b\apps\mobile` (o app) e
+`C:\b\packages\domain` (o domínio). Sem isso o Metro não acha os imports.
+
 ## Limitações conhecidas
 
 - O APK é assinado com a chave de depuração do React Native (não há keystore de

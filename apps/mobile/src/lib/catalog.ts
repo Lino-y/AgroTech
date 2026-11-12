@@ -34,6 +34,14 @@ export function formatPrice(value: number): string {
   return `R$ ${value < 0 ? '-' : ''}${grouped},${decimals}`;
 }
 
+/** Data ISO (ex.: createdAt do pedido) em dd/mm/aaaa, no fuso do aparelho. Vazio se inválida. */
+export function formatDate(iso: string | null | undefined): string {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+}
+
 export function countLabel(count: number): string {
   return count === 1 ? '1 item' : `${count} itens`;
 }
@@ -49,4 +57,33 @@ export function snapshotLabel(isoDate: string): string {
  */
 export function shouldUseSnapshot(status: number, productsOnScreen: number): boolean {
   return status === 0 && productsOnScreen === 0;
+}
+
+/** Data e hora ISO em dd/mm/aaaa hh:mm (quando o dado offline foi salvo). Vazio se inválida. */
+export function formatDateTime(iso: string | null | undefined): string {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${formatDate(iso)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Produto como vai para o armazenamento local: só o que cartão, detalhe e revalidação usam. Fica de
+ * fora o que é pesado ou de outra pessoa: comentários, dono e foto em base64 (até 2 MB; o Android
+ * limita o armazenamento local a uns 6 MB). Foto por link http(s) continua.
+ */
+export function slimProduct(product: Product): Product {
+  const { id, name, price, unit, category, location, rating, imageEmoji, imageBg, description, sellerName, stock, image } = product;
+  const slim: Product = { id, name, price, unit, category, location, rating, imageEmoji, imageBg, description, sellerName, stock };
+  if (typeof image === 'string' && /^https?:\/\//i.test(image)) slim.image = image;
+  for (const key of Object.keys(slim) as (keyof Product)[]) if (slim[key] === undefined) delete slim[key];
+  return slim;
+}
+
+export type CatalogSource = { items: Product[]; source: 'live' | 'cache' | 'snapshot'; savedAt: string | null };
+
+/** Sem rede: o último catálogo consultado, com a data; sem ele, o catálogo de demonstração embutido. */
+export function offlineCatalog(saved: { savedAt: string; data: Product[] } | null, snapshot: Product[]): CatalogSource {
+  if (saved && saved.data.length > 0) return { items: saved.data, source: 'cache', savedAt: saved.savedAt };
+  return { items: snapshot, source: 'snapshot', savedAt: null };
 }

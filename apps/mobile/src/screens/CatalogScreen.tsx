@@ -1,18 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../services/api.ts';
-import { logout } from '../services/auth.ts';
 import { loadProducts, type Product } from '../services/products.ts';
 import { ProductCard } from '../components/ProductCard.tsx';
 import { OFFLINE_CATALOG_DATE, OFFLINE_PRODUCTS } from '../data/offline-catalog.ts';
@@ -21,21 +12,25 @@ import {
   categoriesOf,
   countLabel,
   filterProducts,
+  formatDateTime,
+  offlineCatalog,
   shouldUseSnapshot,
-  snapshotLabel
+  slimProduct,
+  snapshotLabel,
+  type CatalogSource
 } from '../lib/catalog.ts';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { readCache, saveCache } from '../services/storage.ts';
+import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
-type Props = { userName: string | null; onSignIn: () => void; onSignedOut: () => void };
+type Props = { userName: string | null; onOpenProduct: (product: Product) => void };
 
-// Lista na tela e de onde ela veio. snapshot=true é o catálogo embutido, sem passar pelo servidor.
-type Catalog = { items: Product[]; snapshot: boolean };
-const SNAPSHOT: Catalog = { items: OFFLINE_PRODUCTS, snapshot: true };
-const EMPTY: Catalog = { items: [], snapshot: false };
+// Lista na tela e de onde ela veio: servidor (live), último catálogo salvo no aparelho (cache) ou
+// catálogo de demonstração embutido (snapshot), nessa ordem (Fase 3 da spec 08).
+const EMPTY: CatalogSource = { items: [], source: 'live', savedAt: null };
 
-export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React.JSX.Element {
-  const [catalog, setCatalog] = useState<Catalog>(EMPTY);
+export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Element {
+  const [catalog, setCatalog] = useState<CatalogSource>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,13 +43,17 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
     else setLoading(true);
     setError(null);
     try {
-      setCatalog({ items: await loadProducts(), snapshot: false });
+      const items = await loadProducts();
+      setCatalog({ items, source: 'live', savedAt: null });
+      // Guarda o catálogo consultado (enxuto) para abrir sem rede da próxima vez.
+      void saveCache('cache:catalog', items.map(slimProduct), null);
     } catch (err) {
       // Falha de carga não apaga o que já estava na tela. Sem rede e com a lista vazia, mostra o
-      // catálogo embutido; erro do servidor (4xx/5xx) não é falta de rede e não troca nada.
+      // último catálogo salvo (ou o de demonstração); erro do servidor (4xx/5xx) não troca nada.
       const status = err instanceof ApiError ? err.status : -1;
       setError(err instanceof ApiError ? err.message : 'Erro ao carregar o catálogo.');
-      setCatalog((current) => (shouldUseSnapshot(status, current.items.length) ? SNAPSHOT : current));
+      const saved = await readCache<Product[]>('cache:catalog', null);
+      setCatalog((current) => (shouldUseSnapshot(status, current.items.length) ? offlineCatalog(saved, OFFLINE_PRODUCTS) : current));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -69,11 +68,6 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
   const visible = useMemo(() => filterProducts(catalog.items, term, category), [catalog.items, term, category]);
   const searching = term.trim().length > 0 || category !== ALL_CATEGORIES;
 
-  async function signOut(): Promise<void> {
-    await logout();
-    onSignedOut();
-  }
-
   return (
     <View style={styles.screen}>
       <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
@@ -84,22 +78,27 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
             {loading ? '' : countLabel(visible.length)}
           </Text>
         </View>
-        <TextInput
+        <View style={styles.searchBox}>
+          <View style={styles.searchIcon} pointerEvents="none">
+            <Icon name="search-outline" size={iconSize.sm + 2} color={colors.mutedForeground} />
+          </View>
+          <TextInput
           accessibilityLabel="Buscar produtos"
           placeholder="Buscar insumos, sementes, máquinas..."
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={colors.mutedForeground}
           returnKeyType="search"
           autoCorrect={false}
           value={term}
           onChangeText={setTerm}
           style={styles.search}
-        />
+          />
+        </View>
         {categories.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {[ALL_CATEGORIES, ...categories].map((item) => {
               const selected = category === item;
               return (
-                <Pressable
+                <Tap
                   key={item}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
@@ -107,7 +106,7 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
                   style={[styles.chip, selected && styles.chipSelected]}
                 >
                   <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{item}</Text>
-                </Pressable>
+                </Tap>
               );
             })}
           </ScrollView>
@@ -116,7 +115,7 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
 
       {loading && catalog.items.length === 0 ? (
         <View style={styles.center}>
-          <ActivityIndicator color={colors.green} />
+          <ActivityIndicator color={colors.primary} />
           <Text style={styles.hint}>Carregando catálogo...</Text>
         </View>
       ) : (
@@ -126,25 +125,36 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
           numColumns={2}
           columnWrapperStyle={styles.column}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => <ProductCard product={item} />}
+          renderItem={({ item }) => (
+            <Tap
+              accessibilityRole="button"
+              accessibilityHint="Abre os detalhes e a compra"
+              onPress={() => onOpenProduct(item)}
+              style={styles.cell}
+            >
+              <ProductCard product={item} />
+            </Tap>
+          )}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.green} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
           }
           ListHeaderComponent={
-            catalog.snapshot || error ? (
+            catalog.source !== 'live' || error ? (
               <View style={styles.boxes}>
-                {catalog.snapshot ? (
+                {catalog.source !== 'live' ? (
                   <Text accessibilityLiveRegion="polite" style={styles.notice}>
-                    Modo offline: catálogo de {snapshotLabel(OFFLINE_CATALOG_DATE)}, pode estar desatualizado. Puxe a lista
-                    para atualizar quando tiver conexão.
+                    {catalog.source === 'cache'
+                      ? `Modo offline: catálogo salvo em ${formatDateTime(catalog.savedAt)}, pode estar desatualizado.`
+                      : `Modo offline: catálogo de demonstração de ${snapshotLabel(OFFLINE_CATALOG_DATE)}.`}{' '}
+                    Puxe a lista para atualizar quando tiver conexão.
                   </Text>
                 ) : null}
                 {error ? (
                   <View style={styles.errorBox}>
                     <Text style={styles.errorText}>{error}</Text>
-                    <Pressable accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
+                    <Tap accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
                       <Text style={styles.retryText}>Tentar novamente</Text>
-                    </Pressable>
+                    </Tap>
                   </View>
                 ) : null}
               </View>
@@ -155,7 +165,7 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
               {searching ? (
                 <>
                   <Text style={styles.hint}>Nenhum resultado para "{term.trim() || category}".</Text>
-                  <Pressable
+                  <Tap
                     accessibilityRole="button"
                     onPress={() => {
                       setTerm('');
@@ -164,7 +174,7 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
                     style={styles.retry}
                   >
                     <Text style={styles.retryText}>Limpar busca</Text>
-                  </Pressable>
+                  </Tap>
                 </>
               ) : (
                 <Text style={styles.hint}>
@@ -175,37 +185,30 @@ export function CatalogScreen({ userName, onSignIn, onSignedOut }: Props): React
           }
         />
       )}
-
-      {/* A barra fica acima dos botões/gestos do Android, nunca por baixo deles. */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={styles.tab}>
-          <Text style={[styles.tabText, styles.tabTextSelected]}>Catálogo</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={userName !== null ? signOut : onSignIn} style={styles.tab}>
-          <Text style={styles.tabText}>{userName !== null ? 'Sair' : 'Entrar'}</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
-  top: { paddingHorizontal: 16, paddingBottom: 12, backgroundColor: colors.paper, gap: 12 },
-  greeting: { fontSize: 13, fontWeight: '600', color: colors.greenMuted },
+  screen: { flex: 1, backgroundColor: colors.background },
+  top: { paddingHorizontal: 16, paddingBottom: 12, backgroundColor: colors.background, gap: 12 },
+  greeting: { fontSize: 13, fontWeight: '600', color: colors.secondaryForeground },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 18, fontWeight: '700', color: colors.greenDark },
-  count: { fontSize: 12, fontWeight: '600', color: colors.greenMuted },
+  title: { fontSize: 18, fontWeight: '700', color: colors.foreground },
+  count: { fontSize: 12, fontWeight: '600', color: colors.secondaryForeground },
   search: {
     minHeight: MIN_TOUCH,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radius.control,
-    paddingHorizontal: 14,
-    backgroundColor: colors.white,
+    paddingLeft: 42,
+    paddingRight: 16,
+    backgroundColor: colors.surface,
     fontSize: 15,
-    color: colors.greenDark
+    color: colors.foreground
   },
+  searchBox: { justifyContent: 'center' },
+  searchIcon: { position: 'absolute', left: 14, zIndex: 1 },
   chips: { gap: 8, paddingRight: 8 },
   chip: {
     minHeight: MIN_TOUCH,
@@ -213,58 +216,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center'
   },
-  chipSelected: { backgroundColor: colors.green, borderColor: colors.green },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.green },
-  chipTextSelected: { color: colors.white },
+  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.primary },
+  chipTextSelected: { color: colors.onPrimary },
   list: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   column: { gap: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  hint: { fontSize: 14, color: colors.greenMuted, textAlign: 'center' },
+  hint: { fontSize: 14, color: colors.secondaryForeground, textAlign: 'center' },
   emptyBox: { alignItems: 'center', gap: 12, paddingVertical: 32 },
   boxes: { gap: 12, marginBottom: 12 },
   notice: {
-    backgroundColor: colors.noticeSoft,
+    backgroundColor: colors.warningSoft,
     borderWidth: 1,
-    borderColor: colors.gold,
+    borderColor: colors.accent,
     borderRadius: radius.control,
     padding: 12,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.noticeText
+    color: colors.warningForeground
   },
   errorBox: {
-    backgroundColor: colors.dangerSoft,
+    backgroundColor: colors.destructiveSoft,
     borderRadius: radius.control,
-    padding: 14,
-    gap: 10,
+    padding: 16,
+    gap: 12,
     borderWidth: 1,
-    borderColor: colors.danger
+    borderColor: colors.destructive
   },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
+  errorText: { color: colors.destructive, fontSize: 14, fontWeight: '600' },
   retry: {
     minHeight: MIN_TOUCH,
     minWidth: MIN_TOUCH,
     borderRadius: radius.control,
-    backgroundColor: colors.green,
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'flex-start'
   },
-  retryText: { color: colors.white, fontSize: 14, fontWeight: '700' },
-  bottomBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 6
-  },
-  tab: { flex: 1, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-  tabText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  tabTextSelected: { color: colors.greenDark, fontWeight: '800' }
+  retryText: { color: colors.onPrimary, fontSize: 14, fontWeight: '700' },
+  cell: { flex: 1 }
 });

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { colors, MIN_TOUCH, radius } from '../theme.ts';
+import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Tap } from './Tap.tsx';
+import { colors, MIN_TOUCH, radius, space } from '../theme.ts';
 
 type FieldProps = TextInputProps & {
   /** Rótulo sempre visível acima do campo (o placeholder some ao digitar). */
@@ -19,20 +20,20 @@ export function Field({ label, inputRef, secret, style, ...input }: FieldProps):
         <TextInput
           ref={inputRef}
           accessibilityLabel={label}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={colors.mutedForeground}
           secureTextEntry={secret && !visible}
           style={[styles.input, secret && styles.secretInput, style]}
           {...input}
         />
         {secret ? (
-          <Pressable
+          <Tap
             accessibilityRole="button"
             accessibilityLabel={visible ? 'Ocultar senha' : 'Mostrar senha'}
             onPress={() => setVisible((value) => !value)}
             style={styles.toggle}
           >
             <Text style={styles.toggleText}>{visible ? 'Ocultar' : 'Mostrar'}</Text>
-          </Pressable>
+          </Tap>
         ) : null}
       </View>
     </View>
@@ -40,19 +41,19 @@ export function Field({ label, inputRef, secret, style, ...input }: FieldProps):
 }
 
 const styles = StyleSheet.create({
-  field: { gap: 6 },
-  label: { fontSize: 13, fontWeight: '700', color: colors.greenDark, letterSpacing: 0.3 },
+  field: { gap: space.sm },
+  label: { fontSize: 13, fontWeight: '700', color: colors.foreground, letterSpacing: 0.3 },
   row: { flexDirection: 'row', alignItems: 'center' },
   input: {
     flex: 1,
     minHeight: MIN_TOUCH,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radius.field,
-    paddingHorizontal: 14,
-    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
     fontSize: 15,
-    color: colors.greenDark
+    color: colors.foreground
   },
   secretInput: { paddingRight: 88 },
   toggle: {
@@ -63,5 +64,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     justifyContent: 'center'
   },
-  toggleText: { fontSize: 13, fontWeight: '700', color: colors.green }
+  toggleText: { fontSize: 13, fontWeight: '700', color: colors.primary }
 });

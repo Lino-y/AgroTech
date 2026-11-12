@@ -21,7 +21,7 @@ export function Button({ title, onPress, variant = 'primary', loading = false }:
       style={({ pressed }) => [styles.base, primary ? styles.primary : styles.outline, (pressed || loading) && styles.busy]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? colors.white : colors.green} />
+        <ActivityIndicator color={primary ? colors.onPrimary : colors.primary} />
       ) : (
         <Text style={[styles.text, !primary && styles.outlineText]}>{title}</Text>
       )}
@@ -31,9 +31,9 @@ export function Button({ title, onPress, variant = 'primary', loading = false }:
 
 const styles = StyleSheet.create({
   base: { minHeight: 52, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  primary: { backgroundColor: colors.green },
-  outline: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.green },
+  primary: { backgroundColor: colors.primary },
+  outline: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
   busy: { opacity: 0.7 },
-  text: { color: colors.white, fontSize: 16, fontWeight: '700' },
-  outlineText: { color: colors.green }
+  text: { color: colors.onPrimary, fontSize: 16, fontWeight: '700' },
+  outlineText: { color: colors.primary }
 });

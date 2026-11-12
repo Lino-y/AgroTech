@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Tap } from '../components/Tap.tsx';
 import app from '../../app.json';
 import { Button } from '../components/Button.tsx';
 import type { User } from '../services/auth.ts';
@@ -9,7 +10,13 @@ import { LoginForm } from './LoginForm.tsx';
 import { RegisterForm } from './RegisterForm.tsx';
 
 type Mode = 'login' | 'register';
-type Props = { onAuthenticated: (user: User) => void; onBack: () => void };
+type Props = {
+  onAuthenticated: (user: User) => void;
+  onBack: () => void;
+  initialMode?: Mode;
+  /** Por que a entrada abriu (ex.: "finalizar a compra"), como o pendingScreen da web. */
+  reason?: string | null;
+};
 
 const TABS: { mode: Mode; label: string }[] = [
   { mode: 'login', label: 'Entrar' },
@@ -17,8 +24,8 @@ const TABS: { mode: Mode; label: string }[] = [
 ];
 
 // Mesma tela da web: um só lugar com as abas Entrar | Criar Conta e a volta para o catálogo.
-export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Element {
-  const [mode, setMode] = useState<Mode>('login');
+export function AuthScreen({ onAuthenticated, onBack, initialMode = 'login', reason }: Props): React.JSX.Element {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -34,13 +41,13 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
           accessibilityLabel="Logo AgroTech"
         />
         <Text style={styles.brand}>AgroTech</Text>
-        <Text style={styles.subtitle}>Faça login ou crie uma conta para comprar e anunciar.</Text>
+        <Text style={styles.subtitle}>Faça login ou crie uma conta para {reason ?? 'comprar e anunciar'}.</Text>
 
         <View style={styles.tabs} accessibilityRole="tablist">
           {TABS.map((tab) => {
             const selected = mode === tab.mode;
             return (
-              <Pressable
+              <Tap
                 key={tab.mode}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
@@ -48,7 +55,7 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
                 style={[styles.tab, selected && styles.tabSelected]}
               >
                 <Text style={[styles.tabText, selected && styles.tabTextSelected]}>{tab.label}</Text>
-              </Pressable>
+              </Tap>
             );
           })}
         </View>
@@ -56,7 +63,7 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
         {mode === 'login' ? <LoginForm onLoggedIn={onAuthenticated} /> : <RegisterForm onRegistered={onAuthenticated} />}
 
         <View style={styles.back}>
-          <Button title="Voltar ao catálogo" variant="outline" onPress={onBack} />
+          <Button title="Voltar" variant="outline" onPress={onBack} />
         </View>
 
         <Text style={styles.version}>AgroTech v{app.expo.version} · versão de teste</Text>
@@ -66,22 +73,22 @@ export function AuthScreen({ onAuthenticated, onBack }: Props): React.JSX.Elemen
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
+  screen: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, paddingHorizontal: 24 },
   logo: { width: 160, height: 90, alignSelf: 'center', marginBottom: 8 },
-  brand: { fontSize: 30, fontWeight: '800', color: colors.greenDark, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: colors.greenMuted, textAlign: 'center', marginTop: 6, marginBottom: 24 },
+  brand: { fontSize: 30, fontWeight: '800', color: colors.foreground, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: colors.secondaryForeground, textAlign: 'center', marginTop: 8, marginBottom: 24 },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.primarySoft,
     borderRadius: 12,
     padding: 4,
     marginBottom: 20
   },
   tab: { flex: 1, minHeight: MIN_TOUCH - 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabSelected: { backgroundColor: colors.white },
-  tabText: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  tabTextSelected: { color: colors.greenDark, fontWeight: '800' },
+  tabSelected: { backgroundColor: colors.surface },
+  tabText: { fontSize: 14, fontWeight: '600', color: colors.mutedForeground },
+  tabTextSelected: { color: colors.foreground, fontWeight: '800' },
   back: { marginTop: 20 },
-  version: { marginTop: 28, fontSize: 12, color: colors.textMuted, textAlign: 'center' }
+  version: { marginTop: 32, fontSize: 12, color: colors.mutedForeground, textAlign: 'center' }
 });
