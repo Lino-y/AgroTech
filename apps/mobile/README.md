@@ -24,6 +24,12 @@ O APK sai em `android/app/build/outputs/apk/release/app-release.apk`.
 A pasta `android/` é gerada pelo `prebuild` e não se versiona. O endereço da API
 fica gravado no APK no momento do build: para mudar de rede, gere de novo.
 
+Ícone: `assets/icon.png` e `assets/adaptive-icon.png` (1024×1024) saem de `assets/logo.svg`. O
+trator fica branco; no ícone comum, o fundo é o verde da marca `#2E7D32`. No adaptável, a frente é
+transparente, o trator cabe na área segura central de 66% e o verde vem do `backgroundColor` do
+`app.json`. Trocou o ícone? Rode o `prebuild --clean`, que gera os `mipmap` no projeto nativo, e
+apague `android/app/build/generated/res/react/release` antes do build.
+
 Cuidado: o Gradle não vê a troca de `EXPO_PUBLIC_API_URL` como mudança e reaproveita o bundle
 antigo (o build termina em segundos, com o endereço velho dentro). Ao trocar o endereço, force o
 bundle: `./gradlew :app:createBundleReleaseJsAndAssets --rerun :app:assembleRelease`.
