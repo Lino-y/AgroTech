@@ -128,6 +128,17 @@ Substitui o 0.1.0. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.1.apk`, 
 - Build: `BUILD SUCCESSFUL` em 3 min 31 s. `versionCode` e `versionName` foram ajustados no `build.gradle` gerado (o que o `prebuild` escreveria a partir do `app.json`) e confirmados pelo `aapt2`.
 - Não instalado nem visto em aparelho; o cadastro não foi exercitado contra a API real (só contra o servidor de teste, na rota existente).
 
+### 8.5 Evidência do APK 0.1.2 (fluxo da web)
+
+Substitui o 0.1.1. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.2.apk`, 66.601.133 bytes, SHA-256
+`95001525dfa759ed3f1b0cb1127eb33e1907f65057a017184029522360b9c51a`.
+
+- `aapt2 dump badging`: `versionCode` 3, `versionName` 0.1.2, permissão `INTERNET` apenas.
+- `apksigner verify`: válido (chave de depuração).
+- Bundle: contém "Voltar ao catálogo", as abas Entrar | Criar Conta, o aviso do modo offline e a saudação; não contém mais "Continuar offline".
+- Testes do app: 27 de 27; `tsc` sem erro; Metro empacota 613 módulos. Build: `BUILD SUCCESSFUL` em 3 min 33 s.
+- Não visto em aparelho.
+
 ### 8.2 Evidência do APK sem permissões extras
 
 O APK de 8.1 foi substituído pelo build seguinte (mesma versão, `versionCode` 1). Arquivo atual:
