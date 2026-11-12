@@ -22,6 +22,6 @@ test('cadastro exige nome, e-mail válido e senha, nessa ordem', () => {
 test('perfis do cadastro são só os que o servidor aceita (ADMIN nunca)', () => {
   assert.deepEqual(
     SIGNUP_ROLES.map((role) => role.value),
-    ['PRODUTOR', 'VENDEDOR']
+    ['PRODUTOR', 'VENDEDOR', 'AMBOS']
   );
 });

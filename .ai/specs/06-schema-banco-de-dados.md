@@ -14,7 +14,7 @@
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    role VARCHAR(20) CHECK (role IN ('PRODUTOR', 'VENDEDOR'))
+    role VARCHAR(20) CHECK (role IN ('PRODUTOR', 'VENDEDOR', 'AMBOS'))
 );
 
 CREATE TABLE products (

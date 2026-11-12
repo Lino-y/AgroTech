@@ -1,11 +1,13 @@
 // Regras de formulário do cadastro. Funções puras: o servidor valida tudo de novo (apps/api/server.js).
 
-export type SignupRole = 'PRODUTOR' | 'VENDEDOR';
+export type SignupRole = 'PRODUTOR' | 'VENDEDOR' | 'AMBOS';
 
 // Os mesmos perfis e rótulos do cadastro da web. ADMIN nunca é aceito pelo servidor.
+// AMBOS = comprador e vendedor na mesma conta (issue #83).
 export const SIGNUP_ROLES: { value: SignupRole; label: string }[] = [
   { value: 'PRODUTOR', label: 'Comprador Rural (Produtor)' },
-  { value: 'VENDEDOR', label: 'Vendedor / Fornecedor Agro' }
+  { value: 'VENDEDOR', label: 'Vendedor / Fornecedor Agro' },
+  { value: 'AMBOS', label: 'Comprador e Vendedor' }
 ];
 
 export function isValidEmail(email: string): boolean {

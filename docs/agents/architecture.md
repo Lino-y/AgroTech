@@ -57,7 +57,7 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - Entrada do usuário é validada no `apps/api/server.js`, nunca só no front:
   - texto que vai virar HTML passa por `cleanText` (`apps/api/server.js:257`);
   - link de imagem passa por `safeImageUrl` (`apps/api/server.js:262`);
-  - perfil no cadastro só entre `SIGNUP_ROLES` (`apps/api/server.js:251`), e ADMIN nunca
+  - perfil no cadastro só entre `SIGNUP_ROLES` (`apps/api/server.js:264`; inclui `AMBOS`), e ADMIN nunca
     vem do corpo da requisição;
   - preço e total saem do catálogo e de `calculateCartSummary`, nunca do valor
     que o cliente manda (`apps/api/server.js:638`);
