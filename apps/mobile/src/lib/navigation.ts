@@ -8,6 +8,9 @@ export type AuthMode = 'login' | 'register';
 export type Route =
   | { name: 'product'; product: Product }
   | { name: 'orders' }
+  | { name: 'support' }
+  | { name: 'favorites' }
+  | { name: 'admin' }
   | { name: 'auth'; pending: Target | null; mode?: AuthMode };
 /** Para onde ir depois de entrar: uma aba ou uma tela. */
 export type Target = { tab: Tab } | { route: Exclude<Route, { name: 'auth' }> };
@@ -17,7 +20,7 @@ export const INITIAL_NAV: Nav = { tab: 'catalog', stack: [] };
 
 // Como na web (navigateTo, src/modules/catalog.js): anunciar, financeiro e pedidos pedem conta.
 const PROTECTED_TABS: Tab[] = ['sell', 'finance'];
-const PROTECTED_ROUTES: Route['name'][] = ['orders'];
+const PROTECTED_ROUTES: Route['name'][] = ['orders', 'favorites', 'admin'];
 
 export function requireLogin(nav: Nav, pending: Target | null, mode: AuthMode = 'login'): Nav {
   return { ...nav, stack: [...nav.stack, { name: 'auth', pending, mode }] };
@@ -54,7 +57,9 @@ const REASONS: Partial<Record<Tab | Route['name'], string>> = {
   cart: 'finalizar a compra',
   sell: 'anunciar um produto',
   finance: 'acessar o financeiro',
-  orders: 'ver seus pedidos'
+  orders: 'ver seus pedidos',
+  favorites: 'ver seus favoritos',
+  admin: 'administrar os usuários'
 };
 
 export function pendingReason(target: Target | null): string | null {

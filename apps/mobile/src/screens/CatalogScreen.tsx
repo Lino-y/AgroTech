@@ -23,13 +23,14 @@ import { readCache, saveCache } from '../services/storage.ts';
 import { colors, iconSize, MIN_TOUCH, radius } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
-type Props = { userName: string | null; onOpenProduct: (product: Product) => void };
+/** onLive: o catálogo veio do servidor (há rede), hora de enviar a fila de anúncios guardados. */
+type Props = { userName: string | null; onOpenProduct: (product: Product) => void; onLive?: () => void };
 
 // Lista na tela e de onde ela veio: servidor (live), último catálogo salvo no aparelho (cache) ou
 // catálogo de demonstração embutido (snapshot), nessa ordem (Fase 3 da spec 08).
 const EMPTY: CatalogSource = { items: [], source: 'live', savedAt: null };
 
-export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Element {
+export function CatalogScreen({ userName, onOpenProduct, onLive }: Props): React.JSX.Element {
   const [catalog, setCatalog] = useState<CatalogSource>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,6 +46,7 @@ export function CatalogScreen({ userName, onOpenProduct }: Props): React.JSX.Ele
     try {
       const items = await loadProducts();
       setCatalog({ items, source: 'live', savedAt: null });
+      onLive?.();
       // Guarda o catálogo consultado (enxuto) para abrir sem rede da próxima vez.
       void saveCache('cache:catalog', items.map(slimProduct), null);
     } catch (err) {

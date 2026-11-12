@@ -4,7 +4,7 @@ import { apiRequest } from './api.ts';
 import type { SignupRole } from '../lib/forms.ts';
 import { clearSession, setSession } from './storage.ts';
 
-export type User = { id: string; name: string; email: string; role: string };
+export type User = { id: string; name: string; email: string; role: string; propertyOrCompany?: string };
 
 export async function login(email: string, password: string): Promise<User> {
   const res = await apiRequest<{ token: string; user: User }>('/auth/login', {

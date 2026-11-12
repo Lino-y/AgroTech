@@ -21,6 +21,8 @@ export type Order = {
   trackingCode?: string;
   carrier?: string;
   estimatedDelivery?: string;
+  /** Etapas da entrega (Pedido Confirmado, Separação, Saiu para Entrega, Chegada na Fazenda). */
+  timeline?: { title: string; time: string; completed: boolean }[];
 };
 
 /**

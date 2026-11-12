@@ -57,3 +57,11 @@ test('o motivo da entrada usa os textos da web', () => {
   assert.equal(pendingReason({ route: { name: 'orders' } }), 'ver seus pedidos');
   assert.equal(pendingReason(null), null);
 });
+
+test('suporte abre para visitante; favoritos e usuários pedem conta e voltam depois do login', () => {
+  assert.deepEqual(open(INITIAL_NAV, { name: 'support' }, false).stack, [{ name: 'support' }]);
+  const fav = open(INITIAL_NAV, { name: 'favorites' }, false);
+  assert.deepEqual(afterAuth(fav).stack, [{ name: 'favorites' }]);
+  assert.equal(pendingReason({ route: { name: 'favorites' } }), 'ver seus favoritos');
+  assert.equal(open(INITIAL_NAV, { name: 'admin' }, false).stack[0].name, 'auth');
+});

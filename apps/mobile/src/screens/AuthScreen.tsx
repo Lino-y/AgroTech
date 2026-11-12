@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, MIN_TOUCH } from '../theme.ts';
 import { LoginForm } from './LoginForm.tsx';
 import { RegisterForm } from './RegisterForm.tsx';
+import { ResetForm } from './ResetForm.tsx';
 
-type Mode = 'login' | 'register';
+type Mode = 'login' | 'register' | 'reset';
 type Props = {
   onAuthenticated: (user: User) => void;
   onBack: () => void;
@@ -26,6 +27,7 @@ const TABS: { mode: Mode; label: string }[] = [
 // Mesma tela da web: um só lugar com as abas Entrar | Criar Conta e a volta para o catálogo.
 export function AuthScreen({ onAuthenticated, onBack, initialMode = 'login', reason }: Props): React.JSX.Element {
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [notice, setNotice] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -60,7 +62,25 @@ export function AuthScreen({ onAuthenticated, onBack, initialMode = 'login', rea
           })}
         </View>
 
-        {mode === 'login' ? <LoginForm onLoggedIn={onAuthenticated} /> : <RegisterForm onRegistered={onAuthenticated} />}
+        {notice ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text> : null}
+        {mode === 'login' ? (
+          <LoginForm
+            onLoggedIn={onAuthenticated}
+            onForgot={() => {
+              setNotice(null);
+              setMode('reset');
+            }}
+          />
+        ) : mode === 'register' ? (
+          <RegisterForm onRegistered={onAuthenticated} />
+        ) : (
+          <ResetForm
+            onDone={() => {
+              setNotice('Senha trocada. Entre com a senha nova.');
+              setMode('login');
+            }}
+          />
+        )}
 
         <View style={styles.back}>
           <Button title="Voltar" variant="outline" onPress={onBack} />
@@ -90,5 +110,14 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontWeight: '600', color: colors.mutedForeground },
   tabTextSelected: { color: colors.foreground, fontWeight: '800' },
   back: { marginTop: 20 },
+  notice: {
+    marginBottom: 16,
+    backgroundColor: colors.primarySoft,
+    color: colors.foreground,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    fontWeight: '600'
+  },
   version: { marginTop: 32, fontSize: 12, color: colors.mutedForeground, textAlign: 'center' }
 });

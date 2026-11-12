@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/Button.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { ScreenHeader } from '../components/ScreenHeader.tsx';
 import { ui } from '../components/ui.ts';
 import { formatDate, formatDateTime, formatPrice } from '../lib/catalog.ts';
 import { ApiError } from '../services/api.ts';
 import { withCache } from '../services/offline.ts';
 import { loadOrders, type Order } from '../services/orders.ts';
-import { colors } from '../theme.ts';
+import { colors, iconSize } from '../theme.ts';
 
 type Props = { onBack: () => void; onBrowse: () => void };
 
@@ -88,6 +89,22 @@ export function OrdersScreen({ onBack, onBrowse }: Props): React.JSX.Element {
                 <Text style={styles.total}>{formatPrice(item.total)}</Text>
               </View>
               {item.trackingCode ? <Text style={ui.muted}>Rastreio: {item.trackingCode}</Text> : null}
+              {item.timeline?.length ? (
+                <View style={styles.timeline} accessibilityLabel="Etapas da entrega">
+                  {item.timeline.map((step) => (
+                    <View key={step.title} style={ui.row}>
+                      <Icon
+                        name={step.completed ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={iconSize.sm + 2}
+                        color={step.completed ? colors.primary : colors.mutedForeground}
+                      />
+                      <Text style={step.completed ? styles.stepDone : ui.muted}>
+                        {step.title} · {step.completed ? 'feito' : step.time}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           )}
         />
@@ -99,5 +116,7 @@ export function OrdersScreen({ onBack, onBrowse }: Props): React.JSX.Element {
 const styles = StyleSheet.create({
   id: { fontSize: 15, fontWeight: '800', color: colors.foreground },
   status: { fontSize: 14, fontWeight: '700', color: colors.primary },
-  total: { fontSize: 16, fontWeight: '800', color: colors.primary }
+  total: { fontSize: 16, fontWeight: '800', color: colors.primary },
+  timeline: { gap: 6, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
+  stepDone: { fontSize: 13, fontWeight: '700', color: colors.foreground }
 });
