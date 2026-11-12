@@ -24,6 +24,10 @@ O APK sai em `android/app/build/outputs/apk/release/app-release.apk`.
 A pasta `android/` é gerada pelo `prebuild` e não se versiona. O endereço da API
 fica gravado no APK no momento do build: para mudar de rede, gere de novo.
 
+Cuidado: o Gradle não vê a troca de `EXPO_PUBLIC_API_URL` como mudança e reaproveita o bundle
+antigo (o build termina em segundos, com o endereço velho dentro). Ao trocar o endereço, force o
+bundle: `./gradlew :app:createBundleReleaseJsAndAssets --rerun :app:assembleRelease`.
+
 ## Limitações conhecidas
 
 - O APK é assinado com a chave de depuração do React Native (não há keystore de

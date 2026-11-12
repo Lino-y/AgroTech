@@ -86,8 +86,9 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
   declara as três primeiras; as biométricas vêm do `androidx.biometric`. Bloqueadas em
   `apps/mobile/app.json:11` a `:17` (`android.blockedPermissions`, suportado pelo Expo 58). Verificação
   do APK novo na seção 8.2.
-- **IP da API a confirmar.** O endereço gravado no APK é `10.210.61.27:3001` (Ethernet 2). O
-  adaptador Wi-Fi não apareceu com IPv4 na verificação. Se o celular não alcançar esse endereço, gerar de
+- **IP da API a confirmar.** Até o 0.1.3 o endereço gravado no APK era `10.210.61.27:3001` (Ethernet 2). Em
+  12/11 o PC passou para o Wi-Fi (`192.168.1.34`), e o 0.1.4 aponta para `192.168.1.34:3001`. Trocar o
+  endereço não refaz o bundle sozinho (ver `apps/mobile/README.md`). Se o celular não alcançar esse endereço, gerar de
   novo com `EXPO_PUBLIC_API_URL` correto. A API precisa estar rodando (`npm start`) e a porta 3001
   liberada no firewall do Windows.
 
@@ -149,6 +150,17 @@ Substitui o 0.1.2. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.3.apk`, 
 - Logo: o Android encurta os nomes dos recursos no release, então o arquivo não aparece como `logo`. Achado pelas dimensões: `res/4z.png`, 480x270, recomprimido para 9.789 bytes, e a imagem extraída do APK é o trator da web.
 - Metro empacota 615 módulos com o `assets/logo.png`. Build: `BUILD SUCCESSFUL` em 2 min 27 s.
 - Não visto em aparelho: o tamanho da logo na tela (160x90) é verificação de código.
+
+### 8.7 Evidência do APK 0.1.4 (perfil comprador e vendedor, issue #83)
+
+Substitui o 0.1.3. Arquivo: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.4.apk`, 66.612.081 bytes, SHA-256
+`ba146c52989dfafca2d287d4e0e9d4546e7563d496c91443d638c2e755a0e129`.
+
+- `aapt2 dump badging`: `versionCode` 5, `versionName` 0.1.4, permissão `INTERNET` apenas. `apksigner verify`: válido.
+- Bundle extraído do próprio APK: contém `192.168.1.34:3001` (Wi-Fi do PC), não contém o IP antigo, e tem a opção "Comprador e Vendedor".
+- O primeiro build do 0.1.4 terminou em 10 s com o IP antigo dentro (bundle reaproveitado pelo Gradle) e foi descartado antes de ir para o celular. Refeito com `--rerun` na tarefa do bundle.
+- API reiniciada com o código novo: recusa `ADMIN` com "Perfil inválido: use PRODUTOR, VENDEDOR ou AMBOS." e responde em `192.168.1.34:3001`.
+- Não visto em aparelho.
 
 ### 8.2 Evidência do APK sem permissões extras
 
