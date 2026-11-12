@@ -96,15 +96,22 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
   - O servidor troca o código pelo token do vendedor (`POST /oauth/token`) e guarda
     `access_token`, `refresh_token`, `expires_at` e o `user_id` do Mercado Pago.
   - Pede o escopo `offline_access`, sem o qual não há renovação.
-  - O `state` é aleatório, de uso único, ligado à sessão e com validade curta, contra CSRF.
+  - A URL de autorização leva `client_id`, `response_type=code`, `platform_id=mp`, o `state` e
+    exatamente o `MP_OAUTH_REDIRECT_URI` cadastrado no painel do Mercado Pago.
+  - O `state` é gerado no servidor, aleatório, de uso único, ligado ao usuário logado, gravado no
+    `db.json` (não em memória: precisa sobreviver a reinício) e vence em 10 minutos.
+  - O callback trata `error` do Mercado Pago, recusa `state` ausente, vencido ou reutilizado, e
+    exige `code`.
+  - A troca do código é no servidor: `POST /oauth/token`, `application/x-www-form-urlencoded`,
+    `grant_type=authorization_code`, com o mesmo `redirect_uri`.
   - O PKCE fica ligado na aplicação do Mercado Pago.
 - **Segurança do token:**
   - O token do vendedor dá acesso à conta dele: **nunca** sai do servidor, nunca vai em resposta
     nem em log.
   - Fica cifrado em repouso no `db.json` (AES-256-GCM, chave em variável de ambiente).
 - **Renovação:** antes do vencimento (o token vale 180 dias, segundo a documentação do Mercado
-  Pago), o servidor renova com o `refresh_token` e grava o novo, porque cada renovação troca o
-  `refresh_token`.
+  Pago), o servidor renova com o `refresh_token` (`grant_type=refresh_token`). Ele troca os dois
+  tokens de uma vez, porque cada renovação troca também o `refresh_token`.
   - Se a renovação falhar, o vendedor aparece como desconectado e é avisado.
 - **Desconectar:** apaga os tokens.
   - Anúncios do vendedor ficam visíveis, mas sem botão de compra ("Vendedor sem pagamento ativo").
@@ -137,9 +144,15 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
      - `back_urls` de retorno ao app e à web;
      - expiração em 30 minutos.
   3. O app abre `checkoutUrl` numa aba do navegador. A web redireciona.
-- **API do Mercado Pago:** o split com `marketplace_fee` está documentado na API de preferências do
-  Checkout Pro. A API de Orders, mais nova, não documenta equivalente para o split. O blueprint
-  confirma a API vigente no ambiente de teste antes de codar.
+- **API do Mercado Pago:** o Checkout Pro usa a API de preferências, exatamente em
+  `POST /checkout/preferences`, sem prefixo `/v1`, e **não** a API de Orders. O split vai em
+  `marketplace_fee`. Isso é o contrato `checkout-pro` do guia de marketplace do plugin oficial
+  (seção 10).
+  - A preferência sai com o token do vendedor no `Authorization`, **sem** `collector_id` no corpo.
+  - Nunca há volta silenciosa para o token da AgroTech.
+  - A API devolve ao cliente só `preferenceId` e `initPoint`, e o app abre sempre o `init_point`,
+    nunca o `sandbox_init_point`.
+  - `auto_return: 'approved'` só entra com `back_urls` públicas; o Mercado Pago recusa `localhost`.
 - **Idempotência:** a `Idempotency-Key` que o pedido já usa (`apps/api/server.js:670`, `replayResponse` em
   `server.js:688`) continua
   valendo. O reenvio devolve o mesmo pedido e o mesmo `checkoutUrl`, sem criar segunda preferência.
@@ -152,6 +165,10 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 ### RF-04 — Webhook e estado do pagamento `[NOVO]`
 
 - **Rota:** `POST /api/payments/webhook`, pública, sem `authenticate`.
+- **Tópicos:** `payment`, que se consulta em `GET /v1/payments/{id}`, e `merchant_order`, que o
+  Checkout Pro também envia (`GET /merchant_orders/{id}`). O `merchant_order` só serve para achar
+  os pagamentos do pedido; a decisão é sempre pelo `payment`.
+- **Cabeçalho incompleto:** falta de `x-signature`, `x-request-id` ou `data.id` responde 400.
 - **Assinatura:** o servidor valida a assinatura **antes** de qualquer outra coisa.
   - Monta o manifest `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` e calcula o HMAC-SHA256 com
     a chave secreta da aplicação.
@@ -174,10 +191,15 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 | `refunded`, `charged_back` | `ESTORNADO` | devolvido |
 
 - **Repetição:** a mesma notificação pode chegar mais de uma vez (o Mercado Pago reenvia até
-  receber 200/201). Aplicar de novo o mesmo estado não muda nada. Estado só avança: `PAGO` nunca
-  volta a `AGUARDANDO`.
-- **Resposta:** 200 em até 22 s, o prazo do Mercado Pago. O trabalho é curto, e a gravação passa
-  pela fila de escrita que já serializa o `db.json`.
+  receber 200/201).
+  - Dedup por `type` + `data.id`.
+  - Aplicar de novo o mesmo estado não muda nada.
+  - Estado só avança: `PAGO` nunca volta a `AGUARDANDO`.
+- **Resposta:** 200 **logo depois** de validar a assinatura, antes de consultar o Mercado Pago
+  (regra do guia de webhooks do plugin; o prazo do Mercado Pago é 22 s). A consulta e a gravação
+  vêm em seguida, pela fila de escrita que já serializa o `db.json`.
+  - Se a consulta falhar depois do 200, o Mercado Pago não reenvia. Quem recupera é a varredura do
+    RF-05, que também consulta, pelo `external_reference`, os pedidos e campanhas ainda pendentes.
 - **Retorno ao app sem webhook:** se o webhook não chegou (rede, servidor fora do ar), o app, ao
   voltar do Checkout Pro, pede `POST /api/orders/:id/sync`. Essa rota consulta o pagamento pelo
   `external_reference` e aplica a mesma regra. O app nunca decide que o pedido foi pago.
@@ -194,6 +216,8 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
     pagamento informado pelo Mercado Pago.
   - Ao vencer, o pedido vai para `CANCELADO` e o estoque volta.
   - O vencimento é conferido na leitura do pedido e por uma varredura a cada minuto, sem fila nova.
+  - A mesma varredura consulta no Mercado Pago, pelo `external_reference`, os pedidos e campanhas
+    pendentes há mais de 2 minutos. Assim, um webhook perdido não deixa pagamento sem registro.
 - **Critério de aceite:**
   - teste de limite: reserva com vencimento igual a agora já está vencida;
   - teste de que dois pedidos pendentes não reservam mais que o estoque.
@@ -255,9 +279,13 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 ## 7. Requisitos não funcionais
 
 - **Segurança:**
-  - Credenciais só em variável de ambiente; o `.env.example` recebe só os nomes, nunca valores:
-    `MP_ACCESS_TOKEN`, `MP_CLIENT_ID`, `MP_CLIENT_SECRET`, `MP_WEBHOOK_SECRET`,
-    `MP_TOKEN_ENCRYPTION_KEY`, `PUBLIC_API_URL`.
+  - Credenciais só em variável de ambiente; o `.env.example` recebe só os nomes, nunca valores,
+    com os mesmos nomes do guia do plugin:
+    - `MP_ACCESS_TOKEN`: da AgroTech, usado no patrocínio;
+    - `MP_APP_ID`, `MP_CLIENT_SECRET`, `MP_OAUTH_REDIRECT_URI`;
+    - `MP_WEBHOOK_SECRET`, `MP_TOKEN_ENCRYPTION_KEY`;
+    - `APP_URL`: endereço público da API.
+    - Não há `MP_PUBLIC_KEY`, porque o Checkout Pro redireciona e não tokeniza cartão no app.
   - Sem `MP_WEBHOOK_SECRET`, o servidor não sobe com pagamento ligado, e falha em voz alta.
   - Nenhum dado de cartão passa pela AgroTech.
   - Tokens de vendedor cifrados em repouso.
@@ -327,7 +355,21 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
   - Nos testes automatizados, o Mercado Pago é simulado por um servidor HTTP local, nunca chamado de
     verdade.
 - **Tratamento de falha:** timeout de 10 s nas chamadas ao Mercado Pago. Criar pedido que falha não
-  deixa reserva nem pedido. Consulta que falha no webhook responde 500, e o Mercado Pago reenvia.
+  deixa reserva nem pedido. Consulta que falha depois do 200 do webhook é recuperada pela varredura
+  (RF-04).
+- **Plugin oficial do Mercado Pago para Claude Code** (`mercadopago@mercadopago-claude-marketplace`
+  v4.3.2, instalado no escopo do usuário em 2026-11-12):
+  - o desenho segue os guias dele de marketplace (contrato `checkout-pro`), Checkout Pro e
+    webhooks;
+  - na implementação, `/mp-test-setup` cria os usuários de teste (comprador e vendedor) e
+    `/mp-test-cards BR` dá os cartões de teste;
+  - o MCP do plugin registra o webhook (`save_webhook`) e confere as entregas
+    (`notifications_history`);
+  - `/mp-review marketplace` roda antes de trocar para credencial de produção;
+  - o validador `validate-marketplace-integration.mjs` procura marcações `data-mp-*` no HTML, e
+    por isso vale para a web; o app React Native é conferido pelos testes deste repositório;
+  - o MCP pede login OAuth na conta Mercado Pago (`/mp-connect`), feito pelo dono da conta numa
+    sessão interativa.
 
 ## 11. Contratos
 
@@ -379,7 +421,8 @@ As mudanças entram em `.ai/specs/05-openapi-spec.md` no PR de implementação, 
 | Token do vendedor vazado dá acesso à conta Mercado Pago dele | Cifrado em repouso, nunca em resposta nem em log; desconectar apaga |
 | Webhook forjado marca pedido como pago | Assinatura obrigatória e consulta ao Mercado Pago como fonte de verdade, conferindo valor e recebedor |
 | Estoque preso por pedido abandonado | Reserva com vencimento e varredura |
-| A API de Orders do Mercado Pago substitui a de preferências | O split só está documentado em preferências; o blueprint confirma no ambiente de teste e isola a chamada num único módulo |
+| A API de Orders do Mercado Pago substitui a de preferências | O guia de marketplace do plugin oficial (2026-08-21) manda usar preferências no Checkout Pro com split e não forçar Orders; a chamada fica isolada num único módulo |
+| Webhook respondido com 200 e consulta que falha depois | A varredura reconsulta pendentes pelo `external_reference`; o sync do app cobre o retorno |
 | `db.json` guardando dinheiro e tokens | Aceitável só na fase de teste; a migração para o PostgreSQL da spec 06 vem antes de vender de verdade em escala |
 | Vendedor sem conta Mercado Pago ou sem cadastro completo não consegue receber | Anúncio aparece sem botão de compra, com aviso ao vendedor |
 
@@ -416,5 +459,8 @@ As mudanças entram em `.ai/specs/05-openapi-spec.md` no PR de implementação, 
   https://www.mercadopago.com.br/developers/en/docs/your-integrations/notifications/webhooks
 - OAuth (validade de 180 dias, `offline_access`, troca do `refresh_token`, PKCE):
   https://www.mercadopago.com.br/developers/en/docs/security/oauth/renewal
+- Plugin oficial do Mercado Pago para Claude Code, guias `marketplace.md`, `checkout-pro.md` e
+  `webhooks.md` da skill `mp-integrate` (v4.3.2):
+  https://github.com/mercadopago/mercadopago-claude-marketplace
 - Migração para a API de Orders (sem equivalente documentado ao `application_fee`):
   https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/resources/migrate-payments-to-orders
