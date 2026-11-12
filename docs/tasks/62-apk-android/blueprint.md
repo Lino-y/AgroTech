@@ -96,6 +96,17 @@ A spec 08 manda no escopo da Fase 1; este blueprint manda no "como".
   (platform 37, build-tools 35.0.0, NDK 27.1.12297006, CMake 3.22.1). `BUILD SUCCESSFUL` em 14 min 41 s.
 - Não instalado nem executado em aparelho.
 
+### 8.3 Evidência do APK com o layout novo
+
+Arquivo atual: `C:\Users\Rooselt\AgroTech-APK\agrotech-0.1.0.apk`, 66.589.385 bytes, SHA-256
+`900b2048459f158f2fee793d38631d3197c7078b3dec5b6dfb41b2157c65eb4c`.
+
+- `aapt2 dump badging`: pacote `br.com.agrotech.app`, permissão `INTERNET` apenas.
+- `apksigner verify`: válido (chave de depuração).
+- Bundle: contém os textos das telas novas (login, busca, chips, estados) e o endereço da API.
+- Build: `BUILD SUCCESSFUL` em 3 min 04 s (incremental).
+- Não instalado nem visto em aparelho: a comparação visual com a web é de código (CA10).
+
 ### 8.2 Evidência do APK sem permissões extras
 
 O APK de 8.1 foi substituído pelo build seguinte (mesma versão, `versionCode` 1). Arquivo atual:
