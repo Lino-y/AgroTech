@@ -17,10 +17,10 @@ test('sobe o servidor e só dá por pronto quando o próprio processo avisa que 
 test('variável com valor undefined sai do ambiente do servidor, mesmo se o processo a tiver', async () => {
   process.env.APP_MIN_VERSION = '9.9.9';
   try {
-    const started = await startServer({ env: { APP_MIN_VERSION: undefined, JWT_SECRET: 'segredo-do-helper' } });
+    const started = await startServer({ env: { APP_MIN_VERSION: undefined, APP_LATEST_VERSION: undefined, APP_APK_FILE: undefined, JWT_SECRET: 'segredo-do-helper' } });
     try {
       const body = await (await fetch(`${started.base}/api/app-config`)).json();
-      assert.deepEqual(body, { minVersion: '0.0.0' });
+      assert.deepEqual(body, { minVersion: '0.0.0', latestVersion: null, downloadUrl: null });
     } finally {
       started.kill();
     }

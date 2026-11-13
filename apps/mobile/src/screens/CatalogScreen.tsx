@@ -24,13 +24,23 @@ import { colors, iconSize, MIN_TOUCH, radius, fonts } from '../theme.ts';
 
 /** userName: quem está logado; null é visitante (o catálogo é público, como na web). */
 /** onLive: o catálogo veio do servidor (há rede), hora de enviar a fila de anúncios guardados. */
-type Props = { userName: string | null; onOpenProduct: (product: Product) => void; onLive?: () => void };
+type Props = {
+  userName: string | null;
+  onOpenProduct: (product: Product) => void;
+  onLive?: () => void;
+  /** Versão nova para baixar (a API informa); some quando a pessoa dispensa. */
+  update?: { version: string; url: string } | null;
+  onDownloadUpdate?: () => void;
+  onDismissUpdate?: () => void;
+  onConfigureServer?: () => void;
+};
 
 // Lista na tela e de onde ela veio: servidor (live), último catálogo salvo no aparelho (cache) ou
 // catálogo de demonstração embutido (snapshot), nessa ordem (Fase 3 da spec 08).
 const EMPTY: CatalogSource = { items: [], source: 'live', savedAt: null };
 
-export function CatalogScreen({ userName, onOpenProduct, onLive }: Props): React.JSX.Element {
+export function CatalogScreen(props: Props): React.JSX.Element {
+  const { userName, onOpenProduct, onLive, update, onDownloadUpdate, onDismissUpdate, onConfigureServer } = props;
   const [catalog, setCatalog] = useState<CatalogSource>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -141,8 +151,21 @@ export function CatalogScreen({ userName, onOpenProduct, onLive }: Props): React
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
           }
           ListHeaderComponent={
-            catalog.source !== 'live' || error ? (
+            catalog.source !== 'live' || error || update ? (
               <View style={styles.boxes}>
+                {update ? (
+                  <View style={styles.updateBox} accessibilityLiveRegion="polite">
+                    <Text style={styles.updateText}>Nova versão {update.version} do app disponível.</Text>
+                    <View style={styles.updateActions}>
+                      <Tap accessibilityRole="button" onPress={onDownloadUpdate} style={styles.retry}>
+                        <Text style={styles.retryText}>Baixar</Text>
+                      </Tap>
+                      <Tap accessibilityRole="button" onPress={onDismissUpdate} style={styles.later}>
+                        <Text style={styles.laterText}>Agora não</Text>
+                      </Tap>
+                    </View>
+                  </View>
+                ) : null}
                 {catalog.source !== 'live' ? (
                   <Text accessibilityLiveRegion="polite" style={styles.notice}>
                     {catalog.source === 'cache'
@@ -157,6 +180,11 @@ export function CatalogScreen({ userName, onOpenProduct, onLive }: Props): React
                     <Tap accessibilityRole="button" onPress={() => load(false)} style={styles.retry}>
                       <Text style={styles.retryText}>Tentar novamente</Text>
                     </Tap>
+                    {onConfigureServer ? (
+                      <Tap accessibilityRole="button" onPress={onConfigureServer} style={styles.later}>
+                        <Text style={styles.laterText}>Configurar servidor</Text>
+                      </Tap>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -250,6 +278,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.destructive
   },
+  updateBox: { backgroundColor: colors.primarySoft, borderRadius: radius.control, padding: 14, gap: 10 },
+  updateText: { fontSize: 14, fontWeight: '700', color: colors.foreground },
+  updateActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  later: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 12, alignSelf: 'flex-start' },
+  laterText: { fontSize: 14, fontWeight: '700', color: colors.primary },
   errorText: { color: colors.destructive, fontSize: 14, fontWeight: '600' },
   retry: {
     minHeight: MIN_TOUCH,

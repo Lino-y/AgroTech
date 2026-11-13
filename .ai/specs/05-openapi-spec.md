@@ -138,7 +138,23 @@ paths:
       summary: Versão mínima do app aceita pela API (pública, sem token)
       description: 'Vem da variável de ambiente APP_MIN_VERSION (MAJOR.MINOR.PATCH); padrão 0.0.0. Valor inválido derruba o servidor na subida. Requisição com o cabeçalho X-App-Version abaixo da mínima recebe 426 { message, minVersion } em qualquer rota /api, menos /api/health e /api/app-config; sem o cabeçalho (a SPA) nada é bloqueado.'
       responses:
-        '200': { description: 'ok', content: { application/json: { schema: { type: object, properties: { minVersion: { type: string, example: '1.2.0' } } } } } }
+        '200':
+          description: 'ok'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  minVersion: { type: string, example: '1.2.0' }
+                  latestVersion: { type: string, nullable: true, example: '1.3.0', description: 'versão mais nova para baixar (APP_LATEST_VERSION); null sem configuração. O app avisa quando ela é maior que a dele.' }
+                  downloadUrl: { type: string, nullable: true, example: '/api/app-download', description: 'caminho relativo do APK; null quando APP_APK_FILE não está configurado' }
+  /api/app-download:
+    get:
+      summary: Baixa o APK da versão mais nova (público, sem token)
+      description: 'Entrega só o arquivo de APP_APK_FILE (caminho absoluto de um .apk, fora das pastas servidas); nada da requisição muda o arquivo. Liberado mesmo para app abaixo da versão mínima (é por onde ele se atualiza).'
+      responses:
+        '200': { description: 'o APK', content: { application/vnd.android.package-archive: { schema: { type: string, format: binary } } } }
+        '404': { description: 'nenhum APK configurado ou o arquivo não existe' }
   /api/auth/register:
     post:
       summary: Cria uma conta e já devolve a sessão

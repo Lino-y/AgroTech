@@ -367,6 +367,8 @@ test('varredura: reserva vencida sem pagamento cancela e devolve o estoque; pend
     assert.equal(await stockOf(productId, quick.base), 5);
 
     await waitFor(async () => (await orderOf(buyer, abandoned.id, quick.base)).paymentStatus === 'CANCELADO', 'cancelado na varredura');
+    // O pedido de boleto foi criado depois: a reserva dele pode vencer numa passada seguinte da varredura.
+    await waitFor(async () => (await orderOf(buyer, boleto.id, quick.base)).reservedUntil === due, 'reserva do boleto estendida');
     assert.equal(await stockOf(productId, quick.base), 7, 'só a reserva do pedido abandonado volta');
     const held = await orderOf(buyer, boleto.id, quick.base);
     assert.equal(held.paymentStatus, 'AGUARDANDO_PAGAMENTO');

@@ -3,4 +3,4 @@
 export const API_URL: string = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 /** Versão do app (igual a app.json, conferido em teste). Vai no cabeçalho X-App-Version (spec 05). */
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.4.2';

@@ -19,7 +19,7 @@ import {
   completeSellerConnection, PaymentFlowError, preparePayment, processNotification, startSellerConnection,
   sweepPayments, syncOrder
 } from './payments.js';
-import { isBelowMinVersion, readAppMinVersion } from './app-version.js';
+import { isBelowMinVersion, readAppMinVersion, readLatestVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
 dotenv.config();
@@ -72,6 +72,19 @@ if ('error' in mercadoPagoConfig) {
 const MP = mercadoPagoConfig.mode === 'mercadopago' ? mercadoPagoConfig : null;
 if (MP && !/^https:\/\/(?!localhost|127\.|0\.0\.0\.0)/.test(MP.appUrl)) {
   console.warn('[agrotech] APP_URL não é https público: o Mercado Pago não manda notificação nem volta sozinho, e a volta da web sai em http. Só para teste.');
+}
+// Versão mais nova para baixar e o APK dela (APP_LATEST_VERSION e APP_APK_FILE, caminho absoluto de
+// um .apk fora das pastas servidas). Sem as variáveis, o app não avisa nada e o download é 404.
+const latestVersion = readLatestVersion(process.env.APP_LATEST_VERSION);
+if ('error' in latestVersion) {
+  console.error(`[agrotech] ${latestVersion.error}`);
+  process.exit(1);
+}
+const APP_LATEST_VERSION = latestVersion.version;
+const APP_APK_FILE = process.env.APP_APK_FILE || null;
+if (APP_APK_FILE && !APP_APK_FILE.toLowerCase().endsWith('.apk')) {
+  console.error('[agrotech] APP_APK_FILE precisa ser um arquivo .apk.');
+  process.exit(1);
 }
 // DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
 const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
@@ -389,7 +402,7 @@ app.use(express.json({ limit: '2mb' }));
 // App abaixo da versão mínima (APP_MIN_VERSION) recebe 426 em toda rota /api, menos saúde e a própria
 // configuração, que o app lê para mostrar a tela de atualização. Sem o cabeçalho X-App-Version (a SPA),
 // nada é barrado.
-const VERSION_FREE = new Set(['/api/health', '/api/app-config']);
+const VERSION_FREE = new Set(['/api/health', '/api/app-config', '/api/app-download']);
 app.use((req, res, next) => {
   const version = req.get('X-App-Version');
   if (version === undefined || !/^\/api(\/|$)/i.test(req.path) || VERSION_FREE.has(req.path.toLowerCase())) return next();
@@ -451,7 +464,21 @@ app.get('/api/health', (_, res) => {
 });
 
 app.get('/api/app-config', (_, res) => {
-  res.json({ minVersion: APP_MIN_VERSION });
+  res.json({
+    minVersion: APP_MIN_VERSION,
+    latestVersion: APP_LATEST_VERSION,
+    downloadUrl: APP_APK_FILE ? '/api/app-download' : null
+  });
+});
+
+// APK da versão mais nova. Entrega só o arquivo configurado no servidor (nada da requisição entra no
+// caminho), com o tipo de pacote Android: o navegador do celular baixa e o Android oferece instalar.
+app.get('/api/app-download', (_, res) => {
+  if (!APP_APK_FILE) return res.status(404).json({ message: 'Nenhuma versão do app disponível para download.' });
+  const name = `agrotech-${APP_LATEST_VERSION ?? 'app'}.apk`;
+  res.download(APP_APK_FILE, name, { headers: { 'Content-Type': 'application/vnd.android.package-archive' } }, (error) => {
+    if (error && !res.headersSent) res.status(404).json({ message: 'Arquivo do app não encontrado no servidor.' });
+  });
 });
 
 app.post('/api/auth/register', async (req, res) => {
