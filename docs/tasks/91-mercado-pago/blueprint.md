@@ -31,7 +31,7 @@ da AgroTech descontada.
 | CA10 | Valor, referência ou recebedor divergente não muda o pedido e marca revisão | ✅ | `packages/domain/payments.js:104`; testes "valor divergente" |
 | CA11 | Recusado não cancela (o comprador tenta de novo); pendente segura a reserva até o vencimento | ✅ | `packages/domain/payments.js:68`; testes "recusado não cancela", "sync …", varredura |
 | CA12 | Estorno do pagamento que pagou: ESTORNADO, com o estoque devolvido uma vez | ✅ | `apps/api/payments.js:176`; teste "estorno depois de pago" |
-| CA13 | Varredura cancela a reserva vencida sem pagamento e devolve o estoque | ✅ | `apps/api/payments.js:300`, `apps/api/server.js:1209`; teste "varredura …" |
+| CA13 | Varredura cancela a reserva vencida sem pagamento e devolve o estoque | ✅ | `apps/api/payments.js:300`, `apps/api/server.js:1213`; teste "varredura …" |
 | CA14 | Comissão: ADMIN define de 0 a 30% (2 casas); cálculo em pontos-base, para baixo, nunca o total | ✅ | `packages/domain/payments.js:36`, `apps/api/server.js:1141`; testes "comissão …" |
 | CA15 | Extrato e receita: aguardando e cancelado não entram; estornado entra e é desfeito | ✅ | `packages/domain/finance.js:54`, `packages/domain/finance.js:67`, `apps/api/server.js:1034`; testes "extrato …" |
 | CA16 | Conexão sobrevive à gravação de outra rota; excluir a conta apaga a conexão | ✅ | `apps/api/server.js:283`, `apps/api/server.js:634`; testes correspondentes |
@@ -202,3 +202,30 @@ na spec 10, no mesmo PR.
   conta de teste receber token de teste. A documentação oficial do OAuth diz que `test_token` "true"
   gera credenciais de sandbox. Vazio em produção. Ref: `apps/api/mercadopago.js:138`; teste "sandbox:
   com MP_OAUTH_TEST_TOKEN=1 …" em `tests/payments-flows.test.js`.
+
+## 12. Primeiro teste no sandbox real (2026-11-13)
+
+API de teste (porta 3002) atrás do ngrok, com a aplicação do usuário (Checkout Pro, Marketplace) e
+contas de teste.
+
+**Funcionou:**
+- **OAuth:** a conta de teste do vendedor foi conectada e o token de teste salvo cifrado.
+- **Preferência:** aceita pelo Mercado Pago com o token do vendedor e comissão de 10% (R$ 8,60 sobre
+  R$ 86,00).
+- **Pagamento:** o comprador de teste pagou com cartão aprovado (`credit_card`, `approved`), e o pedido
+  virou PAGO.
+- **Estoque e extrato:** o estoque caiu de 50 para 48, e o extrato mostra a compra (comprador) e a
+  venda (vendedor).
+
+**Achados:**
+- **Assinatura dos webhooks `payment`:** recusada com 401 nas duas entregas. O diagnóstico local (sem
+  expor o segredo) mostrou que nenhuma variação do manifest bate com o segredo configurado, que tem 72
+  caracteres; o esperado é 64. Logo, foi configurado o valor errado, e não há erro de código.
+  - O pedido foi confirmado pela varredura, 20 s depois (histórico `source: sync`), como previsto.
+  - Ação: o usuário troca só o segredo (script `trocar-segredo-webhook.ps1`, fora do repositório).
+- **`merchant_order` no formato antigo** (`?id=…&topic=merchant_order`) recebia 400 e seria reenviado
+  para sempre. Agora recebe 200 e é ignorado. Ref: `apps/api/server.js:1196`.
+- **Testes de API liam o `.env` real da pasta:** o servidor dos testes lia o `.env` de quem roda
+  (`dotenv` na pasta atual), e o teste "configuração pela metade" passou a falhar com credenciais
+  reais presentes. O helper agora sobe o servidor numa pasta temporária. Ref:
+  `tests/helpers/start-server.js:36`.

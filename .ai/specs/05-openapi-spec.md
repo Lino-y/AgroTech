@@ -424,7 +424,7 @@ paths:
         e só então responde 200 (falha ao consultar ou gravar responde 500, e o Mercado Pago reenvia;
         o reenvio é idempotente). Só o tópico payment decide:
         o servidor consulta GET /v1/payments/{id} com o token do vendedor (achado pelo user_id) e confere
-        referência, valor e recebedor. merchant_order é aceito e ignorado (a varredura e o sync cobrem).
+        referência, valor e recebedor. merchant_order (inclusive no formato antigo ?id=…&topic=merchant_order, sem data.id nem assinatura útil) recebe 200 antes da checagem de assinatura e é ignorado: nada muda, e a varredura e o sync cobrem.
       parameters:
         - { name: data.id, in: query, required: true, schema: { type: string } }
         - { name: type, in: query, required: false, schema: { type: string } }

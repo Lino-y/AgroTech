@@ -171,6 +171,9 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 - **Tópicos:** a decisão é sempre pelo `payment`, que se consulta em `GET /v1/payments/{id}`.
   - O `merchant_order`, que o Checkout Pro também envia, é aceito (200) e ignorado: a varredura e o
     sync acham os pagamentos do pedido pelo `external_reference`.
+  - No sandbox real (2026-11-13) ele chegou no formato antigo (`?id=…&topic=merchant_order`, sem
+    `data.id`). Por isso recebe 200 antes da checagem de assinatura: sem o 200, o Mercado Pago
+    reenviaria para sempre, e nada muda com ele.
   - O token usado na consulta é o do vendedor cujo `mpUserId` é o `user_id` da notificação. Isso
     ainda precisa ser confirmado com uma notificação real; se não casar, a varredura cobre.
 - **Cabeçalho incompleto:** falta de `x-signature`, `x-request-id` ou `data.id` responde 400.

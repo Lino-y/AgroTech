@@ -1190,6 +1190,10 @@ app.post('/api/admin/orders/:id/refund', requireMercadoPago, authenticate, requi
 // Diverge do "200 antes" do guia do plugin de propósito: com o 200 antes, uma falha perdia o estorno, que
 // a varredura não recupera (ela só olha pedido aguardando). A consulta tem teto de 10 s, dentro dos 22 s.
 app.post('/api/payments/webhook', requireMercadoPago, async (req, res) => {
+  // merchant_order não decide nada (a decisão é pelo payment; a varredura e o sync cobrem). O sandbox
+  // real manda no formato antigo (?id=…&topic=merchant_order, sem data.id): sem 200, reenviaria para
+  // sempre. Responder 200 sem agir é seguro: nada muda.
+  if ((req.query.topic ?? req.query.type) === 'merchant_order') return res.status(200).json({ ok: true });
   const dataId = String(req.query['data.id'] ?? req.body?.data?.id ?? '');
   const check = verifyWebhookSignature({ xSignature: req.get('x-signature'), xRequestId: req.get('x-request-id'), dataId, secret: MP.webhookSecret });
   if (check !== 'ok') return res.status(check === 'missing' ? 400 : 401).json({ message: 'Notificação sem assinatura válida.' });

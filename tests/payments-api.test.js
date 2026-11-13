@@ -277,6 +277,13 @@ test('webhook aprovado paga o pedido; a mesma notificação de novo não muda na
   assert.equal((await orderOf(buyer, order.id)).payment.history.length, paid.payment.history.length);
 });
 
+test('aviso merchant_order (formato antigo, sem data.id, visto no sandbox real) recebe 200 e é ignorado', async () => {
+  for (const query of ['id=46095806198&topic=merchant_order', 'data.id=46095806198&type=merchant_order']) {
+    const res = await api('POST', `/api/payments/webhook?${query}`, { resource: 'x', topic: 'merchant_order' });
+    assert.equal(res.status, 200, `${query}: sem 200 o Mercado Pago reenvia para sempre`);
+  }
+});
+
 test('webhook que não consegue consultar o pagamento responde 500 (o Mercado Pago reenvia) e o reenvio aplica', async () => {
   const { seller, buyer, order } = await pendingOrder();
   const payment = { id: 777000 + Math.floor(Math.random() * 1000), status: 'approved', external_reference: order.id, transaction_amount: order.total, collector_id: seller.mpUserId };
