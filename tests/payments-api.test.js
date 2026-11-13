@@ -92,12 +92,15 @@ function signedHeaders(dataId, requestId = crypto.randomUUID()) {
 const notify = (paymentId, userId, headers = signedHeaders(String(paymentId))) =>
   api('POST', `/api/payments/webhook?data.id=${paymentId}&type=payment`, { type: 'payment', action: 'payment.updated', data: { id: String(paymentId) }, user_id: userId }, null, headers);
 
+// O webhook responde 200 e processa depois: o teste espera o efeito. Até 15 s, porque com a suíte inteira
+// em paralelo e a cobertura ligada o servidor fica lento; termina assim que o estado muda. Na falha, o fim
+// do log do servidor diz se foi lentidão ou erro no processamento.
 async function waitFor(check, what) {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 150; i++) {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  assert.fail(`esperou demais: ${what}`);
+  assert.fail(`esperou demais: ${what}\n--- log do servidor ---\n${server.output().slice(-1500)}`);
 }
 
 let paymentSeq = 900000;
