@@ -23,7 +23,7 @@ Regras que valem para todas as rotas:
 openapi: 3.0.0
 info:
   title: AgroTech API
-  version: 1.5.0
+  version: 1.6.0
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -81,8 +81,24 @@ components:
         ownerEmail: { type: string }
         date: { type: string, description: 'só em pedido gravado antes da issue #25: data legível do seed ("15/Set/2026") ou "Hoje", que não é data real; pedido novo não tem' }
         createdAt: { type: string, format: date-time, description: 'quando o pedido foi criado; a tela de pedidos mostra em dd/mm/aaaa. Pedido gravado antes da issue #6 não tem' }
-        status: { type: string }
-        statusStep: { type: integer, minimum: 1, maximum: 4 }
+        status: { type: string, description: 'texto da tela; com Mercado Pago segue o paymentStatus: Aguardando pagamento, Pedido Confirmado, Cancelado, Estornado' }
+        statusStep: { type: integer, minimum: 0, maximum: 4, description: '0 = aguardando pagamento (Mercado Pago)' }
+        paymentStatus: { type: string, enum: [AGUARDANDO_PAGAMENTO, PAGO, CANCELADO, ESTORNADO], description: 'só em pedido pago pelo Mercado Pago (spec 10); pedido simulado ou antigo não tem e conta como pago' }
+        sellerEmail: { type: string, description: 'Mercado Pago: o único vendedor do pedido' }
+        marketplaceFeeCents: { type: integer, description: 'Mercado Pago: comissão da AgroTech gravada na criação' }
+        reservedUntil: { type: string, format: date-time, description: 'Mercado Pago: até quando o estoque fica reservado sem pagamento aprovado' }
+        paymentReview: { type: object, description: 'pagamento divergente (valor, referência ou recebedor) que não mudou o pedido: { reason, paymentId, at }' }
+        payment:
+          type: object
+          description: 'Mercado Pago: nunca traz token. history registra cada mudança de estado.'
+          properties:
+            provider: { type: string, enum: [mercadopago] }
+            preferenceId: { type: string }
+            checkoutUrl: { type: string, description: 'init_point do Checkout Pro: o app abre e a web redireciona' }
+            paymentId: { type: string, nullable: true }
+            mpStatus: { type: string, nullable: true }
+            method: { type: string, nullable: true, description: 'payment_type_id do Mercado Pago (pix, ticket, credit_card...)' }
+            history: { type: array, items: { type: object, properties: { at: { type: string }, from: { type: string }, to: { type: string }, source: { type: string, enum: [webhook, sync, vencimento] } } } }
         trackingCode: { type: string, example: BR-AGRO-9F3A2C1B7D4E-X, description: '12 hexadecimais aleatórios (48 bits); pedido antigo mantém o formato BR-AGRO-123456-X' }
         carrier: { type: string }
         estimatedDelivery: { type: string }
@@ -101,11 +117,13 @@ components:
       description: >-
         Lançamento do extrato financeiro da conta. COMPRA = pedido da conta (saída, pelo total do
         pedido); VENDA = itens dos produtos da conta num pedido de outra conta (entrada, preço x
-        quantidade, sem cupom nem frete); MANUAL = lançamento digitado pela conta.
+        quantidade, sem cupom nem frete); MANUAL = lançamento digitado pela conta. Pedido do Mercado
+        Pago aguardando pagamento ou cancelado não entra; estornado entra e ganha um ESTORNO, que o
+        desfaz (entrada para quem comprou, saída para quem vendeu).
       properties:
         id: { type: string, example: compra-AGT-12345 }
         type: { type: string, enum: [INCOME, EXPENSE] }
-        source: { type: string, enum: [COMPRA, VENDA, MANUAL] }
+        source: { type: string, enum: [COMPRA, VENDA, ESTORNO, MANUAL] }
         title: { type: string }
         amount: { type: number, exclusiveMinimum: 0 }
         date: { type: string, format: date-time, nullable: true, description: 'null em pedido antigo sem data real (gravado só com "Hoje")' }
@@ -330,6 +348,12 @@ paths:
         '401': { description: 'sem token ou token inválido' }
     post:
       summary: Fecha um pedido; preço e total vêm do catálogo, nunca do cliente
+      description: >-
+        Modo simulado (sem variáveis MP_*): o pedido nasce "Pedido Confirmado", como sempre. Com o
+        Mercado Pago ligado (spec 10): o pedido tem um vendedor só, conectado; nasce com paymentStatus
+        AGUARDANDO_PAGAMENTO e payment.checkoutUrl (Checkout Pro, preferência criada com o token do
+        vendedor e a comissão); a baixa de estoque vira reserva até reservedUntil. O reenvio com a
+        mesma Idempotency-Key devolve o mesmo pedido e o mesmo checkoutUrl, sem nova preferência.
       security: [{ bearer: [] }]
       parameters:
         - name: Idempotency-Key
@@ -350,12 +374,103 @@ paths:
                   minItems: 1
                   items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1, maximum: 10000 } } }
                 coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20], description: 'sem diferenciar maiúsculas; cupom que não existe ou abaixo do valor mínimo é ignorado, sem erro, e o pedido sai sem desconto' }
+                returnTo: { type: string, enum: [app, web], description: 'Mercado Pago: para onde o Checkout Pro volta (app = agrotech://pagamento/retorno). Padrão web. Nunca uma URL do cliente.' }
       responses:
         '200': { description: 'reenvio com a mesma Idempotency-Key e os mesmos itens: devolve o pedido já criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
-        '400': { description: 'lista vazia, produto fora do catálogo, quantidade que não é inteira de 1 a 10.000 ou Idempotency-Key malformada' }
+        '400': { description: 'lista vazia, produto fora do catálogo, quantidade que não é inteira de 1 a 10.000 ou Idempotency-Key malformada; com Mercado Pago, também itens de mais de um vendedor' }
         '401': { description: 'sem token ou token inválido' }
-        '409': { description: 'Idempotency-Key já usada com outros itens ou cupom, ou estoque insuficiente (produto com stock numérico): a mensagem diz o produto e quanto há. O pedido aceito baixa o estoque; o reenvio com a mesma chave não baixa de novo.' }
+        '409': { description: 'Idempotency-Key já usada com outros itens ou cupom, ou estoque insuficiente (produto com stock numérico): a mensagem diz o produto e quanto há. O pedido aceito baixa o estoque; o reenvio com a mesma chave não baixa de novo. Com Mercado Pago, também vendedor sem conta conectada ou com a renovação do token recusada.' }
+        '502': { description: 'Mercado Pago indisponível ao criar a preferência: nada é gravado (nem pedido, nem reserva)' }
+  /api/orders/{id}/sync:
+    post:
+      summary: Confere o pagamento do pedido no Mercado Pago (volta do Checkout Pro)
+      description: 'Consulta os pagamentos pelo external_reference e aplica a mesma regra do webhook; reserva vencida sem pagamento aprovado ou pendente cancela e devolve o estoque. Sem Mercado Pago ligado, devolve o pedido como está.'
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: 'pedido depois da consulta', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '404': { description: 'pedido inexistente ou de outra conta (só o dono ou o ADMIN)' }
+        '409': { description: 'conta Mercado Pago do vendedor desconectada (renovação do token recusada)' }
+        '502': { description: 'Mercado Pago indisponível' }
+  /api/payments/webhook:
+    post:
+      summary: Notificação do Mercado Pago (pública, com assinatura obrigatória)
+      description: >-
+        Valida x-signature (HMAC-SHA256 de "id:<data.id>;request-id:<x-request-id>;ts:<ts>;" com
+        MP_WEBHOOK_SECRET, tempo constante, ts a até 5 minutos) antes de qualquer coisa; depois processa
+        e só então responde 200 (falha ao consultar ou gravar responde 500, e o Mercado Pago reenvia;
+        o reenvio é idempotente). Só o tópico payment decide:
+        o servidor consulta GET /v1/payments/{id} com o token do vendedor (achado pelo user_id) e confere
+        referência, valor e recebedor. merchant_order é aceito e ignorado (a varredura e o sync cobrem).
+      parameters:
+        - { name: data.id, in: query, required: true, schema: { type: string } }
+        - { name: type, in: query, required: false, schema: { type: string } }
+        - { name: x-signature, in: header, required: true, schema: { type: string, example: 'ts=1704908010,v1=618c...' } }
+        - { name: x-request-id, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 'assinatura válida; notificação processada e gravada' }
+        '400': { description: 'sem x-signature, x-request-id ou data.id' }
+        '500': { description: 'não conseguiu consultar o pagamento ou gravar; o Mercado Pago reenvia' }
+        '401': { description: 'assinatura inválida ou ts fora da janela de 5 minutos' }
+        '404': { description: 'Mercado Pago não está ligado neste servidor' }
+  /api/mp/connect:
+    post:
+      summary: Começa a conexão da conta Mercado Pago do vendedor (OAuth)
+      description: 'Só VENDEDOR ou AMBOS. Grava um state aleatório de uso único (10 minutos) e devolve a URL de autorização (auth.mercadopago.com/authorization com client_id, response_type=code, platform_id=mp, state e redirect_uri; PKCE S256 com MP_OAUTH_PKCE=1).'
+      security: [{ bearer: [] }]
+      responses:
+        '200': { description: 'URL para abrir no navegador', content: { application/json: { schema: { type: object, properties: { url: { type: string } } } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'perfil que não vende' }
+        '404': { description: 'Mercado Pago não está ligado neste servidor' }
+    delete:
+      summary: Desconecta a conta Mercado Pago do vendedor (apaga os tokens)
+      security: [{ bearer: [] }]
+      responses:
+        '204': { description: 'desconectado' }
+        '401': { description: 'sem token ou token inválido' }
+  /api/mp/callback:
+    get:
+      summary: Volta do OAuth do Mercado Pago (pública; o usuário vem do state)
+      description: 'Consome o state sempre. Troca o código por tokens no servidor (POST /oauth/token, form-urlencoded) e grava os tokens cifrados (AES-256-GCM, MP_TOKEN_ENCRYPTION_KEY). Responde uma página HTML com mensagem fixa; nada da query volta para o HTML e não há redirecionamento.'
+      parameters:
+        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { description: 'conta conectada (HTML)' }
+        '400': { description: 'state inválido, vencido ou já usado; autorização recusada; sem código (HTML)' }
+        '502': { description: 'Mercado Pago indisponível na troca do código (HTML)' }
+  /api/mp/status:
+    get:
+      summary: Situação da conta Mercado Pago do usuário (nunca traz token)
+      security: [{ bearer: [] }]
+      responses:
+        '200': { description: 'situação', content: { application/json: { schema: { type: object, properties: { connected: { type: boolean }, expiresAt: { type: string, nullable: true } } } } } }
+        '401': { description: 'sem token ou token inválido' }
+  /api/admin/settings:
+    get:
+      summary: Comissão da AgroTech sobre os pedidos pagos pelo Mercado Pago
+      security: [{ bearer: [] }]
+      responses:
+        '200': { description: 'configuração', content: { application/json: { schema: { type: object, properties: { marketplaceFeePercent: { type: number } } } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'não é ADMIN' }
+    put:
+      summary: Define a comissão (vale para pedidos novos; o pedido grava a dele na criação)
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [marketplaceFeePercent], properties: { marketplaceFeePercent: { type: number, minimum: 0, maximum: 30, description: 'até 2 casas decimais' } } }
+      responses:
+        '200': { description: 'gravada' }
+        '400': { description: 'fora de 0 a 30 ou com mais de 2 casas' }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'não é ADMIN' }
   /api/finance/entries:
     get:
       summary: Extrato financeiro da conta da sessão, do mais recente ao mais antigo (ADMIN também vê só o dele)
@@ -384,6 +499,7 @@ paths:
   /api/admin/summary:
     get:
       summary: Totais da plataforma
+      description: 'revenue soma só pedidos pagos (pedido simulado ou antigo conta; Mercado Pago aguardando, cancelado ou estornado não).'
       security: [{ bearer: [] }]
       responses:
         '200': { description: 'totais', content: { application/json: { schema: { type: object, properties: { totalUsers: { type: integer }, totalProducts: { type: integer }, totalOrders: { type: integer }, revenue: { type: number } } } } } }

@@ -1,12 +1,13 @@
 // @ts-check
+import { countsAsSale, PAYMENT_STATUS } from './payments.js';
 
 /**
  * @typedef {'INCOME' | 'EXPENSE'} EntryType
- * @typedef {{ id: string, type: EntryType, source: 'COMPRA' | 'VENDA' | 'MANUAL', title: string,
+ * @typedef {{ id: string, type: EntryType, source: 'COMPRA' | 'VENDA' | 'ESTORNO' | 'MANUAL', title: string,
  *   amount: number, date: string | null }} FinanceEntry
  * @typedef {{ ownerEmail?: string, price?: number, quantity?: number }} OrderItem
  * @typedef {{ id: string, ownerEmail?: string, total?: number, createdAt?: string, date?: string,
- *   items?: OrderItem[] }} Order
+ *   items?: OrderItem[], paymentStatus?: string }} Order
  * @typedef {{ id: string, ownerEmail: string, type: EntryType, title: string, amount: number,
  *   createdAt: string }} StoredEntry
  */
@@ -49,22 +50,40 @@ export function buildFinanceEntries({ orders = [], financeEntries = [] }, email)
     .map(({ id, type, title, amount, createdAt }) => ({ id, type, source: 'MANUAL', title, amount, date: createdAt }));
 
   for (const order of orders) {
-    const date = orderDate(order);
-    if (order.ownerEmail === email) {
-      entries.push({ id: `compra-${order.id}`, type: 'EXPENSE', source: 'COMPRA', title: `Compra no App (${order.id})`, amount: Number(order.total || 0), date });
-      continue;
-    }
-    // ponytail: receita bruta do item (preço x quantidade); cupom e frete são do pedido e não
-    // descontam do vendedor. Repasse líquido pede a regra de comissão, que ainda não existe.
-    const sold = (order.items || [])
-      .filter((item) => item.ownerEmail === email)
-      .reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0);
-    if (sold > 0) {
-      entries.push({ id: `venda-${order.id}`, type: 'INCOME', source: 'VENDA', title: `Venda no App (${order.id})`, amount: sold, date });
-    }
+    // Pagamento pendente ou cancelado não movimentou dinheiro (spec 10, RF-09).
+    if (countsAsSale(order)) entries.push(...orderEntries(order, email));
   }
 
   return entries.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
+/**
+ * Lançamentos de um pedido para a conta: a compra (de quem comprou) ou a venda (de quem vendeu itens
+ * dele). Pedido estornado ganha o lançamento contrário, que desfaz o valor.
+ * @param {Order} order
+ * @param {string} email
+ * @returns {FinanceEntry[]}
+ */
+function orderEntries(order, email) {
+  const date = orderDate(order);
+  const refunded = order.paymentStatus === PAYMENT_STATUS.ESTORNADO;
+  if (order.ownerEmail === email) {
+    const amount = Number(order.total || 0);
+    /** @type {FinanceEntry[]} */
+    const purchase = [{ id: `compra-${order.id}`, type: 'EXPENSE', source: 'COMPRA', title: `Compra no App (${order.id})`, amount, date }];
+    if (refunded) purchase.push({ id: `estorno-${order.id}`, type: 'INCOME', source: 'ESTORNO', title: `Estorno da compra (${order.id})`, amount, date });
+    return purchase;
+  }
+  // ponytail: receita bruta do item (preço x quantidade); cupom, frete e a comissão do Mercado Pago não
+  // descontam aqui. Repasse líquido pede o valor que o Mercado Pago informa ao vendedor (fase das telas).
+  const sold = (order.items || [])
+    .filter((item) => item.ownerEmail === email)
+    .reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0);
+  if (sold <= 0) return [];
+  /** @type {FinanceEntry[]} */
+  const sale = [{ id: `venda-${order.id}`, type: 'INCOME', source: 'VENDA', title: `Venda no App (${order.id})`, amount: sold, date }];
+  if (refunded) sale.push({ id: `estorno-${order.id}`, type: 'EXPENSE', source: 'ESTORNO', title: `Estorno da venda (${order.id})`, amount: sold, date });
+  return sale;
 }
 
 /**

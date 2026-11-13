@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
 const DOMAIN = new URL('../packages/domain/', import.meta.url);
-const SHARED = ['commerce', 'finance', 'catalog', 'support', 'listing', 'version'];
+const SHARED = ['commerce', 'finance', 'catalog', 'support', 'listing', 'version', 'payments'];
 
 test('o domínio só importa arquivos do próprio domínio', () => {
   const files = readdirSync(DOMAIN).filter((name) => name.endsWith('.js'));

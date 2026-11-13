@@ -12,7 +12,14 @@ import dotenv from 'dotenv';
 import { getProductCategoryStyle } from '../../packages/domain/catalog.js';
 import { calculateCartSummary, validatePassword } from '../../packages/domain/commerce.js';
 import { buildFinanceEntries } from '../../packages/domain/finance.js';
+import { countsAsSale, MAX_FEE_PERCENT, PAYMENT_STATUS } from '../../packages/domain/payments.js';
 import { createTurnQueue } from './write-queue.js';
+import { renameWithRetry } from './rename-retry.js';
+import { MercadoPagoError, readMercadoPagoConfig, verifyWebhookSignature } from './mercadopago.js';
+import {
+  completeSellerConnection, PaymentFlowError, preparePayment, processNotification, startSellerConnection,
+  sweepPayments, syncOrder
+} from './payments.js';
 import { isBelowMinVersion, readAppMinVersion, readLatestVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
 
@@ -56,6 +63,17 @@ if ('error' in appMinVersion) {
   process.exit(1);
 }
 const APP_MIN_VERSION = appMinVersion.version;
+// Pagamento pelo Mercado Pago (spec 10). Sem nenhuma variável MP_*, o modo é o simulado de hoje (MP fica
+// null). Configuração pela metade derruba a subida, como a versão mínima acima.
+const mercadoPagoConfig = readMercadoPagoConfig(process.env);
+if ('error' in mercadoPagoConfig) {
+  console.error(`[agrotech] ${mercadoPagoConfig.error}`);
+  process.exit(1);
+}
+const MP = mercadoPagoConfig.mode === 'mercadopago' ? mercadoPagoConfig : null;
+if (MP && !/^https:\/\/(?!localhost|127\.|0\.0\.0\.0)/.test(MP.appUrl)) {
+  console.warn('[agrotech] APP_URL não é https público: o Mercado Pago não manda notificação nem volta sozinho, e a volta da web sai em http. Só para teste.');
+}
 // Versão mais nova para baixar e o APK dela (APP_LATEST_VERSION e APP_APK_FILE, caminho absoluto de
 // um .apk fora das pastas servidas). Sem as variáveis, o app não avisa nada e o download é 404.
 const latestVersion = readLatestVersion(process.env.APP_LATEST_VERSION);
@@ -259,8 +277,25 @@ async function readDb() {
     users: normalizeDbUsers(parsed.users || []),
     products: parsed.products || defaultDb.products,
     orders: parsed.orders || defaultDb.orders,
-    financeEntries: parsed.financeEntries || []
+    financeEntries: parsed.financeEntries || [],
+    // Mercado Pago (spec 10): conexões dos vendedores (tokens cifrados), states do OAuth e a comissão.
+    // Precisam estar aqui: o que readDb não devolve, o próximo writeDb apaga.
+    sellerAccounts: parsed.sellerAccounts || [],
+    oauthStates: parsed.oauthStates || [],
+    settings: parsed.settings || {}
   };
+}
+
+// Trabalho que grava fora de uma requisição POST/PUT/DELETE (webhook depois do 200, volta do OAuth por
+// GET, varredura): pega a própria vez na fila de escrita, para não perder gravação de outra rota.
+async function withWriteTurn(work) {
+  const { turn, release } = writeQueue.acquire();
+  await turn;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
 }
 
 async function writeDb(db) {
@@ -269,7 +304,12 @@ async function writeDb(db) {
   // um JSON pela metade.
   const tmp = `${dataFile}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
-  await fs.rename(tmp, dataFile);
+  try {
+    await renameWithRetry(fs.rename, tmp, dataFile);
+  } catch (error) {
+    await fs.rm(tmp, { force: true });
+    throw error;
+  }
 }
 
 // Perfis que o próprio usuário pode escolher no cadastro; ADMIN nunca vem do corpo da requisição.
@@ -590,6 +630,9 @@ app.delete('/api/auth/me', authenticate, async (req, res) => {
   db.users = db.users.filter((item) => item.id !== user.id);
   db.products = db.products.filter((item) => item.ownerEmail !== email);
   db.financeEntries = db.financeEntries.filter((item) => item.ownerEmail !== email);
+  // A conexão Mercado Pago (tokens) sai junto com a conta (spec 10, RF-01).
+  db.sellerAccounts = db.sellerAccounts.filter((item) => item.userId !== user.id);
+  db.oauthStates = db.oauthStates.filter((item) => item.userId !== user.id);
   for (const product of db.products) dropReviewsOf(product, email);
   for (const order of db.orders) {
     if (order.ownerEmail === email) order.ownerEmail = removedEmail(order.id);
@@ -869,6 +912,17 @@ app.get('/api/orders', authenticate, async (req, res) => {
   res.json(orders);
 });
 
+// Mensagem do primeiro produto sem estoque para a quantidade pedida, ou null. Só produto com stock
+// numérico conta (os de demonstração não têm).
+function stockShortage(wanted) {
+  for (const [product, quantity] of wanted) {
+    if (typeof product.stock === 'number' && quantity > product.stock) {
+      return `Estoque insuficiente para ${product.name}: há ${product.stock} disponível(is).`;
+    }
+  }
+  return null;
+}
+
 app.post('/api/orders', authenticate, async (req, res) => {
   const { items, coupon = null } = req.body;
   const idempotencyKey = req.get('Idempotency-Key');
@@ -890,11 +944,8 @@ app.post('/api/orders', authenticate, async (req, res) => {
   // produto. O reenvio com a mesma chave voltou acima, então nunca baixa duas vezes.
   const wanted = new Map();
   for (const { product, quantity } of lines) wanted.set(product, (wanted.get(product) || 0) + quantity);
-  for (const [product, quantity] of wanted) {
-    if (typeof product.stock === 'number' && quantity > product.stock) {
-      return res.status(409).json({ message: `Estoque insuficiente para ${product.name}: há ${product.stock} disponível(is).` });
-    }
-  }
+  const shortage = stockShortage(wanted);
+  if (shortage) return res.status(409).json({ message: shortage });
 
   const orderItems = lines.map(({ product, quantity }) => ({
     id: product.id,
@@ -934,6 +985,9 @@ app.post('/api/orders', authenticate, async (req, res) => {
     ]
   };
 
+  // Com Mercado Pago, o pedido nasce aguardando pagamento e a baixa abaixo vira a reserva do estoque.
+  const failure = await startOrderPayment(db, order, lines, req.body.returnTo);
+  if (failure) return res.status(failure.status).json({ message: failure.message });
   for (const [product, quantity] of wanted) {
     if (typeof product.stock === 'number') product.stock -= quantity;
   }
@@ -975,7 +1029,10 @@ app.post('/api/finance/entries', authenticate, async (req, res) => {
 
 app.get('/api/admin/summary', authenticate, requireAdmin, async (_, res) => {
   const db = await readDb();
-  const revenue = db.orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  // Receita só do que foi pago: pendente, cancelado e estornado não entram (spec 10, RF-09).
+  const revenue = db.orders
+    .filter((order) => countsAsSale(order) && order.paymentStatus !== PAYMENT_STATUS.ESTORNADO)
+    .reduce((sum, order) => sum + Number(order.total || 0), 0);
 
   res.json({
     totalUsers: db.users.length,
@@ -1002,6 +1059,145 @@ app.get('/api/admin/users', authenticate, requireAdmin, async (_, res) => {
   const users = db.users.map(({ id, name, email, role, propertyOrCompany }) => ({ id, name, email, role, propertyOrCompany }));
   res.json(users);
 });
+
+// --- Pagamento pelo Mercado Pago (spec 10, parte 1). Contratos em .ai/specs/05-openapi-spec.md. ---
+
+// ponytail: as chamadas ao Mercado Pago dentro do pedido e do sync seguram a fila de escrita global
+// (até 10 s de timeout). No volume atual (um arquivo JSON) é aceitável; com o banco da spec 06, a
+// chamada sai da transação.
+async function startOrderPayment(db, order, lines, returnTo) {
+  if (!MP) return null;
+  try {
+    await preparePayment(MP, db, order, lines, returnTo, Date.now());
+    return null;
+  } catch (error) {
+    if (!(error instanceof PaymentFlowError)) throw error;
+    // Só a renovação do token do vendedor é gravada; o pedido e a reserva não entram.
+    if (error.persist) await writeDb(db);
+    return error;
+  }
+}
+
+const requireMercadoPago = (_, res, next) => (MP
+  ? next()
+  : res.status(404).json({ message: 'Pagamento pelo Mercado Pago não está ligado neste servidor.' }));
+
+const flowErrorStatus = (error) => {
+  if (error instanceof PaymentFlowError) return error.status;
+  if (error instanceof MercadoPagoError) return 502;
+  throw error;
+};
+
+app.post('/api/mp/connect', requireMercadoPago, authenticate, async (req, res) => {
+  const db = await readDb();
+  let url;
+  try {
+    url = startSellerConnection(MP, db, req.user, Date.now());
+  } catch (error) {
+    return res.status(flowErrorStatus(error)).json({ message: error.message });
+  }
+  await writeDb(db);
+  res.json({ url });
+});
+
+// Volta do OAuth no navegador do vendedor: sem token (o usuário sai do state) e por GET, então pega a
+// vez da fila sozinha. A página só mostra mensagens fixas: nada da query volta para o HTML.
+const connectionPage = (message) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">`
+  + `<meta name="viewport" content="width=device-width,initial-scale=1"><title>AgroTech</title></head>`
+  + `<body style="font-family:sans-serif;padding:24px"><p>${message}</p></body></html>`;
+
+app.get('/api/mp/callback', requireMercadoPago, async (req, res) => {
+  const outcome = await withWriteTurn(async () => {
+    const db = await readDb();
+    const result = await completeSellerConnection(MP, db, req.query, Date.now());
+    await writeDb(db);
+    return result;
+  });
+  res.status(outcome.status).type('html').send(connectionPage(outcome.message));
+});
+
+app.get('/api/mp/status', requireMercadoPago, authenticate, async (req, res) => {
+  const { sellerAccounts } = await readDb();
+  const account = sellerAccounts.find((item) => item.userId === req.user.id && item.status === 'CONECTADA');
+  res.json({ connected: Boolean(account), expiresAt: account?.expiresAt ?? null });
+});
+
+app.delete('/api/mp/connect', requireMercadoPago, authenticate, async (req, res) => {
+  const db = await readDb();
+  db.sellerAccounts = db.sellerAccounts.filter((item) => item.userId !== req.user.id);
+  await writeDb(db);
+  res.status(204).end();
+});
+
+app.get('/api/admin/settings', authenticate, requireAdmin, async (_, res) => {
+  const { settings } = await readDb();
+  res.json({ marketplaceFeePercent: Number(settings.marketplaceFeePercent ?? 0) });
+});
+
+// Comissão em %, de 0 a 30, com até 2 casas (vira pontos-base na conta).
+const isFeePercent = (value) => typeof value === 'number' && value >= 0 && value <= MAX_FEE_PERCENT
+  && Math.abs(Math.round(value * 100) - value * 100) < 1e-9;
+
+app.put('/api/admin/settings', authenticate, requireAdmin, async (req, res) => {
+  const percent = req.body?.marketplaceFeePercent;
+  if (!isFeePercent(percent)) {
+    return res.status(400).json({ message: `A comissão vai de 0 a ${MAX_FEE_PERCENT}%, com até 2 casas decimais.` });
+  }
+  const db = await readDb();
+  db.settings.marketplaceFeePercent = percent;
+  await writeDb(db);
+  res.json({ marketplaceFeePercent: percent });
+});
+
+// Volta do Checkout Pro: o app pede para conferir. Quem decide é a consulta ao Mercado Pago, nunca o app.
+app.post('/api/orders/:id/sync', authenticate, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((item) => item.id === req.params.id && (req.user.role === 'ADMIN' || item.ownerEmail === req.user.email));
+  if (!order) return res.status(404).json({ message: 'Pedido não encontrado.' });
+  if (MP) {
+    try {
+      if (await syncOrder(MP, db, order, Date.now())) await writeDb(db);
+    } catch (error) {
+      if (error.persist) await writeDb(db);
+      return res.status(flowErrorStatus(error)).json({ message: 'Não foi possível consultar o pagamento agora.' });
+    }
+  }
+  res.json(order);
+});
+
+// Webhook: assinatura antes de tudo; depois processa e só então responde 200. Falhou (Mercado Pago fora,
+// gravação recusada)? 500, e o Mercado Pago reenvia; reenvio é inofensivo (aplicação idempotente).
+// Diverge do "200 antes" do guia do plugin de propósito: com o 200 antes, uma falha perdia o estorno, que
+// a varredura não recupera (ela só olha pedido aguardando). A consulta tem teto de 10 s, dentro dos 22 s.
+app.post('/api/payments/webhook', requireMercadoPago, async (req, res) => {
+  const dataId = String(req.query['data.id'] ?? req.body?.data?.id ?? '');
+  const check = verifyWebhookSignature({ xSignature: req.get('x-signature'), xRequestId: req.get('x-request-id'), dataId, secret: MP.webhookSecret });
+  if (check !== 'ok') return res.status(check === 'missing' ? 400 : 401).json({ message: 'Notificação sem assinatura válida.' });
+  const notification = { type: String(req.query.type ?? req.body?.type ?? ''), dataId, userId: req.body?.user_id };
+  try {
+    const db = await readDb();
+    if (await processNotification(MP, db, notification, Date.now())) await writeDb(db);
+  } catch (error) {
+    console.warn(`[agrotech] notificação do pagamento ${dataId}: ${error.message}`);
+    return res.status(500).json({ message: 'Não foi possível processar agora; reenvie.' });
+  }
+  res.status(200).json({ ok: true });
+});
+
+// Varredura: reserva vencida cancela e devolve o estoque; pendente antigo é reconsultado. Uma passada por
+// vez (a anterior ainda rodando faz esta pular).
+let sweeping = false;
+if (MP) {
+  setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    withWriteTurn(async () => {
+      const db = await readDb();
+      if (await sweepPayments(MP, db, Date.now())) await writeDb(db);
+    }).catch((error) => console.warn(`[agrotech] varredura de pagamentos: ${error.message}`))
+      .finally(() => { sweeping = false; });
+  }, MP.sweepMs).unref();
+}
 
 // Rota /api que não existe não cai na SPA: responde 404 em JSON, como o resto da API (issue #26).
 app.all('/api/*', (_, res) => {
