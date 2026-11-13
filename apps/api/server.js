@@ -70,6 +70,9 @@ if ('error' in mercadoPagoConfig) {
   process.exit(1);
 }
 const MP = mercadoPagoConfig.mode === 'mercadopago' ? mercadoPagoConfig : null;
+if (MP && !/^https:\/\/(?!localhost|127\.|0\.0\.0\.0)/.test(MP.appUrl)) {
+  console.warn('[agrotech] APP_URL não é https público: o Mercado Pago não manda notificação nem volta sozinho, e a volta da web sai em http. Só para teste.');
+}
 // DATA_FILE permite rodar contra um banco descartável (os testes de API usam isso).
 const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
 // O banco morava em src/data (pasta servida como estática). Sem este aviso, quem tem o arquivo antigo
