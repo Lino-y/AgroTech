@@ -36,6 +36,8 @@ export function readMercadoPagoConfig(env) {
     tokenKey,
     appUrl,
     pkce: env.MP_OAUTH_PKCE === '1',
+    // Sandbox: a troca do código pede token de teste (test_token=true), para vendedor de conta de teste.
+    oauthTestToken: env.MP_OAUTH_TEST_TOKEN === '1',
     apiBase: (env.MP_API_BASE || 'https://api.mercadopago.com').replace(/\/+$/, ''),
     authBase: (env.MP_AUTH_BASE || 'https://auth.mercadopago.com').replace(/\/+$/, ''),
     reservationMs: positiveInt(env.MP_RESERVATION_MS) ?? 30 * 60 * 1000,
@@ -137,6 +139,7 @@ export function exchangeCode(config, code, verifier) {
   /** @type {Record<string, string>} */
   const form = { grant_type: 'authorization_code', client_id: config.appId, client_secret: config.clientSecret, code, redirect_uri: config.redirectUri };
   if (verifier) form.code_verifier = verifier;
+  if (config.oauthTestToken) form.test_token = 'true';
   return mpFetch(config, '/oauth/token', { method: 'POST', form });
 }
 

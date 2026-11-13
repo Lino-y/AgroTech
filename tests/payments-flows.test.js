@@ -76,6 +76,22 @@ test('PKCE ligado: desafio S256 na URL e verificador na troca do código', async
   assert.equal(db.oauthStates.length, 0, 'state consumido');
 });
 
+test('sandbox: com MP_OAUTH_TEST_TOKEN=1 a troca do código pede token de teste; sem ela, não', async () => {
+  const sandbox = { ...config, oauthTestToken: true };
+  const db = emptyDb();
+  db.users.push({ id: 'u-sb', email: 'sb@x.dev', role: 'VENDEDOR' });
+  let state = new URL(startSellerConnection(sandbox, db, db.users[0], NOW)).searchParams.get('state');
+  await completeSellerConnection(sandbox, db, { code: 'c', state }, NOW);
+  assert.equal(mp.state.tokenRequests.at(-1).form.test_token, 'true');
+  state = new URL(startSellerConnection(config, db, db.users[0], NOW)).searchParams.get('state');
+  await completeSellerConnection(config, db, { code: 'c', state }, NOW);
+  assert.equal(mp.state.tokenRequests.at(-1).form.test_token, undefined);
+  assert.equal(readMercadoPagoConfig({
+    MP_APP_ID: 'a', MP_CLIENT_SECRET: 'b', MP_OAUTH_REDIRECT_URI: 'c', MP_WEBHOOK_SECRET: 'd', APP_URL: 'https://x.dev',
+    MP_TOKEN_ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64'), MP_OAUTH_TEST_TOKEN: '1'
+  }).oauthTestToken, true);
+});
+
 test('state vencido é recusado; perfil que não vende não começa a conexão', async () => {
   const db = emptyDb();
   db.users.push({ id: 'u1', email: 'v@x.dev', role: 'VENDEDOR' });

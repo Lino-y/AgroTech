@@ -455,7 +455,7 @@ paths:
   /api/mp/callback:
     get:
       summary: Volta do OAuth do Mercado Pago (pública; o usuário vem do state)
-      description: 'Consome o state sempre. Troca o código por tokens no servidor (POST /oauth/token, form-urlencoded) e grava os tokens cifrados (AES-256-GCM, MP_TOKEN_ENCRYPTION_KEY). Responde uma página HTML com mensagem fixa; nada da query volta para o HTML e não há redirecionamento.'
+      description: 'Consome o state sempre. Troca o código por tokens no servidor (POST /oauth/token, form-urlencoded; com MP_OAUTH_TEST_TOKEN=1 manda test_token=true, para conta de teste no sandbox) e grava os tokens cifrados (AES-256-GCM, MP_TOKEN_ENCRYPTION_KEY). Responde uma página HTML com mensagem fixa; nada da query volta para o HTML e não há redirecionamento.'
       parameters:
         - { name: state, in: query, required: true, schema: { type: string } }
         - { name: code, in: query, required: false, schema: { type: string } }
