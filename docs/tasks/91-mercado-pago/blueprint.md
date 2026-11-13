@@ -145,4 +145,10 @@ na spec 10, no mesmo PR.
 - Se o `user_id` da notificação é o do vendedor em pagamento de marketplace: a confirmar com uma
   notificação real; se não for, a varredura cobre.
 - Formato de `/oauth/token` (form ou JSON), a confirmar no sandbox.
+- **Janela de 5 minutos do `ts`:** supõe que o Mercado Pago assina cada reenvio com um `ts` novo. Os
+  reenvios chegam 15 minutos ou mais depois; se reaproveitarem o `ts` original, todo reenvio leva 401.
+  - Nada se perde: a varredura reconsulta o pedido pendente em até cerca de 3 minutos.
+  - Uma notificação reenviada também seria inofensiva, porque o handler reconsulta o pagamento e
+    aplica de forma idempotente.
+  - Se o sandbox mostrar `ts` reaproveitado, alargar ou tirar a janela (e atualizar a spec 10).
 - Os itens acima exigem URL pública HTTPS (deploy da API, decisão aberta).
