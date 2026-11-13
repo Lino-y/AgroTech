@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { encryptToken, readMercadoPagoConfig } from '../apps/api/mercadopago.js';
 import {
   applyPayment, completeSellerConnection, PaymentFlowError, preparePayment, processNotification,
-  startSellerConnection, sweepPayments, syncOrder
+  requestRefund, startSellerConnection, sweepPayments, syncOrder
 } from '../apps/api/payments.js';
 import { startFakeMercadoPago } from './helpers/fake-mercadopago.js';
 
@@ -172,4 +172,42 @@ test('varredura: pedido recente com reserva válida espera; erro de um pedido n�
   }
   assert.equal(account.status, 'DESCONECTADA');
   assert.equal(fresh.paymentStatus, 'AGUARDANDO_PAGAMENTO');
+});
+
+// --- estorno (RF-08) ---
+
+const paidMpOrder = (account) => ({
+  ...orderFor(), paymentStatus: 'PAGO', sellerEmail: account.email,
+  payment: { provider: 'mercadopago', paymentId: '31337', history: [] }
+});
+
+test('estorno: pedido simulado não tem o que estornar; vendedor desconectado e Mercado Pago fora do ar falham sem mudar nada', async () => {
+  const db = emptyDb();
+  await assert.rejects(requestRefund(config, db, { id: 'AGT-SIM', paymentStatus: undefined }, 'admin@x.dev', NOW), (error) => error.status === 409);
+
+  const account = connectedAccount();
+  const order = paidMpOrder(account);
+  db.orders.push(order);
+  await assert.rejects(requestRefund(config, db, order, 'admin@x.dev', NOW), (error) => error.status === 409 && /desconectada/.test(error.message));
+
+  db.sellerAccounts.push(account);
+  const offline = { ...config, apiBase: 'http://127.0.0.1:9' };
+  await assert.rejects(requestRefund(offline, db, order, 'admin@x.dev', NOW), (error) => error.status === 502);
+  assert.equal(order.refundRequest, undefined);
+  assert.equal(order.paymentStatus, 'PAGO');
+});
+
+test('varredura confirma o estorno que o Mercado Pago aceitou mas ainda não tinha concluído', async () => {
+  const db = emptyDb();
+  const account = connectedAccount();
+  db.sellerAccounts.push(account);
+  db.products.push({ id: 'p1', stock: 1 });
+  const order = paidMpOrder(account);
+  order.refundRequest = { paymentId: '31337', at: new Date(NOW).toISOString(), by: 'admin@x.dev', mpStatus: 'in_process' };
+  db.orders.push(order);
+  mp.state.payments.set('31337', { id: 31337, status: 'refunded', external_reference: order.id, transaction_amount: order.total, collector_id: 777 });
+  assert.equal(await sweepPayments(config, db, NOW), true);
+  assert.equal(order.paymentStatus, 'ESTORNADO');
+  assert.equal(db.products[0].stock, 3, 'estoque do pedido devolvido');
+  assert.equal(await sweepPayments(config, db, NOW), false, 'estorno confirmado sai da varredura');
 });

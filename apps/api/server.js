@@ -17,8 +17,8 @@ import { createTurnQueue } from './write-queue.js';
 import { renameWithRetry } from './rename-retry.js';
 import { MercadoPagoError, readMercadoPagoConfig, verifyWebhookSignature } from './mercadopago.js';
 import {
-  completeSellerConnection, PaymentFlowError, preparePayment, processNotification, startSellerConnection,
-  sweepPayments, syncOrder
+  completeSellerConnection, PaymentFlowError, preparePayment, processNotification, requestRefund,
+  startSellerConnection, sweepPayments, syncOrder
 } from './payments.js';
 import { isBelowMinVersion, readAppMinVersion, readLatestVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
@@ -1163,6 +1163,26 @@ app.post('/api/orders/:id/sync', authenticate, async (req, res) => {
     }
   }
   res.json(order);
+});
+
+// Estorno total pelo ADMIN (spec 10, RF-08): do pedido pago ou do pagamento em revisão. 202: pedido ao
+// Mercado Pago; o pedido só muda quando ele confirma (já na resposta, se confirmou na hora).
+const REFUND_NOTE = 'Estorno pedido ao Mercado Pago. A devolução sai dividida de forma proporcional entre o vendedor e a '
+  + 'comissão da AgroTech; o pedido muda quando o Mercado Pago confirmar.';
+
+app.post('/api/admin/orders/:id/refund', requireMercadoPago, authenticate, requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((item) => item.id === req.params.id);
+  if (!order) return res.status(404).json({ message: 'Pedido não encontrado.' });
+  try {
+    await requestRefund(MP, db, order, req.user.email, Date.now());
+  } catch (error) {
+    const status = flowErrorStatus(error);
+    if (error.persist) await writeDb(db);
+    return res.status(status).json({ message: error.message });
+  }
+  await writeDb(db);
+  res.status(202).json({ message: REFUND_NOTE, order });
 });
 
 // Webhook: assinatura antes de tudo; depois processa e só então responde 200. Falhou (Mercado Pago fora,

@@ -87,7 +87,8 @@ components:
         sellerEmail: { type: string, description: 'Mercado Pago: o único vendedor do pedido' }
         marketplaceFeeCents: { type: integer, description: 'Mercado Pago: comissão da AgroTech gravada na criação' }
         reservedUntil: { type: string, format: date-time, description: 'Mercado Pago: até quando o estoque fica reservado sem pagamento aprovado' }
-        paymentReview: { type: object, description: 'pagamento divergente (valor, referência ou recebedor) que não mudou o pedido: { reason, paymentId, at }' }
+        paymentReview: { type: object, description: 'pagamento divergente (valor, referência ou recebedor) ou aprovado depois do cancelamento, que não mudou o pedido: { reason, paymentId, at, resolvedAt? }; resolvedAt quando o estorno desse pagamento é confirmado' }
+        refundRequest: { type: object, description: 'estorno pedido pelo ADMIN: { paymentId, at, by, mpStatus }' }
         payment:
           type: object
           description: 'Mercado Pago: nunca traz token. history registra cada mudança de estado.'
@@ -393,6 +394,26 @@ paths:
         '401': { description: 'sem token ou token inválido' }
         '404': { description: 'pedido inexistente ou de outra conta (só o dono ou o ADMIN)' }
         '409': { description: 'conta Mercado Pago do vendedor desconectada (renovação do token recusada)' }
+        '502': { description: 'Mercado Pago indisponível' }
+  /api/admin/orders/{id}/refund:
+    post:
+      summary: Estorno total pelo ADMIN (Mercado Pago, spec 10 RF-08)
+      description: >-
+        Estorna o pagamento que pagou o pedido (paymentStatus PAGO) ou, sem pedido pago, o pagamento em
+        revisão aberta (aprovado depois do cancelamento ou com valor divergente). Pede ao Mercado Pago
+        (POST /v1/payments/{id}/refunds, corpo vazio = total) com o token do vendedor e
+        X-Idempotency-Key "estorno-<paymentId>" (clique repetido não estorna em dobro). Grava
+        refundRequest { paymentId, at, by, mpStatus }. O pedido só muda quando o Mercado Pago confirma:
+        na consulta logo em seguida, no webhook ou na varredura. Confirmado: PAGO vira ESTORNADO (estoque
+        devolvido); pagamento em revisão ganha paymentReview.resolvedAt.
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '202': { description: 'estorno pedido; message explica a divisão proporcional entre vendedor e comissão', content: { application/json: { schema: { type: object, properties: { message: { type: string }, order: { $ref: '#/components/schemas/Order' } } } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'não é ADMIN' }
+        '404': { description: 'pedido inexistente, ou Mercado Pago não está ligado neste servidor' }
+        '409': { description: 'nada a estornar, conta do vendedor desconectada, ou Mercado Pago recusou (ex.: vendedor sem saldo): resolver pelo painel do Mercado Pago' }
         '502': { description: 'Mercado Pago indisponível' }
   /api/payments/webhook:
     post:

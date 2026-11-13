@@ -170,6 +170,15 @@ export const getPayment = (config, token, paymentId) =>
   mpFetch(config, `/v1/payments/${encodeURIComponent(paymentId)}`, { token });
 
 /**
+ * Estorno total (corpo vazio = valor inteiro). Com o token do vendedor: no marketplace, o Mercado Pago
+ * divide a devolução de forma proporcional entre o vendedor e a comissão.
+ * @param {any} config @param {string} token @param {string} paymentId @param {string} idempotencyKey
+ * @returns {Promise<{ id: number, status: string }>}
+ */
+export const refundPayment = (config, token, paymentId, idempotencyKey) =>
+  mpFetch(config, `/v1/payments/${encodeURIComponent(paymentId)}/refunds`, { method: 'POST', token, json: {}, idempotencyKey });
+
+/**
  * Pagamentos de um pedido, pelo external_reference.
  * @param {any} config @param {string} token @param {string} externalReference
  * @returns {Promise<any[]>}

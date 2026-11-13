@@ -7,7 +7,7 @@ import {
 } from '../../packages/domain/payments.js';
 import {
   authorizationUrl, createPreference, decryptToken, encryptToken, exchangeCode, getPayment, pkcePair,
-  refreshAccessToken, searchPayments
+  refreshAccessToken, refundPayment, searchPayments
 } from './mercadopago.js';
 
 const { AGUARDANDO, PAGO, CANCELADO, ESTORNADO } = PAYMENT_STATUS;
@@ -196,6 +196,10 @@ function transition(db, order, to, { source, payment, now }) {
  */
 export function applyPayment(config, db, order, payment, collectorId, source, now) {
   const decision = paymentDecision(order, payment, collectorId);
+  if (decision.resolveReview) {
+    order.paymentReview.resolvedAt = iso(now);
+    return true;
+  }
   if (decision.review) {
     if (order.paymentReview?.paymentId === String(payment.id)) return false;
     order.paymentReview = { reason: decision.review, paymentId: String(payment.id), at: iso(now) };
@@ -219,6 +223,50 @@ function holdReservation(config, order, holdUntil, now) {
 }
 
 const isAwaitingMercadoPago = (order) => order.payment?.provider === 'mercadopago' && order.paymentStatus === AGUARDANDO;
+
+/**
+ * Pagamento a estornar (RF-08): o que pagou o pedido ou, sem pedido pago, o que está em revisão aberta
+ * (aprovado depois do cancelamento ou com valor divergente: dinheiro com o vendedor sem pedido pago).
+ * @returns {string | null}
+ */
+function refundTarget(order) {
+  if (order.payment?.provider !== 'mercadopago') return null;
+  if (order.paymentStatus === PAGO) return order.payment.paymentId;
+  if (order.paymentReview && !order.paymentReview.resolvedAt) return order.paymentReview.paymentId;
+  return null;
+}
+
+/** Estorno pedido e ainda não confirmado: a varredura reconsulta até o Mercado Pago confirmar. */
+const hasUnconfirmedRefund = (order) => Boolean(order.refundRequest) && refundTarget(order) === order.refundRequest.paymentId;
+
+/**
+ * Pede ao Mercado Pago o estorno total (RF-08). O estado do pedido só muda quando o Mercado Pago confirma:
+ * aqui mesmo, pela consulta logo em seguida, ou depois, pelo webhook ou pela varredura.
+ * A chave de idempotência por pagamento evita estorno em dobro num clique repetido.
+ * @param {any} config @param {any} db @param {any} order @param {string} adminEmail @param {number} now
+ */
+export async function requestRefund(config, db, order, adminEmail, now) {
+  const paymentId = refundTarget(order);
+  if (!paymentId) throw new PaymentFlowError(409, 'Este pedido não tem pagamento para estornar.');
+  const account = db.sellerAccounts.find((item) => item.email === order.sellerEmail && item.status === 'CONECTADA');
+  if (!account) throw new PaymentFlowError(409, 'A conta Mercado Pago do vendedor está desconectada: estorne pelo painel do Mercado Pago.');
+  const access = await sellerToken(config, account, now);
+  let refund;
+  try {
+    refund = await refundPayment(config, access.token, paymentId, `estorno-${paymentId}`);
+  } catch (error) {
+    if (error.status >= 400 && error.status < 500) {
+      throw new PaymentFlowError(409, 'O Mercado Pago recusou o estorno (por exemplo, o vendedor sem saldo). Resolva pelo painel do Mercado Pago.', access.changed);
+    }
+    throw new PaymentFlowError(502, 'Mercado Pago indisponível; tente o estorno de novo.', access.changed);
+  }
+  order.refundRequest = { paymentId, at: iso(now), by: adminEmail, mpStatus: refund?.status ?? null };
+  try {
+    await syncOrder(config, db, order, now);
+  } catch (error) {
+    console.warn(`[agrotech] estorno do pedido ${order.id} pedido; a confirmação fica para o webhook ou a varredura: ${error.message}`);
+  }
+}
 
 /**
  * Consulta os pagamentos do pedido no Mercado Pago e aplica; reserva vencida sem pagamento aprovado ou
@@ -251,8 +299,8 @@ export async function syncOrder(config, db, order, now) {
  */
 export async function sweepPayments(config, db, now) {
   let changed = false;
-  for (const order of db.orders.filter(isAwaitingMercadoPago)) {
-    const due = Date.parse(order.reservedUntil) <= now || now - Date.parse(order.createdAt) >= SYNC_PENDING_AFTER_MS;
+  for (const order of db.orders.filter((item) => isAwaitingMercadoPago(item) || hasUnconfirmedRefund(item))) {
+    const due = hasUnconfirmedRefund(order) || Date.parse(order.reservedUntil) <= now || now - Date.parse(order.createdAt) >= SYNC_PENDING_AFTER_MS;
     if (!due) continue;
     try {
       changed = (await syncOrder(config, db, order, now)) || changed;

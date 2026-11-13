@@ -362,6 +362,80 @@ test('token perto de vencer é renovado antes da preferência; renovação recus
   assert.equal((await api('GET', '/api/mp/status', null, expiring.token)).body.connected, false);
 });
 
+// --- estorno pelo ADMIN (RF-08) ---
+
+const adminToken = async () => (await api('POST', '/api/auth/login', { email: 'admin@agrotech.com.br', password: 'admin123' })).body.token;
+
+async function paidOrder() {
+  const ctx = await pendingOrder({ stock: 10, quantity: 2 });
+  const payment = fakePayment(ctx.order, ctx.seller.mpUserId, 'approved');
+  await api('POST', `/api/orders/${ctx.order.id}/sync`, null, ctx.buyer.token);
+  assert.equal((await orderOf(ctx.buyer, ctx.order.id)).paymentStatus, 'PAGO');
+  return { ...ctx, payment };
+}
+
+test('estorno: só o ADMIN; pedido aguardando não tem o que estornar (409)', async () => {
+  const { buyer, order } = await pendingOrder();
+  assert.equal((await api('POST', `/api/admin/orders/${order.id}/refund`, null, buyer.token)).status, 403);
+  assert.equal((await api('POST', `/api/admin/orders/${order.id}/refund`, null, await adminToken())).status, 409);
+  assert.equal((await api('POST', '/api/admin/orders/AGT-NAOEXISTE/refund', null, await adminToken())).status, 404);
+});
+
+test('estorno de pedido pago: pede ao Mercado Pago com o token do vendedor; confirmado, ESTORNADO e estoque de volta', async () => {
+  const { buyer, order, payment, productId } = await paidOrder();
+  assert.equal(await stockOf(productId), 8);
+  const res = await api('POST', `/api/admin/orders/${order.id}/refund`, null, await adminToken());
+  assert.equal(res.status, 202, res.text);
+  assert.match(res.body.message, /proporcional/);
+  const call = mp.state.refundRequests.at(-1);
+  assert.equal(call.paymentId, String(payment.id));
+  assert.match(call.authorization, /^Bearer token-falso-acesso-\d+$/);
+  assert.equal(call.idempotencyKey, `estorno-${payment.id}`);
+  assert.equal(res.body.order.paymentStatus, 'ESTORNADO');
+  assert.equal((await orderOf(buyer, order.id)).refundRequest.paymentId, String(payment.id));
+  assert.equal(await stockOf(productId), 10);
+});
+
+test('estorno aceito mas ainda não confirmado não muda o pedido', async () => {
+  const { buyer, order } = await paidOrder();
+  mp.state.refundPending = true;
+  try {
+    const res = await api('POST', `/api/admin/orders/${order.id}/refund`, null, await adminToken());
+    assert.equal(res.status, 202);
+  } finally {
+    mp.state.refundPending = false;
+  }
+  assert.equal((await orderOf(buyer, order.id)).paymentStatus, 'PAGO');
+});
+
+test('Mercado Pago recusa o estorno (ex.: vendedor sem saldo): 409 e nada muda', async () => {
+  const { buyer, order } = await paidOrder();
+  mp.state.failRefund = true;
+  try {
+    const res = await api('POST', `/api/admin/orders/${order.id}/refund`, null, await adminToken());
+    assert.equal(res.status, 409);
+    assert.match(res.body.message, /painel do Mercado Pago/);
+  } finally {
+    mp.state.failRefund = false;
+  }
+  assert.equal((await orderOf(buyer, order.id)).paymentStatus, 'PAGO');
+});
+
+test('pagamento em revisão (valor divergente): o estorno devolve esse pagamento e resolve a revisão', async () => {
+  const { seller, buyer, order } = await pendingOrder();
+  // Pagamento em revisão deixa dinheiro com o vendedor sem pagar o pedido. O caso "aprovado depois do
+  // cancelamento" segue a mesma regra (tests/payments.test.js, revisão resolvida pelo estorno).
+  const wrong = fakePayment(order, seller.mpUserId, 'approved', { transaction_amount: order.total + 5 });
+  await api('POST', `/api/orders/${order.id}/sync`, null, buyer.token);
+  assert.equal((await orderOf(buyer, order.id)).paymentReview.paymentId, String(wrong.id));
+  const res = await api('POST', `/api/admin/orders/${order.id}/refund`, null, await adminToken());
+  assert.equal(res.status, 202, res.text);
+  assert.equal(mp.state.refundRequests.at(-1).paymentId, String(wrong.id));
+  const after = await orderOf(buyer, order.id);
+  assert.ok(after.paymentReview.resolvedAt, 'revisão resolvida pelo estorno');
+  assert.equal(after.paymentStatus, 'AGUARDANDO_PAGAMENTO', 'o pedido em si não foi pago');
+});
+
 // --- varredura (RF-05), num servidor com reserva curta ---
 
 test('varredura: reserva vencida sem pagamento cancela e devolve o estoque; pendente segura', async () => {

@@ -266,6 +266,16 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 - **Descrição:** o ADMIN estorna o total de um pedido `PAGO` ou de um patrocínio.
   - O servidor pede o estorno ao Mercado Pago.
   - O estado só muda quando o webhook (ou o sync) confirmar `refunded`.
+- **Também o pagamento em revisão** (2026-11-13): o pagamento aprovado depois do cancelamento, ou com
+  valor divergente, deixa dinheiro com o vendedor sem pedido pago.
+  - O ADMIN estorna esse pagamento pela mesma rota.
+  - Confirmado o estorno, a revisão fica resolvida (`paymentReview.resolvedAt`) e o pedido não muda.
+- **Clique repetido:** a chave de idempotência por pagamento (`estorno-<paymentId>`) evita estorno em
+  dobro.
+- **Confirmação:** o servidor consulta o pagamento logo depois do pedido de estorno. Se o Mercado Pago
+  ainda não concluiu, a varredura reconsulta até confirmar, porque o webhook pode se perder.
+- **Recusa do Mercado Pago** (por exemplo, vendedor sem saldo) ou conta do vendedor desconectada: 409,
+  com a orientação de resolver pelo painel do Mercado Pago.
 - **Limite do split:** o reembolso é dividido proporcionalmente entre o vendedor e a AgroTech.
   - Sem saldo do vendedor, a AgroTech só devolve a parte dela, como diz a documentação do Mercado
     Pago.
