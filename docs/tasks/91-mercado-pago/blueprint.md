@@ -92,8 +92,8 @@ da AgroTech descontada.
   `apps/api/server.js:67`; `tests/payments-api.test.js`, `tests/payments-flows.test.js`.
 - [x] OAuth do vendedor, cifra e renovação (CA02 a CA04): `apps/api/payments.js:37`,
   `apps/api/payments.js:86`, `apps/api/mercadopago.js:211`; `tests/payments-api.test.js`.
-- [x] Pedido com Checkout Pro e comissão, reserva, idempotência e 502 (CA05 a CA08):
-  `apps/api/payments.js:133`, `apps/api/server.js:1035`; `tests/payments-api.test.js`.
+- [x] Pedido com Checkout Pro, comissão, reserva e 502 (CA05 a CA08): `apps/api/payments.js:133`,
+  `apps/api/server.js:1035`; `tests/payments-api.test.js`.
 - [x] Webhook, sync e varredura com as regras de estado (CA09 a CA13): `apps/api/server.js:1137`,
   `apps/api/payments.js:228`, `apps/api/payments.js:252`; `tests/payments-api.test.js`.
 - [x] Comissão e extrato (CA14 a CA16): `packages/domain/payments.js:36`, `packages/domain/finance.js:67`;
