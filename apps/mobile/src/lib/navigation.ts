@@ -12,6 +12,9 @@ export type Route =
   | { name: 'favorites' }
   | { name: 'admin' }
   | { name: 'server' }
+  // Mercado Pago (spec 10): o vendedor conecta a conta; o master define comissão e estorna.
+  | { name: 'receive' }
+  | { name: 'paymentsAdmin' }
   | { name: 'auth'; pending: Target | null; mode?: AuthMode };
 /** Para onde ir depois de entrar: uma aba ou uma tela. */
 export type Target = { tab: Tab } | { route: Exclude<Route, { name: 'auth' }> };
@@ -21,7 +24,7 @@ export const INITIAL_NAV: Nav = { tab: 'catalog', stack: [] };
 
 // Como na web (navigateTo, src/modules/catalog.js): anunciar, financeiro e pedidos pedem conta.
 const PROTECTED_TABS: Tab[] = ['sell', 'finance'];
-const PROTECTED_ROUTES: Route['name'][] = ['orders', 'favorites', 'admin'];
+const PROTECTED_ROUTES: Route['name'][] = ['orders', 'favorites', 'admin', 'receive', 'paymentsAdmin'];
 
 export function requireLogin(nav: Nav, pending: Target | null, mode: AuthMode = 'login'): Nav {
   return { ...nav, stack: [...nav.stack, { name: 'auth', pending, mode }] };
@@ -60,7 +63,9 @@ const REASONS: Partial<Record<Tab | Route['name'], string>> = {
   finance: 'acessar o financeiro',
   orders: 'ver seus pedidos',
   favorites: 'ver seus favoritos',
-  admin: 'administrar os usuários'
+  admin: 'administrar os usuários',
+  receive: 'receber pelo Mercado Pago',
+  paymentsAdmin: 'administrar os pagamentos'
 };
 
 export function pendingReason(target: Target | null): string | null {

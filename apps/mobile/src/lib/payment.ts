@@ -67,3 +67,35 @@ export function paymentResultMessage(order: PayableOrderView): { title: string; 
 export function entrySourceLabel(source: string): string {
   return ({ COMPRA: 'Compra', VENDA: 'Venda', ESTORNO: 'Estorno', MANUAL: 'Manual' } as Record<string, string>)[source] ?? source;
 }
+
+// --- parte 3b: vendedor e master ---
+
+/** Só abre o link de autorização oficial (o servidor devolve auth.mercadopago.com/authorization?...). */
+export function isSafeAuthorizationUrl(url: string | null | undefined): boolean {
+  return /^https:\/\/auth\.mercadopago\.com(\.br)?\/authorization(\?|$)/i.test(String(url ?? ''));
+}
+
+/** Comissão digitada pelo master: aceita vírgula; de 0 a 30, até 2 casas. null = inválida. */
+export function parseFeePercent(text: string): number | null {
+  const clean = text.trim().replace(',', '.');
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(clean)) return null;
+  const value = Number(clean);
+  return value >= 0 && value <= 30 ? value : null;
+}
+
+export type RefundableOrder = PayableOrderView & {
+  id: string;
+  total?: number;
+  payment?: PaymentInfo & { paymentId?: string | null };
+  paymentReview?: { reason: string; paymentId: string; resolvedAt?: string };
+};
+
+/**
+ * O que o master pode estornar (RF-08): pagamento em revisão aberta (dinheiro com o vendedor sem pedido
+ * pago) primeiro, depois os pedidos pagos.
+ */
+export function refundCandidates<T extends RefundableOrder>(orders: T[]): { order: T; kind: 'revisao' | 'pago' }[] {
+  const review = orders.filter((order) => order.paymentReview && !order.paymentReview.resolvedAt && order.paymentStatus !== 'PAGO');
+  const paid = orders.filter((order) => order.paymentStatus === 'PAGO');
+  return [...review.map((order) => ({ order, kind: 'revisao' as const })), ...paid.map((order) => ({ order, kind: 'pago' as const }))];
+}

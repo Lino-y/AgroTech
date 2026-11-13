@@ -5,7 +5,10 @@ import assert from 'node:assert/strict';
 import {
   cartSellerProblem,
   entrySourceLabel,
+  isSafeAuthorizationUrl,
   isSafeCheckoutUrl,
+  parseFeePercent,
+  refundCandidates,
   orderActions,
   parseReturnLink,
   paymentResultMessage,
@@ -74,4 +77,40 @@ test('origem do lançamento no extrato, inclusive estorno', () => {
   assert.equal(entrySourceLabel('VENDA'), 'Venda');
   assert.equal(entrySourceLabel('ESTORNO'), 'Estorno');
   assert.equal(entrySourceLabel('MANUAL'), 'Manual');
+});
+
+// --- parte 3b: vendedor e master ---
+
+test('link de autorização: só https do auth do Mercado Pago', () => {
+  assert.equal(isSafeAuthorizationUrl('https://auth.mercadopago.com/authorization?client_id=1&state=x'), true);
+  assert.equal(isSafeAuthorizationUrl('https://auth.mercadopago.com.br/authorization?client_id=1'), true);
+  assert.equal(isSafeAuthorizationUrl('https://www.mercadopago.com.br/checkout'), false, 'checkout não é autorização');
+  assert.equal(isSafeAuthorizationUrl('http://auth.mercadopago.com/authorization'), false);
+  assert.equal(isSafeAuthorizationUrl('https://auth.mercadopago.com.evil.dev/authorization'), false);
+  assert.equal(isSafeAuthorizationUrl(undefined), false);
+});
+
+test('comissão digitada: vírgula ou ponto, de 0 a 30, até 2 casas', () => {
+  assert.equal(parseFeePercent('10'), 10);
+  assert.equal(parseFeePercent('12,5'), 12.5);
+  assert.equal(parseFeePercent(' 0.29 '), 0.29);
+  assert.equal(parseFeePercent('0'), 0);
+  assert.equal(parseFeePercent('30'), 30);
+  assert.equal(parseFeePercent('30,01'), null);
+  assert.equal(parseFeePercent('-1'), null);
+  assert.equal(parseFeePercent('1,234'), null, 'três casas');
+  assert.equal(parseFeePercent('dez'), null);
+  assert.equal(parseFeePercent(''), null);
+});
+
+test('estornáveis: pedido pago e pagamento em revisão aberta; simulado, cancelado e revisão resolvida, não', () => {
+  const orders = [
+    { id: 'A', paymentStatus: 'PAGO', payment: { paymentId: '1' } },
+    { id: 'B', paymentStatus: 'CANCELADO', paymentReview: { reason: 'aprovado depois do cancelamento', paymentId: '2' } },
+    { id: 'C', paymentStatus: 'CANCELADO', paymentReview: { reason: 'x', paymentId: '3', resolvedAt: '2026-11-13T00:00:00Z' } },
+    { id: 'D', paymentStatus: 'ESTORNADO', payment: { paymentId: '4' } },
+    { id: 'E', status: 'Pedido Confirmado' },
+    { id: 'F', paymentStatus: 'AGUARDANDO_PAGAMENTO', payment: {} }
+  ];
+  assert.deepEqual(refundCandidates(orders).map((c) => `${c.order.id}:${c.kind}`), ['B:revisao', 'A:pago']);
 });

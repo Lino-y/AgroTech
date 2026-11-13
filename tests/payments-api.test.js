@@ -132,6 +132,7 @@ test('conectar: URL de autorização oficial com state; state vale uma vez; toke
   assert.equal((await api('GET', '/api/mp/callback?code=x&state=forjado')).status, 400);
   const ok = await api('GET', `/api/mp/callback?code=codigo-falso&state=${state}`);
   assert.equal(ok.status, 200);
+  assert.match(ok.text, /href="agrotech:\/\/conta\/mercadopago"/, 'botão para voltar ao app');
   assert.equal(mp.state.tokenRequests.at(-1).form.grant_type, 'authorization_code');
   assert.equal(mp.state.tokenRequests.at(-1).contentType, 'application/x-www-form-urlencoded');
   assert.equal((await api('GET', `/api/mp/callback?code=codigo-falso&state=${state}`)).status, 400, 'state reutilizado');
@@ -148,6 +149,7 @@ test('callback com erro do Mercado Pago ou sem código é recusado e consome o s
   const state = new URL((await api('POST', '/api/mp/connect', null, seller.token)).body.url).searchParams.get('state');
   const denied = await api('GET', `/api/mp/callback?error=access_denied&state=${state}`);
   assert.equal(denied.status, 400);
+  assert.doesNotMatch(denied.text, /agrotech:\/\//, 'erro não oferece voltar como se tivesse conectado');
   assert.equal((await api('GET', `/api/mp/callback?code=x&state=${state}`)).status, 400);
 });
 

@@ -263,3 +263,17 @@ Antes de codar, dois testes no sandbox real decidiram o desenho:
 - tela do vendedor "Receber pelo Mercado Pago" (conectar e desconectar);
 - telas do master (comissão, revisão e estorno);
 - a web.
+
+## 14. Parte 3b: telas do vendedor e do master no app (2026-11-13)
+
+| ID | Critério | Status | Evidência |
+|----|----------|--------|-----------|
+| CA30 | Vendedor: "Receber pelo Mercado Pago" mostra a situação, conecta (abre só o link de autorização oficial) e desconecta; relê a situação quando o app volta do navegador | ✅ | `apps/mobile/src/screens/ReceivePaymentsScreen.tsx:16`, `apps/mobile/src/screens/ReceivePaymentsScreen.tsx:33`, `apps/mobile/src/lib/payment.ts:74`; teste "link de autorização …" |
+| CA31 | Página "conta conectada" com botão "Voltar ao AgroTech" (link fixo); erro não oferece | ✅ | `apps/api/server.js:1116`; testes "conectar: …" e "callback com erro …" |
+| CA32 | Master: comissão digitada (vírgula, 0 a 30, até 2 casas) e estorno do pedido pago ou do pagamento em revisão, com o aviso da divisão proporcional | ✅ | `apps/mobile/src/screens/AdminPaymentsScreen.tsx:20`, `apps/mobile/src/lib/payment.ts:79`, `apps/mobile/src/lib/payment.ts:97`; testes "comissão digitada …" e "estornáveis …" |
+| CA33 | Os botões só aparecem com o Mercado Pago ligado e no perfil certo; as rotas pedem conta | ✅ | `apps/mobile/src/screens/AccountScreen.tsx:54`, `apps/mobile/src/screens/AccountScreen.tsx:57`, `apps/mobile/src/lib/navigation.ts:27`; teste "Receber pelo Mercado Pago e Pagamentos …" |
+
+- **Sem rota nova no servidor:** o master usa `GET /api/orders` (como ADMIN vê todos),
+  `GET`/`PUT /api/admin/settings` e `POST /api/admin/orders/{id}/refund`, que já existiam.
+- **Versão do app:** 0.5.1 (versionCode 14).
+- **Falta:** a web (parte 3c) e o patrocínio pago (parte 4, depende da spec 09).

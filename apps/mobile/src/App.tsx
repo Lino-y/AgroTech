@@ -12,6 +12,8 @@ import { addToCart, cartCount, serializeCart, type CartLine } from './lib/cart.t
 import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogin, type Nav } from './lib/navigation.ts';
 import { AccountScreen } from './screens/AccountScreen.tsx';
 import { AdminUsersScreen } from './screens/AdminUsersScreen.tsx';
+import { AdminPaymentsScreen } from './screens/AdminPaymentsScreen.tsx';
+import { ReceivePaymentsScreen } from './screens/ReceivePaymentsScreen.tsx';
 import { FavoritesScreen } from './screens/FavoritesScreen.tsx';
 import { ServerScreen } from './screens/ServerScreen.tsx';
 import { SupportScreen } from './screens/SupportScreen.tsx';
@@ -309,6 +311,12 @@ export default function App(): React.JSX.Element {
     if (top?.name === 'admin') {
       return <AdminUsersScreen onBack={goBack} />;
     }
+    if (top?.name === 'receive') {
+      return <ReceivePaymentsScreen onBack={goBack} />;
+    }
+    if (top?.name === 'paymentsAdmin') {
+      return <AdminPaymentsScreen onBack={goBack} />;
+    }
     if (top?.name === 'server') {
       return <ServerScreen onBack={goBack} onSave={(url) => void changeServer(url)} />;
     }
@@ -325,6 +333,9 @@ export default function App(): React.JSX.Element {
         onServer={() => setNav((current) => open(current, { name: 'server' }, loggedIn))}
         serverUrl={getApiBaseUrl()}
         onLogout={signOut}
+        payments={payments}
+        onReceive={() => setNav((current) => open(current, { name: 'receive' }, loggedIn))}
+        onPaymentsAdmin={() => setNav((current) => open(current, { name: 'paymentsAdmin' }, loggedIn))}
       />
     );
 

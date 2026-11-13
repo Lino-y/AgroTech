@@ -26,7 +26,11 @@ export type Order = {
   /** Só em pedido pago pelo Mercado Pago (spec 10): AGUARDANDO_PAGAMENTO, PAGO, CANCELADO ou ESTORNADO. */
   paymentStatus?: string;
   reservedUntil?: string;
-  payment?: { checkoutUrl?: string; mpStatus?: string | null; method?: string | null };
+  payment?: { checkoutUrl?: string; mpStatus?: string | null; method?: string | null; paymentId?: string | null };
+  /** Pagamento divergente ou aprovado depois do cancelamento, que o master pode estornar. */
+  paymentReview?: { reason: string; paymentId: string; resolvedAt?: string };
+  ownerEmail?: string;
+  sellerEmail?: string;
 };
 
 /**

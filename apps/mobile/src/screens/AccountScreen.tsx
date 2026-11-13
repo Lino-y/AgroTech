@@ -18,7 +18,13 @@ type Props = {
   onServer: () => void;
   serverUrl: string;
   onLogout: () => void;
+  /** Mercado Pago ligado no servidor: mostra "Receber pelo Mercado Pago" (vendedor) e "Pagamentos" (master). */
+  payments?: 'simulado' | 'mercadopago';
+  onReceive?: () => void;
+  onPaymentsAdmin?: () => void;
 };
+
+const SELLER_ROLES = ['VENDEDOR', 'AMBOS'];
 
 const ROLE_LABELS: Record<string, string> = {
   PRODUTOR: 'Comprador Rural (Produtor)',
@@ -31,6 +37,7 @@ const ROLE_LABELS: Record<string, string> = {
 // todos; usuários e códigos de senha só para o ADMIN.
 export function AccountScreen(props: Props): React.JSX.Element {
   const { user, onLogin, onRegister, onOrders, onFavorites, onSupport, onAdmin, onLogout, onServer, serverUrl } = props;
+  const mercadoPago = props.payments === 'mercadopago';
   return (
     <View style={ui.screen}>
       <ScreenHeader title={user ? `Olá, ${user.name.split(' ')[0] || 'produtor'}` : 'Conta'} />
@@ -44,6 +51,12 @@ export function AccountScreen(props: Props): React.JSX.Element {
             </View>
             <Button title="Meus pedidos" variant="outline" onPress={onOrders} />
             <Button title="Meus favoritos" variant="outline" onPress={onFavorites} />
+            {mercadoPago && SELLER_ROLES.includes(user.role) && props.onReceive ? (
+              <Button title="Receber pelo Mercado Pago" variant="outline" onPress={props.onReceive} />
+            ) : null}
+            {mercadoPago && user.role === 'ADMIN' && props.onPaymentsAdmin ? (
+              <Button title="Pagamentos (comissão e estornos)" variant="outline" onPress={props.onPaymentsAdmin} />
+            ) : null}
             <Button title="Suporte" variant="outline" onPress={onSupport} />
             {user.role === 'ADMIN' ? <Button title="Usuários (gerar código de senha)" variant="outline" onPress={onAdmin} /> : null}
             <Button title="Sair da conta" variant="outline" onPress={onLogout} />

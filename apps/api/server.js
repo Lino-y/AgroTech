@@ -1111,9 +1111,13 @@ app.post('/api/mp/connect', requireMercadoPago, authenticate, async (req, res) =
 
 // Volta do OAuth no navegador do vendedor: sem token (o usuário sai do state) e por GET, então pega a
 // vez da fila sozinha. A página só mostra mensagens fixas: nada da query volta para o HTML.
-const connectionPage = (message) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">`
+// Conectado: o botão abre o app (link fixo agrotech://, que o app trata como "voltar"; a tela de receber
+// relê a situação ao voltar ao primeiro plano).
+const BACK_TO_APP = '<p><a href="agrotech://conta/mercadopago" style="display:inline-block;padding:14px 20px;'
+  + 'background:#2E7D32;color:#fff;border-radius:12px;text-decoration:none;font-weight:700">Voltar ao AgroTech</a></p>';
+const connectionPage = (message, ok) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">`
   + `<meta name="viewport" content="width=device-width,initial-scale=1"><title>AgroTech</title></head>`
-  + `<body style="font-family:sans-serif;padding:24px"><p>${message}</p></body></html>`;
+  + `<body style="font-family:sans-serif;padding:24px"><p>${message}</p>${ok ? BACK_TO_APP : ''}</body></html>`;
 
 app.get('/api/mp/callback', requireMercadoPago, async (req, res) => {
   const outcome = await withWriteTurn(async () => {
@@ -1122,7 +1126,7 @@ app.get('/api/mp/callback', requireMercadoPago, async (req, res) => {
     await writeDb(db);
     return result;
   });
-  res.status(outcome.status).type('html').send(connectionPage(outcome.message));
+  res.status(outcome.status).type('html').send(connectionPage(outcome.message, outcome.status === 200));
 });
 
 app.get('/api/mp/status', requireMercadoPago, authenticate, async (req, res) => {
