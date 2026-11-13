@@ -60,6 +60,7 @@ components:
         unit: { type: string }
         location: { type: string }
         stock: { type: number, minimum: 0 }
+        payable: { type: boolean, description: 'só com o Mercado Pago ligado: o vendedor conectou a conta e o produto pode ser pago agora. Ausente no modo simulado.' }
         shippingType: { type: string }
         certification: { type: string }
         image: { type: string, nullable: true, description: 'link http(s) ou data URL de imagem' }
@@ -99,7 +100,8 @@ components:
             paymentId: { type: string, nullable: true }
             mpStatus: { type: string, nullable: true }
             method: { type: string, nullable: true, description: 'payment_type_id do Mercado Pago (pix, ticket, credit_card...)' }
-            history: { type: array, items: { type: object, properties: { at: { type: string }, from: { type: string }, to: { type: string }, source: { type: string, enum: [webhook, sync, vencimento] } } } }
+            netReceived: { type: number, description: 'líquido do vendedor informado pelo Mercado Pago (transaction_details.net_received_amount), gravado quando o pedido é pago' }
+            history: { type: array, items: { type: object, properties: { at: { type: string }, from: { type: string }, to: { type: string }, source: { type: string, enum: [webhook, sync, vencimento, comprador] } } } }
         trackingCode: { type: string, example: BR-AGRO-9F3A2C1B7D4E-X, description: '12 hexadecimais aleatórios (48 bits); pedido antigo mantém o formato BR-AGRO-123456-X' }
         carrier: { type: string }
         estimatedDelivery: { type: string }
@@ -118,7 +120,8 @@ components:
       description: >-
         Lançamento do extrato financeiro da conta. COMPRA = pedido da conta (saída, pelo total do
         pedido); VENDA = itens dos produtos da conta num pedido de outra conta (entrada, preço x
-        quantidade, sem cupom nem frete); MANUAL = lançamento digitado pela conta. Pedido do Mercado
+        quantidade, sem cupom nem frete; com Mercado Pago, o líquido que ele informa, já sem a taxa dele e a
+        comissão, com o título terminando em ", líquido"); MANUAL = lançamento digitado pela conta. Pedido do Mercado
         Pago aguardando pagamento ou cancelado não entra; estornado entra e ganha um ESTORNO, que o
         desfaz (entrada para quem comprou, saída para quem vendeu).
       properties:
@@ -147,6 +150,7 @@ paths:
                 type: object
                 properties:
                   minVersion: { type: string, example: '1.2.0' }
+                  payments: { type: string, enum: [simulado, mercadopago], description: 'mercadopago quando o servidor tem as variáveis MP_*: o app troca o pagamento simulado pelo Checkout Pro. Ausente (servidor antigo) = simulado.' }
                   latestVersion: { type: string, nullable: true, example: '1.3.0', description: 'versão mais nova para baixar (APP_LATEST_VERSION); null sem configuração. O app avisa quando ela é maior que a dele.' }
                   downloadUrl: { type: string, nullable: true, example: '/api/app-download', description: 'caminho relativo do APK; null quando APP_APK_FILE não está configurado' }
   /api/app-download:
@@ -383,6 +387,18 @@ paths:
         '401': { description: 'sem token ou token inválido' }
         '409': { description: 'Idempotency-Key já usada com outros itens ou cupom, ou estoque insuficiente (produto com stock numérico): a mensagem diz o produto e quanto há. O pedido aceito baixa o estoque; o reenvio com a mesma chave não baixa de novo. Com Mercado Pago, também vendedor sem conta conectada ou com a renovação do token recusada.' }
         '502': { description: 'Mercado Pago indisponível ao criar a preferência: nada é gravado (nem pedido, nem reserva)' }
+  /api/orders/{id}/cancel:
+    post:
+      summary: O comprador cancela o pedido aguardando pagamento (Mercado Pago)
+      description: 'Só o dono. Antes, consulta o Mercado Pago: pagamento aprovado (o pedido vira PAGO) ou em andamento (boleto, Pix: payment.mpStatus pending/in_process) impede, com 409. Cancelado: paymentStatus CANCELADO (history source comprador), estoque reservado devolvido e a preferência vencida na hora (PUT /checkout/preferences/{id} com expiration_date_to = agora; se falhar, um pagamento que chegue depois vira revisão e o ADMIN estorna).'
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: 'pedido cancelado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '404': { description: 'pedido inexistente ou de outra conta, ou Mercado Pago não está ligado' }
+        '409': { description: 'não está aguardando pagamento, ou já tem pagamento aprovado ou em andamento' }
+        '502': { description: 'Mercado Pago indisponível na consulta antes de cancelar' }
   /api/orders/{id}/sync:
     post:
       summary: Confere o pagamento do pedido no Mercado Pago (volta do Checkout Pro)

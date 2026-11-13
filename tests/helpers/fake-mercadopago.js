@@ -39,6 +39,11 @@ function refund(state, req, paymentId) {
 function route(state, req, url, raw) {
   if (req.method === 'POST' && url.pathname === '/oauth/token') return oauthToken(state, req, raw);
   if (req.method === 'POST' && url.pathname === '/checkout/preferences') return preference(state, req, raw);
+  const preferenceMatch = /^\/checkout\/preferences\/([\w-]+)$/.exec(url.pathname);
+  if (req.method === 'PUT' && preferenceMatch) {
+    state.preferenceUpdates.push({ id: preferenceMatch[1], authorization: req.headers.authorization, body: JSON.parse(raw || '{}') });
+    return [200, { id: preferenceMatch[1] }];
+  }
   const refundMatch = /^\/v1\/payments\/(\d+)\/refunds$/.exec(url.pathname);
   if (req.method === 'POST' && refundMatch) return refund(state, req, refundMatch[1]);
   const paymentMatch = /^\/v1\/payments\/(\d+)$/.exec(url.pathname);
@@ -57,7 +62,7 @@ function route(state, req, url, raw) {
  * @returns {Promise<{ base: string, state: any, close: () => Promise<void> }>}
  */
 export function startFakeMercadoPago() {
-  const state = { tokenRequests: [], preferences: [], refundRequests: [], payments: new Map(), failPreferences: false, failRefresh: false, nextUserId: 7001 };
+  const state = { tokenRequests: [], preferences: [], preferenceUpdates: [], refundRequests: [], payments: new Map(), failPreferences: false, failRefresh: false, nextUserId: 7001 };
 
   const server = http.createServer(async (req, res) => {
     let raw = '';

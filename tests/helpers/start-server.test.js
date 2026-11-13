@@ -20,7 +20,7 @@ test('variável com valor undefined sai do ambiente do servidor, mesmo se o proc
     const started = await startServer({ env: { APP_MIN_VERSION: undefined, APP_LATEST_VERSION: undefined, APP_APK_FILE: undefined, JWT_SECRET: 'segredo-do-helper' } });
     try {
       const body = await (await fetch(`${started.base}/api/app-config`)).json();
-      assert.deepEqual(body, { minVersion: '0.0.0', latestVersion: null, downloadUrl: null });
+      assert.deepEqual(body, { minVersion: '0.0.0', latestVersion: null, downloadUrl: null, payments: 'simulado' });
     } finally {
       started.kill();
     }

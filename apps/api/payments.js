@@ -3,11 +3,11 @@
 // As regras puras (comissão, o que cada status faz) estão em packages/domain/payments.js.
 import crypto from 'node:crypto';
 import {
-  marketplaceFeeCents, paymentDecision, PAYMENT_STATUS, PAYMENT_STATUS_LABEL, toCents
+  isPendingPayment, marketplaceFeeCents, paymentDecision, PAYMENT_STATUS, PAYMENT_STATUS_LABEL, toCents
 } from '../../packages/domain/payments.js';
 import {
-  authorizationUrl, createPreference, decryptToken, encryptToken, exchangeCode, getPayment, pkcePair,
-  refreshAccessToken, refundPayment, searchPayments
+  authorizationUrl, createPreference, decryptToken, encryptToken, exchangeCode, expirePreference, getPayment,
+  pkcePair, refreshAccessToken, refundPayment, searchPayments
 } from './mercadopago.js';
 
 const { AGUARDANDO, PAGO, CANCELADO, ESTORNADO } = PAYMENT_STATUS;
@@ -180,6 +180,9 @@ function transition(db, order, to, { source, payment, now }) {
   if (payment) Object.assign(order.payment, { paymentId: String(payment.id), mpStatus: payment.status, method: payment.payment_type_id ?? null });
   order.payment.history.push({ at: iso(now), from, to, source });
   if (to === PAGO) {
+    // Líquido do vendedor como o Mercado Pago informa (já sem a taxa dele e a comissão): vai para o extrato.
+    const net = payment?.transaction_details?.net_received_amount;
+    if (typeof net === 'number') order.payment.netReceived = net;
     order.statusStep = 1;
     const confirmed = order.timeline.find((step) => step.title === 'Pedido Confirmado');
     if (confirmed) Object.assign(confirmed, { completed: true, time: 'Hoje' });
@@ -210,19 +213,55 @@ export function applyPayment(config, db, order, payment, collectorId, source, no
     transition(db, order, decision.to, { source, payment, now });
     return true;
   }
-  if (decision.holdUntil !== undefined) return holdReservation(config, order, decision.holdUntil, now);
+  if (decision.holdUntil !== undefined) return holdReservation(config, order, payment, decision.holdUntil, now);
   return false;
 }
 
-/** Pagamento pendente (boleto, Pix) segura a reserva até o vencimento dele. */
-function holdReservation(config, order, holdUntil, now) {
+/**
+ * Pagamento pendente (boleto, Pix) segura a reserva até o vencimento dele e fica registrado no pedido
+ * (sem mudar o paymentStatus): o app sabe que há pagamento esperando e não oferece pagar de novo.
+ */
+function holdReservation(config, order, payment, holdUntil, now) {
+  let changed = false;
+  if (order.payment.mpStatus !== payment.status || order.payment.paymentId !== String(payment.id)) {
+    Object.assign(order.payment, { paymentId: String(payment.id), mpStatus: payment.status, method: payment.payment_type_id ?? null });
+    changed = true;
+  }
   const until = holdUntil ?? iso(now + config.reservationMs);
-  if (Date.parse(until) <= Date.parse(order.reservedUntil)) return false;
-  order.reservedUntil = until;
-  return true;
+  if (Date.parse(until) > Date.parse(order.reservedUntil)) {
+    order.reservedUntil = until;
+    changed = true;
+  }
+  return changed;
 }
 
 const isAwaitingMercadoPago = (order) => order.payment?.provider === 'mercadopago' && order.paymentStatus === AGUARDANDO;
+
+/**
+ * O comprador desiste do pedido aguardando pagamento. Antes, consulta o Mercado Pago: pagamento aprovado
+ * (o pedido vira PAGO) ou em andamento (boleto, Pix) impede o cancelamento. Cancelado, a página de
+ * pagamento vence na hora; se o Mercado Pago não aceitar, um pagamento que chegue depois vira revisão e o
+ * ADMIN estorna (RF-08).
+ * @param {any} config @param {any} db @param {any} order @param {number} now
+ */
+export async function cancelOrder(config, db, order, now) {
+  if (order.payment?.provider !== 'mercadopago' || order.paymentStatus !== AGUARDANDO) {
+    throw new PaymentFlowError(409, 'Só pedido aguardando pagamento pode ser cancelado.');
+  }
+  await syncOrder(config, db, order, now);
+  if (order.paymentStatus === PAGO) throw new PaymentFlowError(409, 'O pagamento deste pedido já foi aprovado: ele não pode mais ser cancelado.', true);
+  if (order.paymentStatus !== AGUARDANDO) return;
+  if (isPendingPayment(order.payment.mpStatus)) {
+    throw new PaymentFlowError(409, 'Há um pagamento em andamento para este pedido (boleto ou Pix): aguarde a compensação ou o vencimento.', true);
+  }
+  transition(db, order, CANCELADO, { source: 'comprador', now });
+  const account = db.sellerAccounts.find((item) => item.email === order.sellerEmail && item.status === 'CONECTADA');
+  try {
+    if (account) await expirePreference(config, (await sellerToken(config, account, now)).token, order.payment.preferenceId, iso(now));
+  } catch (error) {
+    console.warn(`[agrotech] pedido ${order.id} cancelado; a página de pagamento não venceu: ${error.message}`);
+  }
+}
 
 /**
  * Pagamento a estornar (RF-08): o que pagou o pedido ou, sem pedido pago, o que está em revisão aberta

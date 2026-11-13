@@ -27,7 +27,7 @@ test('sem APP_MIN_VERSION, o padrão é 0.0.0, sem token', async () => {
   await withServer({}, async (base) => {
     const res = await fetch(`${base}/api/app-config`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { minVersion: '0.0.0', latestVersion: null, downloadUrl: null });
+    assert.deepEqual(await res.json(), { minVersion: '0.0.0', latestVersion: null, downloadUrl: null, payments: 'simulado' });
   });
 });
 
@@ -35,7 +35,7 @@ test('com APP_MIN_VERSION=1.2.0, devolve a versão configurada', async () => {
   await withServer({ APP_MIN_VERSION: '1.2.0' }, async (base) => {
     const res = await fetch(`${base}/api/app-config`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { minVersion: '1.2.0', latestVersion: null, downloadUrl: null });
+    assert.deepEqual(await res.json(), { minVersion: '1.2.0', latestVersion: null, downloadUrl: null, payments: 'simulado' });
   });
 });
 

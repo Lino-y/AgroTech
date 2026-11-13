@@ -133,7 +133,12 @@ test('pendente com vencimento antes da reserva atual não encurta a reserva; sem
   const db = emptyDb();
   const order = { ...orderFor(), paymentStatus: 'AGUARDANDO_PAGAMENTO', reservedUntil: new Date(NOW + DAY).toISOString(), payment: { history: [] } };
   const earlier = { id: 1, status: 'pending', external_reference: order.id, transaction_amount: order.total, collector_id: 777, date_of_expiration: new Date(NOW).toISOString() };
-  assert.equal(applyPayment(config, db, order, earlier, 777, 'webhook', NOW), false);
+  const reserved = order.reservedUntil;
+  assert.equal(applyPayment(config, db, order, earlier, 777, 'webhook', NOW), true, 'registra o pagamento pendente');
+  assert.equal(order.reservedUntil, reserved, 'mas não encurta a reserva');
+  assert.deepEqual([order.payment.paymentId, order.payment.mpStatus], ['1', 'pending']);
+  assert.equal(order.paymentStatus, 'AGUARDANDO_PAGAMENTO');
+  assert.equal(applyPayment(config, db, order, earlier, 777, 'webhook', NOW), false, 'o mesmo pendente de novo não muda nada');
   const undated = { ...earlier, date_of_expiration: null };
   assert.equal(applyPayment(config, db, order, undated, 777, 'webhook', NOW + DAY), true);
   assert.equal(order.reservedUntil, new Date(NOW + DAY + config.reservationMs).toISOString());

@@ -91,6 +91,18 @@ test('extrato: pedido aguardando ou cancelado não entra; estornado entra e é d
   assert.deepEqual(seller, ['estorno-P-ES:EXPENSE', 'venda-P-ANTIGO:INCOME', 'venda-P-ES:INCOME', 'venda-P-PG:INCOME']);
 });
 
+test('extrato do vendedor: pedido do Mercado Pago com líquido informado usa o líquido; sem ele, o bruto', () => {
+  const base = { ownerEmail: 'comprador@x.dev', createdAt: '2026-11-10T12:00:00.000Z', total: 86, items: [{ ownerEmail: 'vendedor@x.dev', price: 25.5, quantity: 2 }] };
+  const withNet = { ...base, id: 'P-LIQ', paymentStatus: PAGO, payment: { netReceived: 74.83 } };
+  const withoutNet = { ...base, id: 'P-BRUTO', paymentStatus: PAGO, payment: {} };
+  const refunded = { ...base, id: 'P-EST', paymentStatus: ESTORNADO, payment: { netReceived: 74.83 } };
+  const entries = Object.fromEntries(buildFinanceEntries({ orders: [withNet, withoutNet, refunded] }, 'vendedor@x.dev').map((e) => [e.id, e]));
+  assert.equal(entries['venda-P-LIQ'].amount, 74.83);
+  assert.match(entries['venda-P-LIQ'].title, /líquido/);
+  assert.equal(entries['venda-P-BRUTO'].amount, 51);
+  assert.equal(entries['estorno-P-EST'].amount, 74.83, 'o estorno desfaz o mesmo valor que entrou');
+});
+
 // --- assinatura do webhook (RF-04) ---
 
 const SECRET = 'segredo-de-teste-do-webhook';

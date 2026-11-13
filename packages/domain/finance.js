@@ -7,7 +7,7 @@ import { countsAsSale, PAYMENT_STATUS } from './payments.js';
  *   amount: number, date: string | null }} FinanceEntry
  * @typedef {{ ownerEmail?: string, price?: number, quantity?: number }} OrderItem
  * @typedef {{ id: string, ownerEmail?: string, total?: number, createdAt?: string, date?: string,
- *   items?: OrderItem[], paymentStatus?: string }} Order
+ *   items?: OrderItem[], paymentStatus?: string, payment?: { netReceived?: number } }} Order
  * @typedef {{ id: string, ownerEmail: string, type: EntryType, title: string, amount: number,
  *   createdAt: string }} StoredEntry
  */
@@ -74,15 +74,18 @@ function orderEntries(order, email) {
     if (refunded) purchase.push({ id: `estorno-${order.id}`, type: 'INCOME', source: 'ESTORNO', title: `Estorno da compra (${order.id})`, amount, date });
     return purchase;
   }
-  // ponytail: receita bruta do item (preço x quantidade); cupom, frete e a comissão do Mercado Pago não
-  // descontam aqui. Repasse líquido pede o valor que o Mercado Pago informa ao vendedor (fase das telas).
   const sold = (order.items || [])
     .filter((item) => item.ownerEmail === email)
     .reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0);
   if (sold <= 0) return [];
+  // Pago pelo Mercado Pago: vale o líquido que ele informa (já sem a taxa dele e a comissão da AgroTech).
+  // Sem esse dado (simulado ou pedido antigo): receita bruta do item, sem cupom nem frete.
+  const net = order.payment?.netReceived;
+  const amount = typeof net === 'number' ? net : sold;
+  const title = typeof net === 'number' ? `Venda no App (${order.id}), líquido` : `Venda no App (${order.id})`;
   /** @type {FinanceEntry[]} */
-  const sale = [{ id: `venda-${order.id}`, type: 'INCOME', source: 'VENDA', title: `Venda no App (${order.id})`, amount: sold, date }];
-  if (refunded) sale.push({ id: `estorno-${order.id}`, type: 'EXPENSE', source: 'ESTORNO', title: `Estorno da venda (${order.id})`, amount: sold, date });
+  const sale = [{ id: `venda-${order.id}`, type: 'INCOME', source: 'VENDA', title, amount, date }];
+  if (refunded) sale.push({ id: `estorno-${order.id}`, type: 'EXPENSE', source: 'ESTORNO', title: `Estorno da venda (${order.id})`, amount, date });
   return sale;
 }
 
