@@ -74,6 +74,8 @@ export function formatDateTime(iso: string | null | undefined): string {
  */
 export function slimProduct(product: Product): Product {
   const { id, name, price, unit, category, location, rating, imageEmoji, imageBg, description, sellerName, stock, image } = product;
+  // Sem ownerEmail de propósito: o carrinho de um vendedor só (spec 10) confere o dono pelo catálogo ao vivo
+  // no fechamento (cartSellerProblem), não pelo que ficou salvo no aparelho.
   const slim: Product = { id, name, price, unit, category, location, rating, imageEmoji, imageBg, description, sellerName, stock };
   if (typeof image === 'string' && /^https?:\/\//i.test(image)) slim.image = image;
   for (const key of Object.keys(slim) as (keyof Product)[]) if (slim[key] === undefined) delete slim[key];

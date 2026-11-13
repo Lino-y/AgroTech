@@ -23,18 +23,38 @@ export type Order = {
   estimatedDelivery?: string;
   /** Etapas da entrega (Pedido Confirmado, Separação, Saiu para Entrega, Chegada na Fazenda). */
   timeline?: { title: string; time: string; completed: boolean }[];
+  /** Só em pedido pago pelo Mercado Pago (spec 10): AGUARDANDO_PAGAMENTO, PAGO, CANCELADO ou ESTORNADO. */
+  paymentStatus?: string;
+  reservedUntil?: string;
+  payment?: { checkoutUrl?: string; mpStatus?: string | null; method?: string | null };
 };
 
 /**
  * A mesma chave nas novas tentativas do mesmo envio (toque duplo, rede caiu): o servidor devolve o
  * pedido já criado em vez de criar outro. Trocar a chave quando o carrinho ou o cupom mudar.
+ * Com o Mercado Pago ligado, `returnTo: 'app'` faz o Checkout Pro voltar para o app.
  */
-export function placeOrder(items: { id: string; quantity: number }[], coupon: string | null, idempotencyKey: string): Promise<Order> {
+export function placeOrder(
+  items: { id: string; quantity: number }[],
+  coupon: string | null,
+  idempotencyKey: string,
+  returnTo?: 'app'
+): Promise<Order> {
   return apiRequest<Order>('/orders', {
     method: 'POST',
-    body: { items, coupon },
+    body: returnTo ? { items, coupon, returnTo } : { items, coupon },
     headers: { 'Idempotency-Key': idempotencyKey }
   });
+}
+
+/** Confere o pagamento no Mercado Pago pelo servidor (volta do Checkout Pro). */
+export function syncOrderPayment(orderId: string): Promise<Order> {
+  return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}/sync`, { method: 'POST' });
+}
+
+/** Desiste do pedido aguardando pagamento: o estoque volta e a página de pagamento vence. */
+export function cancelOrderPayment(orderId: string): Promise<Order> {
+  return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST' });
 }
 
 export function loadOrders(): Promise<Order[]> {

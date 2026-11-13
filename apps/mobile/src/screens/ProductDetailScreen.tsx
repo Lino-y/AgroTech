@@ -18,7 +18,8 @@ type Props = {
   loggedIn: boolean;
   isFavorite: boolean;
   onBack: () => void;
-  onAdd: (product: Product, quantity: number) => void;
+  /** false quando não adicionou (ex.: vendedor diferente do carrinho, com o Mercado Pago ligado). */
+  onAdd: (product: Product, quantity: number) => boolean;
   onGoToCart: () => void;
   onToggleFavorite: (product: Product) => void;
   onNeedLogin: () => void;
@@ -37,8 +38,7 @@ export function ProductDetailScreen(props: Props): React.JSX.Element {
   const [reviewError, setReviewError] = useState<string | null>(null);
 
   function add(): void {
-    onAdd(product, quantity);
-    setAdded(quantity);
+    if (onAdd(product, quantity)) setAdded(quantity);
   }
 
   async function sendReview(): Promise<void> {

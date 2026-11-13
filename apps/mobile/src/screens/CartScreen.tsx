@@ -10,6 +10,7 @@ import { ui } from '../components/ui.ts';
 import { validateCouponCode } from '../domain.ts';
 import { cartSummary, describeChange, revalidateCart, setQuantity, removeFromCart, toOrderItems, type CartLine } from '../lib/cart.ts';
 import { formatPrice } from '../lib/catalog.ts';
+import { cartSellerProblem, isSafeCheckoutUrl } from '../lib/payment.ts';
 import { ApiError } from '../services/api.ts';
 import { newIdempotencyKey, placeOrder, type Order } from '../services/orders.ts';
 import { loadProducts } from '../services/products.ts';
@@ -26,13 +27,18 @@ const PAYMENTS = [
 type Props = {
   lines: CartLine[];
   loggedIn: boolean;
+  /** 'mercadopago': o pedido abre o Checkout Pro (spec 10). Senão, pagamento simulado como antes. */
+  payments: 'simulado' | 'mercadopago';
   onChange: (lines: CartLine[]) => void;
   onNeedLogin: () => void;
   onOrdered: (order: Order) => void;
+  /** Pedido criado aguardando pagamento: o App abre a página do Mercado Pago e confere na volta. */
+  onCheckout: (order: Order) => void;
   onBrowse: () => void;
 };
 
-export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, onBrowse }: Props): React.JSX.Element {
+export function CartScreen({ lines, loggedIn, payments, onChange, onNeedLogin, onOrdered, onCheckout, onBrowse }: Props): React.JSX.Element {
+  const mercadoPago = payments === 'mercadopago';
   const [couponText, setCouponText] = useState('');
   const [coupon, setCoupon] = useState<string | null>(null);
   const [couponMessage, setCouponMessage] = useState<string | null>(null);
@@ -73,16 +79,32 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
       // RN05: antes do pedido, o carrinho (que pode ter sido montado offline ou dias atrás) é conferido
       // com o catálogo atual. Se algo mudou, atualiza, mostra e para: a pessoa revisa e toca de novo.
       // Não envia no mesmo toque, porque a chave de idempotência só é trocada depois da renderização.
-      const check = revalidateCart(lines, await loadProducts());
+      const live = await loadProducts();
+      const check = revalidateCart(lines, live);
       if (check.changes.length > 0) {
         onChange(check.lines);
         setChanges(check.changes.map(describeChange));
         return;
       }
-      const order = await placeOrder(toOrderItems(lines), coupon, keyRef.current);
+      // Mercado Pago: um vendedor por pedido, que já recebe por ele (o servidor confere de novo).
+      const problem = mercadoPago ? cartSellerProblem(lines, live) : null;
+      if (problem) {
+        setError(problem);
+        return;
+      }
+      const order = await placeOrder(toOrderItems(lines), coupon, keyRef.current, mercadoPago ? 'app' : undefined);
       setCoupon(null);
       setCouponText('');
       setCouponMessage(null);
+      if (order.paymentStatus === 'AGUARDANDO_PAGAMENTO') {
+        if (!isSafeCheckoutUrl(order.payment?.checkoutUrl)) {
+          setError('O servidor não mandou um link de pagamento válido. O pedido ficou em Meus pedidos.');
+          onOrdered(order);
+          return;
+        }
+        onCheckout(order);
+        return;
+      }
       // O total que vale é o do servidor (preço do catálogo dele), não o calculado na tela.
       Alert.alert('Pedido confirmado', `Pedido ${order.id}\nTotal: ${formatPrice(order.total)}`);
       onOrdered(order);
@@ -163,25 +185,32 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
           {couponMessage ? <Text style={coupon ? ui.success : ui.error}>{couponMessage}</Text> : null}
         </View>
 
-        <View style={ui.card}>
-          <Text style={ui.label}>FORMA DE PAGAMENTO</Text>
-          {PAYMENTS.map((item) => {
-            const selected = payment === item.value;
-            return (
-              <Tap
-                key={item.value}
-                accessibilityRole="radio"
-                accessibilityState={{ selected, checked: selected }}
-                onPress={() => setPayment(item.value)}
-                style={[styles.option, selected && styles.optionSelected]}
-              >
-                <View style={[styles.radio, selected && styles.radioSelected]} />
-                <Text style={ui.text}>{item.label}</Text>
-              </Tap>
-            );
-          })}
-          <Text style={ui.muted}>Pagamento simulado nesta versão: nenhum dado de pagamento é pedido nem enviado.</Text>
-        </View>
+        {mercadoPago ? (
+          <View style={ui.card}>
+            <Text style={ui.label}>PAGAMENTO</Text>
+            <Text style={ui.text}>Você paga na página do Mercado Pago: Pix, cartão ou boleto. Nenhum dado de pagamento passa pelo AgroTech.</Text>
+          </View>
+        ) : (
+          <View style={ui.card}>
+            <Text style={ui.label}>FORMA DE PAGAMENTO</Text>
+            {PAYMENTS.map((item) => {
+              const selected = payment === item.value;
+              return (
+                <Tap
+                  key={item.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, checked: selected }}
+                  onPress={() => setPayment(item.value)}
+                  style={[styles.option, selected && styles.optionSelected]}
+                >
+                  <View style={[styles.radio, selected && styles.radioSelected]} />
+                  <Text style={ui.text}>{item.label}</Text>
+                </Tap>
+              );
+            })}
+            <Text style={ui.muted}>Pagamento simulado nesta versão: nenhum dado de pagamento é pedido nem enviado.</Text>
+          </View>
+        )}
 
         <View style={ui.card}>
           <Row label="Subtotal" value={formatPrice(summary.subtotal)} />
@@ -207,7 +236,11 @@ export function CartScreen({ lines, loggedIn, onChange, onNeedLogin, onOrdered, 
             {error}
           </Text>
         ) : null}
-        <Button title={loggedIn ? 'Finalizar compra' : 'Entrar para finalizar'} onPress={checkout} loading={sending} />
+        <Button
+          title={!loggedIn ? 'Entrar para finalizar' : mercadoPago ? 'Pagar com Mercado Pago' : 'Finalizar compra'}
+          onPress={checkout}
+          loading={sending}
+        />
       </ScrollView>
     </View>
   );
