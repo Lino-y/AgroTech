@@ -132,6 +132,7 @@ test('conectar: URL de autorização oficial com state; state vale uma vez; toke
   assert.equal((await api('GET', '/api/mp/callback?code=x&state=forjado')).status, 400);
   const ok = await api('GET', `/api/mp/callback?code=codigo-falso&state=${state}`);
   assert.equal(ok.status, 200);
+  assert.match(ok.text, /href="agrotech:\/\/conta\/mercadopago"/, 'botão para voltar ao app');
   assert.equal(mp.state.tokenRequests.at(-1).form.grant_type, 'authorization_code');
   assert.equal(mp.state.tokenRequests.at(-1).contentType, 'application/x-www-form-urlencoded');
   assert.equal((await api('GET', `/api/mp/callback?code=codigo-falso&state=${state}`)).status, 400, 'state reutilizado');
@@ -148,6 +149,7 @@ test('callback com erro do Mercado Pago ou sem código é recusado e consome o s
   const state = new URL((await api('POST', '/api/mp/connect', null, seller.token)).body.url).searchParams.get('state');
   const denied = await api('GET', `/api/mp/callback?error=access_denied&state=${state}`);
   assert.equal(denied.status, 400);
+  assert.doesNotMatch(denied.text, /agrotech:\/\//, 'erro não oferece voltar como se tivesse conectado');
   assert.equal((await api('GET', `/api/mp/callback?code=x&state=${state}`)).status, 400);
 });
 
@@ -441,6 +443,64 @@ test('pagamento em revisão (valor divergente): o estorno devolve esse pagamento
   const after = await orderOf(buyer, order.id);
   assert.ok(after.paymentReview.resolvedAt, 'revisão resolvida pelo estorno');
   assert.equal(after.paymentStatus, 'AGUARDANDO_PAGAMENTO', 'o pedido em si não foi pago');
+});
+
+// --- peças das telas (parte 3a) ---
+
+test('app-config diz que o pagamento é pelo Mercado Pago', async () => {
+  assert.equal((await api('GET', '/api/app-config')).body.payments, 'mercadopago');
+});
+
+test('catálogo marca payable: vendedor conectado pode receber; sem conta, não', async () => {
+  const connected = await newProduct(await connectSeller());
+  const notConnected = await newProduct(await newUser('VENDEDOR'));
+  const products = (await api('GET', '/api/products')).body;
+  assert.equal(products.find((p) => p.id === connected).payable, true);
+  assert.equal(products.find((p) => p.id === notConnected).payable, false);
+});
+
+test('comprador cancela pedido aguardando: CANCELADO, estoque de volta e a página de pagamento vence', async () => {
+  const { buyer, order, productId } = await pendingOrder({ stock: 10, quantity: 4 });
+  assert.equal(await stockOf(productId), 6);
+  const other = await newUser('PRODUTOR');
+  assert.equal((await api('POST', `/api/orders/${order.id}/cancel`, null, other.token)).status, 404);
+  const res = await api('POST', `/api/orders/${order.id}/cancel`, null, buyer.token);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.body.paymentStatus, 'CANCELADO');
+  assert.equal(res.body.payment.history.at(-1).source, 'comprador');
+  assert.equal(await stockOf(productId), 10);
+  const expire = mp.state.preferenceUpdates.at(-1);
+  assert.equal(expire.id, order.payment.preferenceId);
+  assert.match(expire.authorization, /^Bearer token-falso-acesso-\d+$/);
+  assert.equal(expire.body.expires, true);
+  assert.ok(Date.parse(expire.body.expiration_date_to) <= Date.now());
+  assert.equal((await api('POST', `/api/orders/${order.id}/cancel`, null, buyer.token)).status, 409, 'já cancelado');
+});
+
+test('cancelar com pagamento aprovado ou em andamento é recusado (409)', async () => {
+  const paid = await pendingOrder();
+  fakePayment(paid.order, paid.seller.mpUserId, 'approved');
+  const r1 = await api('POST', `/api/orders/${paid.order.id}/cancel`, null, paid.buyer.token);
+  assert.equal(r1.status, 409);
+  assert.equal((await orderOf(paid.buyer, paid.order.id)).paymentStatus, 'PAGO', 'a consulta antes de cancelar achou o pagamento');
+
+  const boleto = await pendingOrder();
+  fakePayment(boleto.order, boleto.seller.mpUserId, 'pending', { payment_type_id: 'ticket', date_of_expiration: new Date(Date.now() + 86400000).toISOString() });
+  const r2 = await api('POST', `/api/orders/${boleto.order.id}/cancel`, null, boleto.buyer.token);
+  assert.equal(r2.status, 409);
+  assert.match(r2.body.message, /andamento/);
+  const held = await orderOf(boleto.buyer, boleto.order.id);
+  assert.equal(held.payment.mpStatus, 'pending', 'o pedido registra o pagamento pendente');
+  assert.equal(held.payment.method, 'ticket');
+});
+
+test('extrato do vendedor usa o líquido informado pelo Mercado Pago (já sem taxa e comissão)', async () => {
+  const { seller, buyer, order } = await pendingOrder({ price: 50, quantity: 2 });
+  fakePayment(order, seller.mpUserId, 'approved', { transaction_details: { net_received_amount: 74.83 } });
+  await api('POST', `/api/orders/${order.id}/sync`, null, buyer.token);
+  const sale = (await api('GET', '/api/finance/entries', null, seller.token)).body.find((e) => e.id === `venda-${order.id}`);
+  assert.equal(sale.amount, 74.83);
+  assert.match(sale.title, /líquido/);
 });
 
 // --- varredura (RF-05), num servidor com reserva curta ---

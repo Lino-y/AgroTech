@@ -168,8 +168,15 @@ export function refreshAccessToken(config, refreshToken) {
 export const createPreference = (config, sellerToken, preference, idempotencyKey) =>
   mpFetch(config, '/checkout/preferences', { method: 'POST', token: sellerToken, json: preference, idempotencyKey });
 
+/**
+ * Vence a preferência agora: a página de pagamento do pedido cancelado não aceita mais pagamento.
+ * @param {any} config @param {string} sellerToken @param {string} preferenceId @param {string} nowIso
+ */
+export const expirePreference = (config, sellerToken, preferenceId, nowIso) =>
+  mpFetch(config, `/checkout/preferences/${encodeURIComponent(preferenceId)}`, { method: 'PUT', token: sellerToken, json: { expires: true, expiration_date_to: nowIso } });
+
 /** @param {any} config @param {string} token @param {string} paymentId */
-export const getPayment = (config, token, paymentId) =>
+export const getPayment =(config, token, paymentId) =>
   mpFetch(config, `/v1/payments/${encodeURIComponent(paymentId)}`, { token });
 
 /**

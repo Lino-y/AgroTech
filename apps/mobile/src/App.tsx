@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Linking, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, BackHandler, Linking, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +12,8 @@ import { addToCart, cartCount, serializeCart, type CartLine } from './lib/cart.t
 import { afterAuth, back, INITIAL_NAV, open, openTab, pendingReason, requireLogin, type Nav } from './lib/navigation.ts';
 import { AccountScreen } from './screens/AccountScreen.tsx';
 import { AdminUsersScreen } from './screens/AdminUsersScreen.tsx';
+import { AdminPaymentsScreen } from './screens/AdminPaymentsScreen.tsx';
+import { ReceivePaymentsScreen } from './screens/ReceivePaymentsScreen.tsx';
 import { FavoritesScreen } from './screens/FavoritesScreen.tsx';
 import { ServerScreen } from './screens/ServerScreen.tsx';
 import { SupportScreen } from './screens/SupportScreen.tsx';
@@ -26,6 +28,8 @@ import { SellScreen } from './screens/SellScreen.tsx';
 import { getApiBaseUrl, onAppOutdated, onSessionExpired, setApiBaseUrl } from './services/api.ts';
 import { APP_VERSION } from './config.ts';
 import { availableUpdate } from './lib/server.ts';
+import { isSafeCheckoutUrl, parseReturnLink, paymentResultMessage, sellerConflict } from './lib/payment.ts';
+import { syncOrderPayment, type Order } from './services/orders.ts';
 import { loadAppConfig, loadSavedServer, saveServer } from './services/server.ts';
 import { loadFavorites, toggleFavorite } from './services/favorites.ts';
 import { flushOutbox, readOutbox } from './services/outbox.ts';
@@ -49,6 +53,14 @@ export default function App(): React.JSX.Element {
   const [downloadLink, setDownloadLink] = useState<string | null>(null);
   // Muda quando o servidor muda: recria o catálogo e busca a configuração do servidor novo.
   const [serverKey, setServerKey] = useState(0);
+  // Pagamento: simulado até o servidor dizer que o Mercado Pago está ligado (spec 10, parte 3).
+  const [payments, setPayments] = useState<'simulado' | 'mercadopago'>('simulado');
+  // Muda depois de conferir um pagamento: "Meus pedidos" recarrega.
+  const [ordersKey, setOrdersKey] = useState(0);
+  // Pedido cuja página do Mercado Pago foi aberta: conferido quando o app volta ao primeiro plano.
+  const checkoutRef = useRef<string | null>(null);
+  // Evita conferir duas vezes a mesma volta (o link agrotech:// e a volta ao primeiro plano chegam juntos).
+  const lastCheckRef = useRef<{ id: string; at: number } | null>(null);
   // Fonte dos títulos (a da web). Se não carregar, segue com a do sistema em vez de travar.
   const [fontsLoaded, fontError] = useFonts({ Outfit_700Bold });
   const loggedIn = user !== null;
@@ -86,6 +98,7 @@ export default function App(): React.JSX.Element {
       .then((config) => {
         setUpdate(availableUpdate(config, APP_VERSION, getApiBaseUrl()));
         setDownloadLink(config.downloadUrl ? `${getApiBaseUrl()}${config.downloadUrl}` : null);
+        setPayments(config.payments === 'mercadopago' ? 'mercadopago' : 'simulado');
       })
       .catch(() => {
         // Sem rede ou servidor antigo sem esses campos: sem aviso, o resto do app segue.
@@ -106,6 +119,39 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     if (ready) void saveCache('cart', serializeCart(cart), null);
   }, [cart, ready]);
+
+  // Confere o pagamento no servidor (a verdade é a consulta ao Mercado Pago, nunca o link de volta).
+  const confirmPayment = useCallback(async (orderId: string) => {
+    const last = lastCheckRef.current;
+    if (last && last.id === orderId && Date.now() - last.at < 5000) return;
+    lastCheckRef.current = { id: orderId, at: Date.now() };
+    checkoutRef.current = null;
+    try {
+      const message = paymentResultMessage(await syncOrderPayment(orderId));
+      Alert.alert(message.title, message.body);
+    } catch {
+      Alert.alert('Não deu para conferir o pagamento agora', 'Confira em Meus pedidos quando tiver internet.');
+    }
+    setOrdersKey((key) => key + 1);
+  }, []);
+
+  // Volta do Mercado Pago. O caminho principal é o app voltar ao primeiro plano: o Chrome do Android
+  // costuma não abrir sozinho o link agrotech:// da volta automática. O link, quando abre, é um atalho.
+  useEffect(() => {
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && checkoutRef.current) void confirmPayment(checkoutRef.current);
+    });
+    const handleUrl = (url: string | null | undefined) => {
+      const orderId = parseReturnLink(url);
+      if (orderId) void confirmPayment(orderId);
+    };
+    void Linking.getInitialURL().then(handleUrl);
+    const link = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => {
+      appState.remove();
+      link.remove();
+    };
+  }, [confirmPayment]);
 
   // Botão voltar do Android: desempilha a tela; no catálogo sem nada empilhado, deixa o app fechar.
   useEffect(() => {
@@ -165,6 +211,36 @@ export default function App(): React.JSX.Element {
     void Linking.openURL(url);
   };
 
+  // Abre a página do Mercado Pago do pedido (só https do Mercado Pago) e marca para conferir na volta.
+  function openCheckout(order: Order): void {
+    const url = order.payment?.checkoutUrl;
+    if (!url || !isSafeCheckoutUrl(url)) {
+      Alert.alert('Link de pagamento inválido', 'Confira o pedido em Meus pedidos.');
+      return;
+    }
+    checkoutRef.current = order.id;
+    lastCheckRef.current = null;
+    void Linking.openURL(url);
+  }
+
+  // Com o Mercado Pago: produto de vendedor que não recebe não entra; produto de outro vendedor pede para
+  // trocar o carrinho (um pagamento é de um vendedor só). No simulado, entra como sempre.
+  function addProduct(product: Product, quantity: number): boolean {
+    if (payments === 'mercadopago' && product.payable === false) {
+      Alert.alert('Vendedor ainda não recebe pelo Mercado Pago', 'Este produto ainda não pode ser comprado pelo app.');
+      return false;
+    }
+    if (payments === 'mercadopago' && sellerConflict(cart, product)) {
+      Alert.alert('Produto de outro vendedor', 'Seu carrinho tem itens de outro vendedor, e cada pagamento é de um vendedor só. Trocar o carrinho por este produto?', [
+        { text: 'Manter carrinho', style: 'cancel' },
+        { text: 'Trocar carrinho', onPress: () => setCart(addToCart([], product, quantity)) }
+      ]);
+      return false;
+    }
+    setCart((lines) => addToCart(lines, product, quantity));
+    return true;
+  }
+
   // Anúncio guardado offline fica na fila da conta e sai quando ela entrar de novo: avisa antes de sair.
   async function signOut(): Promise<void> {
     const waiting = user ? (await readOutbox(user.id)).filter((item) => item.status === 'pending').length : 0;
@@ -201,7 +277,7 @@ export default function App(): React.JSX.Element {
           loggedIn={loggedIn}
           isFavorite={favorites.some((item) => item.id === top.product.id)}
           onBack={goBack}
-          onAdd={(product, quantity) => setCart((lines) => addToCart(lines, product, quantity))}
+          onAdd={addProduct}
           onGoToCart={() => setNav((current) => openTab(current, 'cart', loggedIn))}
           onToggleFavorite={(product) => {
             if (user) void toggleFavorite(user.id, product).then(setFavorites);
@@ -211,7 +287,7 @@ export default function App(): React.JSX.Element {
       );
     }
     if (top?.name === 'orders') {
-      return <OrdersScreen onBack={goBack} onBrowse={() => setNav(INITIAL_NAV)} />;
+      return <OrdersScreen onBack={goBack} onBrowse={() => setNav(INITIAL_NAV)} refreshKey={ordersKey} onPay={openCheckout} />;
     }
     if (top?.name === 'support') {
       return (
@@ -235,6 +311,12 @@ export default function App(): React.JSX.Element {
     if (top?.name === 'admin') {
       return <AdminUsersScreen onBack={goBack} />;
     }
+    if (top?.name === 'receive') {
+      return <ReceivePaymentsScreen onBack={goBack} />;
+    }
+    if (top?.name === 'paymentsAdmin') {
+      return <AdminPaymentsScreen onBack={goBack} />;
+    }
     if (top?.name === 'server') {
       return <ServerScreen onBack={goBack} onSave={(url) => void changeServer(url)} />;
     }
@@ -251,6 +333,9 @@ export default function App(): React.JSX.Element {
         onServer={() => setNav((current) => open(current, { name: 'server' }, loggedIn))}
         serverUrl={getApiBaseUrl()}
         onLogout={signOut}
+        payments={payments}
+        onReceive={() => setNav((current) => open(current, { name: 'receive' }, loggedIn))}
+        onPaymentsAdmin={() => setNav((current) => open(current, { name: 'paymentsAdmin' }, loggedIn))}
       />
     );
 
@@ -260,7 +345,14 @@ export default function App(): React.JSX.Element {
           <CartScreen
             lines={cart}
             loggedIn={loggedIn}
+            payments={payments}
             onChange={setCart}
+            onCheckout={(order) => {
+              // O pedido já reservou o estoque: o carrinho esvazia e a pessoa paga (ou paga depois em Meus pedidos).
+              setCart([]);
+              setNav(open({ tab: 'account', stack: [] }, { name: 'orders' }, true));
+              openCheckout(order);
+            }}
             onNeedLogin={() => setNav((current) => requireLogin(current, { tab: 'cart' }))}
             onOrdered={() => {
               setCart([]);

@@ -19,6 +19,8 @@ export type Product = {
   ownerEmail?: string;
   sellerName?: string;
   stock?: number;
+  /** Com o Mercado Pago ligado: o vendedor recebe por ele e o produto pode ser pago agora. */
+  payable?: boolean;
   reviewsCount?: number;
   /** Avaliações (só vêm do servidor; o catálogo salvo para offline não as guarda). */
   comments?: Review[];

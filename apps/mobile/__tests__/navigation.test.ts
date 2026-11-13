@@ -65,3 +65,12 @@ test('suporte abre para visitante; favoritos e usuários pedem conta e voltam de
   assert.equal(pendingReason({ route: { name: 'favorites' } }), 'ver seus favoritos');
   assert.equal(open(INITIAL_NAV, { name: 'admin' }, false).stack[0].name, 'auth');
 });
+
+test('Receber pelo Mercado Pago e Pagamentos (master) pedem conta e voltam depois do login', () => {
+  const receive = open(INITIAL_NAV, { name: 'receive' }, false);
+  assert.equal(receive.stack[0].name, 'auth');
+  assert.deepEqual(afterAuth(receive).stack, [{ name: 'receive' }]);
+  assert.equal(pendingReason({ route: { name: 'receive' } }), 'receber pelo Mercado Pago');
+  assert.equal(open(INITIAL_NAV, { name: 'paymentsAdmin' }, false).stack[0].name, 'auth');
+  assert.deepEqual(open(INITIAL_NAV, { name: 'paymentsAdmin' }, true).stack, [{ name: 'paymentsAdmin' }]);
+});

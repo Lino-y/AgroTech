@@ -21,7 +21,8 @@ export function normalizeServerUrl(input: string): string | null {
   return `${url.protocol}//${url.host}${path}`;
 }
 
-export type AppConfig = { minVersion: string; latestVersion: string | null; downloadUrl: string | null };
+/** `payments` ausente (servidor antigo) = simulado. */
+export type AppConfig = { minVersion: string; latestVersion: string | null; downloadUrl: string | null; payments?: 'simulado' | 'mercadopago' };
 
 /** Há versão mais nova para baixar? Devolve a versão e o link completo, ou null. */
 export function availableUpdate(config: AppConfig, current: string, baseUrl: string): { version: string; url: string } | null {

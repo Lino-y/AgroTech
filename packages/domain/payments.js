@@ -48,6 +48,12 @@ const REVERSED = new Set(['refunded', 'charged_back']);
 const PENDING = new Set(['pending', 'in_process', 'authorized', 'in_mediation']);
 
 /**
+ * Pagamento ainda em andamento (boleto ou Pix esperando, cartão em análise)?
+ * @param {string | null | undefined} status status do Mercado Pago
+ */
+export const isPendingPayment = (status) => PENDING.has(String(status));
+
+/**
  * @typedef {{ id: string, total: number, paymentStatus?: string, payment?: { paymentId?: string | null },
  *   paymentReview?: { paymentId?: string, resolvedAt?: string } }} PayableOrder
  * @typedef {{ id: number | string, status: string, external_reference?: string, transaction_amount?: number,

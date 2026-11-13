@@ -7,7 +7,7 @@ export type EntryType = 'INCOME' | 'EXPENSE';
 export type FinanceEntry = {
   id: string;
   type: EntryType;
-  source: 'MANUAL' | 'COMPRA' | 'VENDA';
+  source: 'MANUAL' | 'COMPRA' | 'VENDA' | 'ESTORNO';
   title: string;
   amount: number;
   /** Igual ao FinanceEntry de packages/domain/finance.js: null quando o pedido não tem data. */

@@ -9,6 +9,7 @@ import { summarizeFinance } from '../domain.ts';
 import { formatDate, formatDateTime, formatPrice } from '../lib/catalog.ts';
 import { parsePriceBR } from '../lib/sell.ts';
 import { ApiError } from '../services/api.ts';
+import { entrySourceLabel } from '../lib/payment.ts';
 import { withCache } from '../services/offline.ts';
 import { addFinanceEntry, loadFinance, type EntryType, type FinanceEntry } from '../services/finance.ts';
 import { colors, radius } from '../theme.ts';
@@ -175,7 +176,7 @@ export function FinanceScreen(): React.JSX.Element {
                     {entry.title}
                   </Text>
                   <Text style={ui.muted}>
-                    {formatDate(entry.date)} · {entry.source === 'MANUAL' ? 'Manual' : entry.source === 'COMPRA' ? 'Compra' : 'Venda'}
+                    {formatDate(entry.date)} · {entrySourceLabel(entry.source)}
                   </Text>
                 </View>
                 <Text style={[styles.amount, { color: entry.type === 'INCOME' ? colors.primary : colors.destructive }]}>

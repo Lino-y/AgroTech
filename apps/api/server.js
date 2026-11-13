@@ -17,7 +17,7 @@ import { createTurnQueue } from './write-queue.js';
 import { renameWithRetry } from './rename-retry.js';
 import { MercadoPagoError, readMercadoPagoConfig, verifyWebhookSignature } from './mercadopago.js';
 import {
-  completeSellerConnection, PaymentFlowError, preparePayment, processNotification, requestRefund,
+  cancelOrder, completeSellerConnection, PaymentFlowError, preparePayment, processNotification, requestRefund,
   startSellerConnection, sweepPayments, syncOrder
 } from './payments.js';
 import { isBelowMinVersion, readAppMinVersion, readLatestVersion } from './app-version.js';
@@ -473,7 +473,9 @@ app.get('/api/app-config', (_, res) => {
   res.json({
     minVersion: APP_MIN_VERSION,
     latestVersion: APP_LATEST_VERSION,
-    downloadUrl: APP_APK_FILE ? '/api/app-download' : null
+    downloadUrl: APP_APK_FILE ? '/api/app-download' : null,
+    // O app só troca o pagamento simulado pelo Mercado Pago quando o servidor diz que está ligado.
+    payments: MP ? 'mercadopago' : 'simulado'
   });
 });
 
@@ -708,6 +710,13 @@ const publicProduct = (stored) => {
   return product.comments ? { ...product, comments: product.comments.map(publicComment) } : product;
 };
 
+// Com Mercado Pago: `payable` diz se o produto pode ser pago agora (o vendedor conectou a conta). O app
+// avisa antes do carrinho, em vez de o pedido dar 409. No modo simulado o catálogo não muda.
+function withPayable(products, sellerAccounts) {
+  const connected = new Set(sellerAccounts.filter((item) => item.status === 'CONECTADA').map((item) => item.email));
+  return products.map((product) => ({ ...product, payable: connected.has(product.ownerEmail) }));
+}
+
 app.get('/api/products', async (req, res) => {
   const { page, limit } = req.query;
   let pageNumber = 1;
@@ -724,10 +733,10 @@ app.get('/api/products', async (req, res) => {
     pageNumber = parseInteger(page);
     if (!(pageNumber >= 1)) return res.status(400).json({ message: 'Parâmetro page inválido: use um inteiro a partir de 1.' });
   }
-  const { products } = await readDb();
+  const { products, sellerAccounts } = await readDb();
   res.set('X-Total-Count', String(products.length));
   const visible = (pageSize ? products.slice((pageNumber - 1) * pageSize, pageNumber * pageSize) : products).map(publicProduct);
-  res.json(visible);
+  res.json(MP ? withPayable(visible, sellerAccounts) : visible);
 });
 
 // Tetos de entrada: sem eles, 1e308 vira total "Infinity", que o JSON grava como null.
@@ -1102,9 +1111,13 @@ app.post('/api/mp/connect', requireMercadoPago, authenticate, async (req, res) =
 
 // Volta do OAuth no navegador do vendedor: sem token (o usuário sai do state) e por GET, então pega a
 // vez da fila sozinha. A página só mostra mensagens fixas: nada da query volta para o HTML.
-const connectionPage = (message) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">`
+// Conectado: o botão abre o app (link fixo agrotech://, que o app trata como "voltar"; a tela de receber
+// relê a situação ao voltar ao primeiro plano).
+const BACK_TO_APP = '<p><a href="agrotech://conta/mercadopago" style="display:inline-block;padding:14px 20px;'
+  + 'background:#2E7D32;color:#fff;border-radius:12px;text-decoration:none;font-weight:700">Voltar ao AgroTech</a></p>';
+const connectionPage = (message, ok) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">`
   + `<meta name="viewport" content="width=device-width,initial-scale=1"><title>AgroTech</title></head>`
-  + `<body style="font-family:sans-serif;padding:24px"><p>${message}</p></body></html>`;
+  + `<body style="font-family:sans-serif;padding:24px"><p>${message}</p>${ok ? BACK_TO_APP : ''}</body></html>`;
 
 app.get('/api/mp/callback', requireMercadoPago, async (req, res) => {
   const outcome = await withWriteTurn(async () => {
@@ -1113,7 +1126,7 @@ app.get('/api/mp/callback', requireMercadoPago, async (req, res) => {
     await writeDb(db);
     return result;
   });
-  res.status(outcome.status).type('html').send(connectionPage(outcome.message));
+  res.status(outcome.status).type('html').send(connectionPage(outcome.message, outcome.status === 200));
 });
 
 app.get('/api/mp/status', requireMercadoPago, authenticate, async (req, res) => {
@@ -1162,6 +1175,23 @@ app.post('/api/orders/:id/sync', authenticate, async (req, res) => {
       return res.status(flowErrorStatus(error)).json({ message: 'Não foi possível consultar o pagamento agora.' });
     }
   }
+  res.json(order);
+});
+
+// O comprador desiste do pedido aguardando pagamento (spec 10, parte 3): estoque volta e a página de
+// pagamento vence. Pagamento aprovado ou em andamento impede (409).
+app.post('/api/orders/:id/cancel', requireMercadoPago, authenticate, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((item) => item.id === req.params.id && item.ownerEmail === req.user.email);
+  if (!order) return res.status(404).json({ message: 'Pedido não encontrado.' });
+  try {
+    await cancelOrder(MP, db, order, Date.now());
+  } catch (error) {
+    const status = flowErrorStatus(error);
+    if (error.persist) await writeDb(db);
+    return res.status(status).json({ message: error.message });
+  }
+  await writeDb(db);
   res.json(order);
 });
 
