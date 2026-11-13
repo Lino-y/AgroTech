@@ -205,11 +205,14 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
     estornado), e descartar pelo id perderia o estorno. A proteção é a aplicação idempotente: cada
     notificação reconsulta o pagamento, e aplicar de novo o mesmo estado não muda nada.
   - Estado só avança: `PAGO` nunca volta a `AGUARDANDO`.
-- **Resposta:** 200 **logo depois** de validar a assinatura, antes de consultar o Mercado Pago
-  (regra do guia de webhooks do plugin; o prazo do Mercado Pago é 22 s). A consulta e a gravação
-  vêm em seguida, pela fila de escrita que já serializa o `db.json`.
-  - Se a consulta falhar depois do 200, o Mercado Pago não reenvia. Quem recupera é a varredura do
-    RF-05, que também consulta, pelo `external_reference`, os pedidos e campanhas ainda pendentes.
+- **Resposta:** 200 **depois** de consultar o pagamento e gravar. Se algo falhar (Mercado Pago fora,
+  gravação recusada), a resposta é 500 e o Mercado Pago reenvia.
+  - O guia de webhooks do plugin manda responder 200 antes de processar, mas a implementação mostrou
+    que isso perde notificação (2026-11-13). Uma gravação recusada depois do 200 perdeu um estorno no
+    teste, e a varredura não recupera estorno, porque só olha pedido aguardando.
+  - A consulta tem teto de 10 s, dentro do prazo de 22 s do Mercado Pago. Se passar do prazo, o
+    reenvio é inofensivo, porque a aplicação é idempotente.
+  - A varredura do RF-05 continua cobrindo os pedidos pendentes cuja notificação nem chegou.
 - **Retorno ao app sem webhook:** se o webhook não chegou (rede, servidor fora do ar), o app, ao
   voltar do Checkout Pro, pede `POST /api/orders/:id/sync`. Essa rota consulta o pagamento pelo
   `external_reference` e aplica a mesma regra. O app nunca decide que o pedido foi pago.
@@ -436,7 +439,7 @@ As mudanças entram em `.ai/specs/05-openapi-spec.md` no PR de implementação, 
 | Webhook forjado marca pedido como pago | Assinatura obrigatória e consulta ao Mercado Pago como fonte de verdade, conferindo valor e recebedor |
 | Estoque preso por pedido abandonado | Reserva com vencimento e varredura |
 | A API de Orders do Mercado Pago substitui a de preferências | O guia de marketplace do plugin oficial (2026-08-21) manda usar preferências no Checkout Pro com split e não forçar Orders; a chamada fica isolada num único módulo |
-| Webhook respondido com 200 e consulta que falha depois | A varredura reconsulta pendentes pelo `external_reference`; o sync do app cobre o retorno |
+| Webhook que falha ao consultar ou gravar | Responde 500 e o Mercado Pago reenvia; a varredura reconsulta pendentes pelo `external_reference`; o sync do app cobre o retorno |
 | `db.json` guardando dinheiro e tokens | Aceitável só na fase de teste; a migração para o PostgreSQL da spec 06 vem antes de vender de verdade em escala |
 | Vendedor sem conta Mercado Pago ou sem cadastro completo não consegue receber | Anúncio aparece sem botão de compra, com aviso ao vendedor |
 

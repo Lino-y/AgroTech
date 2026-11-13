@@ -18,22 +18,22 @@ da AgroTech descontada.
 
 | ID | Critério | Status | Evidência |
 |----|----------|--------|-----------|
-| CA01 | Sem `MP_*`, nada muda (modo simulado); configuração pela metade não sobe | ✅ | `apps/api/mercadopago.js:18`, `apps/api/server.js:67`; `tests/payments-api.test.js` "configurado pela metade"; suíte antiga verde (345/345) |
+| CA01 | Sem `MP_*`, nada muda (modo simulado); configuração pela metade não sobe | ✅ | `apps/api/mercadopago.js:18`, `apps/api/server.js:68`; `tests/payments-api.test.js` "configurado pela metade"; suíte antiga verde (345/345) |
 | CA02 | OAuth: URL oficial com `platform_id=mp` e state de uso único; state forjado, vencido ou reutilizado é recusado; erro do Mercado Pago é recusado | ✅ | `apps/api/payments.js:37`, `apps/api/payments.js:51`; testes "conectar: …" e "callback com erro …" |
 | CA03 | Tokens do vendedor nunca saem da API nem ficam em texto puro no banco (AES-256-GCM) | ✅ | `apps/api/mercadopago.js:211`, `apps/api/payments.js:72`; testes "tokens nunca saem da API" e "token do vendedor cifrado" |
 | CA04 | Renovação do token antes de 7 dias do vencimento, trocando os dois tokens; renovação recusada desconecta (409), sem cair para o token da AgroTech | ✅ | `apps/api/payments.js:86`; teste "token perto de vencer …" |
 | CA05 | Pedido com mais de um vendedor: 400; vendedor sem conta conectada: 409 | ✅ | `apps/api/payments.js:133`; teste "dois vendedores …" |
 | CA06 | Preferência com o token do vendedor, um item com o total do servidor, `marketplace_fee` da comissão, `external_reference` igual ao id e `X-Idempotency-Key`; sem `collector_id` | ✅ | `apps/api/payments.js:110`; teste "pedido cria a preferência …" |
-| CA07 | Reenvio com a mesma `Idempotency-Key` não cria segunda preferência | ✅ | `apps/api/server.js:934` (o reenvio volta antes da preferência), `apps/api/mercadopago.js:81` (`X-Idempotency-Key` = id do pedido); teste "pedido cria a preferência …" |
-| CA08 | Mercado Pago fora do ar: 502, sem pedido e sem reserva | ✅ | `apps/api/server.js:1062`; teste "Mercado Pago fora do ar" |
-| CA09 | Webhook: sem peças 400, assinatura errada ou `ts` velho 401, nada muda; aprovado paga; repetir não muda | ✅ | `apps/api/mercadopago.js:192`, `apps/api/server.js:1164`; testes de assinatura e "webhook aprovado …" |
+| CA07 | Reenvio com a mesma `Idempotency-Key` não cria segunda preferência | ✅ | `apps/api/server.js:940` (o reenvio volta antes da preferência), `apps/api/mercadopago.js:81` (`X-Idempotency-Key` = id do pedido); teste "pedido cria a preferência …" |
+| CA08 | Mercado Pago fora do ar: 502, sem pedido e sem reserva | ✅ | `apps/api/server.js:1068`; teste "Mercado Pago fora do ar" |
+| CA09 | Webhook: sem peças 400, assinatura errada ou `ts` velho 401, nada muda; aprovado paga; repetir não muda | ✅ | `apps/api/mercadopago.js:192`, `apps/api/server.js:1172`; testes de assinatura e "webhook aprovado …" |
 | CA10 | Valor, referência ou recebedor divergente não muda o pedido e marca revisão | ✅ | `packages/domain/payments.js:91`; testes "valor divergente" |
 | CA11 | Recusado não cancela (o comprador tenta de novo); pendente segura a reserva até o vencimento | ✅ | `packages/domain/payments.js:66`; testes "recusado não cancela", "sync …", varredura |
 | CA12 | Estorno do pagamento que pagou: ESTORNADO, com o estoque devolvido uma vez | ✅ | `apps/api/payments.js:176`; teste "estorno depois de pago" |
-| CA13 | Varredura cancela a reserva vencida sem pagamento e devolve o estoque | ✅ | `apps/api/payments.js:252`, `apps/api/server.js:1178`; teste "varredura …" |
-| CA14 | Comissão: ADMIN define de 0 a 30% (2 casas); cálculo em pontos-base, para baixo, nunca o total | ✅ | `packages/domain/payments.js:36`, `apps/api/server.js:1135`; testes "comissão …" |
-| CA15 | Extrato e receita: aguardando e cancelado não entram; estornado entra e é desfeito | ✅ | `packages/domain/finance.js:54`, `packages/domain/finance.js:67`, `apps/api/server.js:1028`; testes "extrato …" |
-| CA16 | Conexão sobrevive à gravação de outra rota; excluir a conta apaga a conexão | ✅ | `apps/api/server.js:282`, `apps/api/server.js:628`; testes correspondentes |
+| CA13 | Varredura cancela a reserva vencida sem pagamento e devolve o estoque | ✅ | `apps/api/payments.js:252`, `apps/api/server.js:1189`; teste "varredura …" |
+| CA14 | Comissão: ADMIN define de 0 a 30% (2 casas); cálculo em pontos-base, para baixo, nunca o total | ✅ | `packages/domain/payments.js:36`, `apps/api/server.js:1141`; testes "comissão …" |
+| CA15 | Extrato e receita: aguardando e cancelado não entram; estornado entra e é desfeito | ✅ | `packages/domain/finance.js:54`, `packages/domain/finance.js:67`, `apps/api/server.js:1034`; testes "extrato …" |
+| CA16 | Conexão sobrevive à gravação de outra rota; excluir a conta apaga a conexão | ✅ | `apps/api/server.js:283`, `apps/api/server.js:634`; testes correspondentes |
 
 ## 3. Contratos
 
@@ -49,7 +49,7 @@ da AgroTech descontada.
 - **Dados novos no `db.json`:**
   - `sellerAccounts[]`, `oauthStates[]`, `settings`, mais os campos de pagamento no pedido. O formato
     está na seção 11 da spec 10.
-  - Os três entram no `readDb` (`apps/api/server.js:282`); sem isso, o próximo `writeDb` de qualquer
+  - Os três entram no `readDb` (`apps/api/server.js:283`); sem isso, o próximo `writeDb` de qualquer
     rota os apagaria.
 - **Variáveis:** nomes no `.env.example`, sem valores.
   - `MP_ACCESS_TOKEN` (token da AgroTech) não é exigido nesta parte; volta no patrocínio (RF-06).
@@ -65,7 +65,7 @@ da AgroTech descontada.
 - **Checkout Pro na API de preferências** (`/checkout/preferences`), não na de Orders: é o contrato
   `checkout-pro` do guia de marketplace do plugin oficial. Ref: `apps/api/mercadopago.js:165`.
 - **Preferência com um item só,** no valor do total. O total sai de `calculateCartSummary`, com frete
-  e cupom (`apps/api/server.js:956`). Listar os produtos daria o subtotal, e o valor pago
+  e cupom (`apps/api/server.js:962`). Listar os produtos daria o subtotal, e o valor pago
   nunca bateria com o total. Ref: `apps/api/payments.js:110`.
 - **`notification_url` e `auto_return` só com `APP_URL` público em https:** o Mercado Pago recusa
   endereço local. Ref: `apps/api/payments.js:110`.
@@ -76,25 +76,32 @@ da AgroTech descontada.
   com o corpo como reserva. Ref: `apps/api/mercadopago.js:192`.
 - **Estado do pagamento em `paymentStatus`;** o `status` continua sendo o texto das telas. Ref:
   `packages/domain/payments.js:13`.
-- **Webhook com 200 logo depois da assinatura** e o processamento em seguida, na própria vez da fila.
-  A fila devolve a vez no `res.end` (`apps/api/server.js:424`), então o trabalho depois do 200 pega outra
-  vez com `withWriteTurn`. O mesmo vale para a volta do OAuth (GET) e para a varredura. Ref:
-  `apps/api/server.js:290`.
+- **Webhook processa e só então responde:** 200 depois de gravar; falha responde 500 e o Mercado Pago
+  reenvia. Ref: `apps/api/server.js:1172`.
+  - Começou com "200 logo depois da assinatura", como manda o guia do plugin. Na suíte inteira, uma
+    gravação recusada depois do 200 perdeu um estorno, que a varredura não recupera (ver seção 8).
+  - Como é um `POST`, a rota roda dentro da vez da fila de escrita.
+  - A volta do OAuth (GET) e a varredura gravam fora de uma requisição de escrita e pegam a vez com
+    `withWriteTurn`, porque a fila devolve a vez no `res.end` (`apps/api/server.js:430`). Ref:
+    `apps/api/server.js:291`.
+- **`writeDb` tenta a troca do arquivo de novo** em `EPERM`/`EBUSY`/`EACCES` (até 10 vezes). No
+  Windows, o rename por cima de um `db.json` aberto por outro leitor falha por alguns milissegundos.
+  Ref: `apps/api/server.js:308`, `apps/api/rename-retry.js:15`; teste `tests/rename-retry.test.js`.
 - **A reserva é a baixa de estoque que já existia.** A devolução acontece só na transição para
   CANCELADO ou ESTORNADO, então uma vez por pedido. Ref: `apps/api/payments.js:169`,
   `apps/api/payments.js:176`.
 - **Chamadas ao Mercado Pago dentro do pedido e do sync seguram a fila de escrita** (até 10 s). Fica
-  anotado com `ponytail:` em `apps/api/server.js:1062`.
+  anotado com `ponytail:` em `apps/api/server.js:1068`.
 
 ## 5. Must have
 
 - [x] Modo simulado intocado e configuração validada na subida (CA01): `apps/api/mercadopago.js:18`,
-  `apps/api/server.js:67`; `tests/payments-api.test.js`, `tests/payments-flows.test.js`.
+  `apps/api/server.js:68`; `tests/payments-api.test.js`, `tests/payments-flows.test.js`.
 - [x] OAuth do vendedor, cifra e renovação (CA02 a CA04): `apps/api/payments.js:37`,
   `apps/api/payments.js:86`, `apps/api/mercadopago.js:211`; `tests/payments-api.test.js`.
 - [x] Pedido com Checkout Pro, comissão, reserva e 502 (CA05 a CA08): `apps/api/payments.js:133`,
-  `apps/api/server.js:1062`; `tests/payments-api.test.js`.
-- [x] Webhook, sync e varredura com as regras de estado (CA09 a CA13): `apps/api/server.js:1164`,
+  `apps/api/server.js:1068`; `tests/payments-api.test.js`.
+- [x] Webhook, sync e varredura com as regras de estado (CA09 a CA13): `apps/api/server.js:1172`,
   `apps/api/payments.js:228`, `apps/api/payments.js:252`; `tests/payments-api.test.js`.
 - [x] Comissão e extrato (CA14 a CA16): `packages/domain/payments.js:36`, `packages/domain/finance.js:67`;
   `tests/payments.test.js`.
@@ -119,6 +126,15 @@ na spec 10, no mesmo PR.
 
 ## 8. Divergências / achados durante a implementação
 
+- **Webhook responde depois de gravar** (2026-11-13). O teste de estorno falhou duas vezes com a suíte
+  inteira rodando.
+  - O log mostrou a causa: no Windows, o rename do `writeDb` deu `EPERM` porque um leitor tinha o
+    `db.json` aberto. Como o 200 já tinha saído, o Mercado Pago não reenviaria, e o estorno se perderia.
+  - Correções:
+    - o `writeDb` tenta a troca de novo (`apps/api/rename-retry.js`);
+    - o webhook só responde 200 depois de gravar e, em falha, responde 500 para o Mercado Pago
+      reenviar.
+  - Spec 10 (RF-04) e spec 05 atualizadas.
 - **Um vendedor por pedido só com o Mercado Pago ligado.** No simulado o pedido segue como hoje, senão
   a web e o app quebrariam antes das telas (spec 10, RF-02, atualizada).
 - **Recusado não cancela.** A tabela original mandava `rejected` para CANCELADO, mas no Checkout Pro o

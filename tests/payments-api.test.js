@@ -277,6 +277,17 @@ test('webhook aprovado paga o pedido; a mesma notificação de novo não muda na
   assert.equal((await orderOf(buyer, order.id)).payment.history.length, paid.payment.history.length);
 });
 
+test('webhook que não consegue consultar o pagamento responde 500 (o Mercado Pago reenvia) e o reenvio aplica', async () => {
+  const { seller, buyer, order } = await pendingOrder();
+  const payment = { id: 777000 + Math.floor(Math.random() * 1000), status: 'approved', external_reference: order.id, transaction_amount: order.total, collector_id: seller.mpUserId };
+  const first = await notify(payment.id, seller.mpUserId);
+  assert.equal(first.status, 500, 'pagamento ainda não visível no Mercado Pago');
+  assert.equal((await orderOf(buyer, order.id)).paymentStatus, 'AGUARDANDO_PAGAMENTO');
+  mp.state.payments.set(String(payment.id), payment);
+  assert.equal((await notify(payment.id, seller.mpUserId)).status, 200);
+  assert.equal((await orderOf(buyer, order.id)).paymentStatus, 'PAGO', 'responde 200 só depois de gravar');
+});
+
 test('webhook com valor divergente não paga e marca revisão', async () => {
   const { seller, buyer, order } = await pendingOrder();
   const payment = fakePayment(order, seller.mpUserId, 'approved', { transaction_amount: order.total - 1 });

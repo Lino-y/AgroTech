@@ -399,8 +399,9 @@ paths:
       summary: Notificação do Mercado Pago (pública, com assinatura obrigatória)
       description: >-
         Valida x-signature (HMAC-SHA256 de "id:<data.id>;request-id:<x-request-id>;ts:<ts>;" com
-        MP_WEBHOOK_SECRET, tempo constante, ts a até 5 minutos) antes de qualquer coisa e responde 200
-        logo em seguida; o processamento vem depois, na fila de escrita. Só o tópico payment decide:
+        MP_WEBHOOK_SECRET, tempo constante, ts a até 5 minutos) antes de qualquer coisa; depois processa
+        e só então responde 200 (falha ao consultar ou gravar responde 500, e o Mercado Pago reenvia;
+        o reenvio é idempotente). Só o tópico payment decide:
         o servidor consulta GET /v1/payments/{id} com o token do vendedor (achado pelo user_id) e confere
         referência, valor e recebedor. merchant_order é aceito e ignorado (a varredura e o sync cobrem).
       parameters:
@@ -409,8 +410,9 @@ paths:
         - { name: x-signature, in: header, required: true, schema: { type: string, example: 'ts=1704908010,v1=618c...' } }
         - { name: x-request-id, in: header, required: true, schema: { type: string } }
       responses:
-        '200': { description: 'assinatura válida; notificação aceita' }
+        '200': { description: 'assinatura válida; notificação processada e gravada' }
         '400': { description: 'sem x-signature, x-request-id ou data.id' }
+        '500': { description: 'não conseguiu consultar o pagamento ou gravar; o Mercado Pago reenvia' }
         '401': { description: 'assinatura inválida ou ts fora da janela de 5 minutos' }
         '404': { description: 'Mercado Pago não está ligado neste servidor' }
   /api/mp/connect:

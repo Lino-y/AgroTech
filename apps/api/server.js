@@ -14,6 +14,7 @@ import { calculateCartSummary, validatePassword } from '../../packages/domain/co
 import { buildFinanceEntries } from '../../packages/domain/finance.js';
 import { countsAsSale, MAX_FEE_PERCENT, PAYMENT_STATUS } from '../../packages/domain/payments.js';
 import { createTurnQueue } from './write-queue.js';
+import { renameWithRetry } from './rename-retry.js';
 import { MercadoPagoError, readMercadoPagoConfig, verifyWebhookSignature } from './mercadopago.js';
 import {
   completeSellerConnection, PaymentFlowError, preparePayment, processNotification, startSellerConnection,
@@ -303,7 +304,12 @@ async function writeDb(db) {
   // um JSON pela metade.
   const tmp = `${dataFile}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
-  await fs.rename(tmp, dataFile);
+  try {
+    await renameWithRetry(fs.rename, tmp, dataFile);
+  } catch (error) {
+    await fs.rm(tmp, { force: true });
+    throw error;
+  }
 }
 
 // Perfis que o próprio usuário pode escolher no cadastro; ADMIN nunca vem do corpo da requisição.
@@ -1159,18 +1165,23 @@ app.post('/api/orders/:id/sync', authenticate, async (req, res) => {
   res.json(order);
 });
 
-// Webhook: assinatura antes de tudo; 200 logo depois (prazo de 22 s do Mercado Pago) e o processamento
-// em seguida, na própria vez da fila. Se a consulta falhar depois do 200, a varredura recupera.
-app.post('/api/payments/webhook', requireMercadoPago, (req, res) => {
+// Webhook: assinatura antes de tudo; depois processa e só então responde 200. Falhou (Mercado Pago fora,
+// gravação recusada)? 500, e o Mercado Pago reenvia; reenvio é inofensivo (aplicação idempotente).
+// Diverge do "200 antes" do guia do plugin de propósito: com o 200 antes, uma falha perdia o estorno, que
+// a varredura não recupera (ela só olha pedido aguardando). A consulta tem teto de 10 s, dentro dos 22 s.
+app.post('/api/payments/webhook', requireMercadoPago, async (req, res) => {
   const dataId = String(req.query['data.id'] ?? req.body?.data?.id ?? '');
   const check = verifyWebhookSignature({ xSignature: req.get('x-signature'), xRequestId: req.get('x-request-id'), dataId, secret: MP.webhookSecret });
   if (check !== 'ok') return res.status(check === 'missing' ? 400 : 401).json({ message: 'Notificação sem assinatura válida.' });
-  res.status(200).json({ ok: true });
   const notification = { type: String(req.query.type ?? req.body?.type ?? ''), dataId, userId: req.body?.user_id };
-  withWriteTurn(async () => {
+  try {
     const db = await readDb();
     if (await processNotification(MP, db, notification, Date.now())) await writeDb(db);
-  }).catch((error) => console.warn(`[agrotech] notificação do pagamento ${dataId}: ${error.message}`));
+  } catch (error) {
+    console.warn(`[agrotech] notificação do pagamento ${dataId}: ${error.message}`);
+    return res.status(500).json({ message: 'Não foi possível processar agora; reenvie.' });
+  }
+  res.status(200).json({ ok: true });
 });
 
 // Varredura: reserva vencida cancela e devolve o estoque; pendente antigo é reconsultado. Uma passada por
