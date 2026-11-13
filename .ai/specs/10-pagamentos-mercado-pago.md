@@ -171,6 +171,9 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 - **Tópicos:** a decisão é sempre pelo `payment`, que se consulta em `GET /v1/payments/{id}`.
   - O `merchant_order`, que o Checkout Pro também envia, é aceito (200) e ignorado: a varredura e o
     sync acham os pagamentos do pedido pelo `external_reference`.
+  - No sandbox real (2026-11-13) ele chegou no formato antigo (`?id=…&topic=merchant_order`, sem
+    `data.id`). Por isso recebe 200 antes da checagem de assinatura: sem o 200, o Mercado Pago
+    reenviaria para sempre, e nada muda com ele.
   - O token usado na consulta é o do vendedor cujo `mpUserId` é o `user_id` da notificação. Isso
     ainda precisa ser confirmado com uma notificação real; se não casar, a varredura cobre.
 - **Cabeçalho incompleto:** falta de `x-signature`, `x-request-id` ou `data.id` responde 400.
@@ -266,6 +269,16 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 - **Descrição:** o ADMIN estorna o total de um pedido `PAGO` ou de um patrocínio.
   - O servidor pede o estorno ao Mercado Pago.
   - O estado só muda quando o webhook (ou o sync) confirmar `refunded`.
+- **Também o pagamento em revisão** (2026-11-13): o pagamento aprovado depois do cancelamento, ou com
+  valor divergente, deixa dinheiro com o vendedor sem pedido pago.
+  - O ADMIN estorna esse pagamento pela mesma rota.
+  - Confirmado o estorno, a revisão fica resolvida (`paymentReview.resolvedAt`) e o pedido não muda.
+- **Clique repetido:** a chave de idempotência por pagamento (`estorno-<paymentId>`) evita estorno em
+  dobro.
+- **Confirmação:** o servidor consulta o pagamento logo depois do pedido de estorno. Se o Mercado Pago
+  ainda não concluiu, a varredura reconsulta até confirmar, porque o webhook pode se perder.
+- **Recusa do Mercado Pago** (por exemplo, vendedor sem saldo) ou conta do vendedor desconectada: 409,
+  com a orientação de resolver pelo painel do Mercado Pago.
 - **Limite do split:** o reembolso é dividido proporcionalmente entre o vendedor e a AgroTech.
   - Sem saldo do vendedor, a AgroTech só devolve a parte dela, como diz a documentação do Mercado
     Pago.

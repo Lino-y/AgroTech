@@ -25,9 +25,22 @@ function preference(state, req, raw) {
   return [201, { id, init_point: `https://mercadopago.test/checkout?pref_id=${id}` }];
 }
 
+// Estorno total: com `refundPending`, o Mercado Pago aceita mas o pagamento ainda não muda (confirmação
+// depois); com `failRefund`, recusa (ex.: vendedor sem saldo).
+function refund(state, req, paymentId) {
+  state.refundRequests.push({ paymentId, authorization: req.headers.authorization, idempotencyKey: req.headers['x-idempotency-key'] });
+  const payment = state.payments.get(paymentId);
+  if (!payment) return [404, { message: 'not found' }];
+  if (state.failRefund) return [400, { message: 'insufficient balance' }];
+  if (!state.refundPending) payment.status = 'refunded';
+  return [201, { id: 5000 + state.refundRequests.length, payment_id: Number(paymentId), status: state.refundPending ? 'in_process' : 'approved', amount: payment.transaction_amount }];
+}
+
 function route(state, req, url, raw) {
   if (req.method === 'POST' && url.pathname === '/oauth/token') return oauthToken(state, req, raw);
   if (req.method === 'POST' && url.pathname === '/checkout/preferences') return preference(state, req, raw);
+  const refundMatch = /^\/v1\/payments\/(\d+)\/refunds$/.exec(url.pathname);
+  if (req.method === 'POST' && refundMatch) return refund(state, req, refundMatch[1]);
   const paymentMatch = /^\/v1\/payments\/(\d+)$/.exec(url.pathname);
   if (req.method === 'GET' && paymentMatch) {
     const payment = state.payments.get(paymentMatch[1]);
@@ -44,7 +57,7 @@ function route(state, req, url, raw) {
  * @returns {Promise<{ base: string, state: any, close: () => Promise<void> }>}
  */
 export function startFakeMercadoPago() {
-  const state = { tokenRequests: [], preferences: [], payments: new Map(), failPreferences: false, failRefresh: false, nextUserId: 7001 };
+  const state = { tokenRequests: [], preferences: [], refundRequests: [], payments: new Map(), failPreferences: false, failRefresh: false, nextUserId: 7001 };
 
   const server = http.createServer(async (req, res) => {
     let raw = '';

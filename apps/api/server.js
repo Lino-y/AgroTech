@@ -17,8 +17,8 @@ import { createTurnQueue } from './write-queue.js';
 import { renameWithRetry } from './rename-retry.js';
 import { MercadoPagoError, readMercadoPagoConfig, verifyWebhookSignature } from './mercadopago.js';
 import {
-  completeSellerConnection, PaymentFlowError, preparePayment, processNotification, startSellerConnection,
-  sweepPayments, syncOrder
+  completeSellerConnection, PaymentFlowError, preparePayment, processNotification, requestRefund,
+  startSellerConnection, sweepPayments, syncOrder
 } from './payments.js';
 import { isBelowMinVersion, readAppMinVersion, readLatestVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
@@ -1165,11 +1165,35 @@ app.post('/api/orders/:id/sync', authenticate, async (req, res) => {
   res.json(order);
 });
 
+// Estorno total pelo ADMIN (spec 10, RF-08): do pedido pago ou do pagamento em revisão. 202: pedido ao
+// Mercado Pago; o pedido só muda quando ele confirma (já na resposta, se confirmou na hora).
+const REFUND_NOTE = 'Estorno pedido ao Mercado Pago. A devolução sai dividida de forma proporcional entre o vendedor e a '
+  + 'comissão da AgroTech; o pedido muda quando o Mercado Pago confirmar.';
+
+app.post('/api/admin/orders/:id/refund', requireMercadoPago, authenticate, requireAdmin, async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((item) => item.id === req.params.id);
+  if (!order) return res.status(404).json({ message: 'Pedido não encontrado.' });
+  try {
+    await requestRefund(MP, db, order, req.user.email, Date.now());
+  } catch (error) {
+    const status = flowErrorStatus(error);
+    if (error.persist) await writeDb(db);
+    return res.status(status).json({ message: error.message });
+  }
+  await writeDb(db);
+  res.status(202).json({ message: REFUND_NOTE, order });
+});
+
 // Webhook: assinatura antes de tudo; depois processa e só então responde 200. Falhou (Mercado Pago fora,
 // gravação recusada)? 500, e o Mercado Pago reenvia; reenvio é inofensivo (aplicação idempotente).
 // Diverge do "200 antes" do guia do plugin de propósito: com o 200 antes, uma falha perdia o estorno, que
 // a varredura não recupera (ela só olha pedido aguardando). A consulta tem teto de 10 s, dentro dos 22 s.
 app.post('/api/payments/webhook', requireMercadoPago, async (req, res) => {
+  // merchant_order não decide nada (a decisão é pelo payment; a varredura e o sync cobrem). O sandbox
+  // real manda no formato antigo (?id=…&topic=merchant_order, sem data.id): sem 200, reenviaria para
+  // sempre. Responder 200 sem agir é seguro: nada muda.
+  if ((req.query.topic ?? req.query.type) === 'merchant_order') return res.status(200).json({ ok: true });
   const dataId = String(req.query['data.id'] ?? req.body?.data?.id ?? '');
   const check = verifyWebhookSignature({ xSignature: req.get('x-signature'), xRequestId: req.get('x-request-id'), dataId, secret: MP.webhookSecret });
   if (check !== 'ok') return res.status(check === 'missing' ? 400 : 401).json({ message: 'Notificação sem assinatura válida.' });

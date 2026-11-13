@@ -64,6 +64,16 @@ test('aprovado depois de cancelado vira revisão do ADMIN, não ressuscita o ped
   assert.match(paymentDecision(order(CANCELADO), payment('approved'), 777).review, /cancelado/);
 });
 
+test('o pagamento em revisão, estornado, resolve a revisão (RF-08); outro pagamento estornado não', () => {
+  const reviewed = order(CANCELADO, { paymentReview: { reason: 'aprovado depois do cancelamento', paymentId: '55' } });
+  assert.deepEqual(paymentDecision(reviewed, payment('refunded'), 777), { resolveReview: true });
+  const divergent = order(AGUARDANDO, { paymentReview: { reason: 'valor', paymentId: '55' } });
+  assert.deepEqual(paymentDecision(divergent, payment('refunded', { transaction_amount: 1 }), 777), { resolveReview: true }, 'mesmo com valor divergente');
+  assert.deepEqual(paymentDecision(reviewed, payment('refunded', { id: 99 }), 777), {});
+  const resolved = order(CANCELADO, { paymentReview: { reason: 'x', paymentId: '55', resolvedAt: '2026-11-13T00:00:00Z' } });
+  assert.deepEqual(paymentDecision(resolved, payment('refunded'), 777), {}, 'já resolvida');
+});
+
 // --- extrato (RF-09) ---
 
 test('extrato: pedido aguardando ou cancelado não entra; estornado entra e é desfeito', () => {

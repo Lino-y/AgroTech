@@ -48,15 +48,17 @@ const REVERSED = new Set(['refunded', 'charged_back']);
 const PENDING = new Set(['pending', 'in_process', 'authorized', 'in_mediation']);
 
 /**
- * @typedef {{ id: string, total: number, paymentStatus?: string, payment?: { paymentId?: string | null } }} PayableOrder
+ * @typedef {{ id: string, total: number, paymentStatus?: string, payment?: { paymentId?: string | null },
+ *   paymentReview?: { paymentId?: string, resolvedAt?: string } }} PayableOrder
  * @typedef {{ id: number | string, status: string, external_reference?: string, transaction_amount?: number,
  *   collector_id?: number | string, date_of_expiration?: string | null }} MercadoPagoPayment
- * @typedef {{ to?: string, review?: string, holdUntil?: string | null }} PaymentDecision
+ * @typedef {{ to?: string, review?: string, holdUntil?: string | null, resolveReview?: boolean }} PaymentDecision
  */
 
 /**
  * O que um pagamento consultado no Mercado Pago faz com o pedido. `to` é o estado novo; `review` marca
- * divergência para o ADMIN sem mudar nada; `holdUntil` segura a reserva de estoque (pagamento pendente).
+ * divergência para o ADMIN sem mudar nada; `holdUntil` segura a reserva de estoque (pagamento pendente);
+ * `resolveReview`: o pagamento que estava em revisão foi estornado (RF-08), o dinheiro voltou.
  * Recusado não cancela: o comprador pode tentar outro meio até a reserva vencer.
  * @param {PayableOrder} order
  * @param {MercadoPagoPayment} payment
@@ -64,6 +66,7 @@ const PENDING = new Set(['pending', 'in_process', 'authorized', 'in_mediation'])
  * @returns {PaymentDecision}
  */
 export function paymentDecision(order, payment, collectorId) {
+  if (refundsReviewedPayment(order, payment)) return { resolveReview: true };
   const mismatch = paymentMismatch(order, payment, collectorId);
   if (mismatch) return { review: mismatch };
   const { AGUARDANDO, PAGO, CANCELADO, ESTORNADO } = PAYMENT_STATUS;
@@ -80,6 +83,16 @@ export function paymentDecision(order, payment, collectorId) {
     return { holdUntil: payment.date_of_expiration ?? null };
   }
   return {};
+}
+
+/**
+ * O pagamento é o que estava em revisão (ainda aberta) e já voltou ao comprador?
+ * @param {PayableOrder} order
+ * @param {MercadoPagoPayment} payment
+ */
+function refundsReviewedPayment(order, payment) {
+  const review = order.paymentReview;
+  return Boolean(review && !review.resolvedAt && review.paymentId === String(payment.id) && REVERSED.has(payment.status));
 }
 
 /**

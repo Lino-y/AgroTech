@@ -4,6 +4,7 @@
 // próprio processo, e não uma resposta HTTP, que poderia ser de outro servidor.
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const SERVER_FILE = fileURLToPath(new URL('../../apps/api/server.js', import.meta.url));
@@ -28,7 +29,11 @@ export const freePort = () => new Promise((resolve) => {
  * @returns {Promise<{ base: string, child: import('node:child_process').ChildProcess, kill: () => void, output: () => string }>}
  */
 export function startServer({ env = {} } = {}) {
+  // cwd numa pasta temporária: o server.js lê o .env da pasta atual (dotenv), e o .env de quem roda os
+  // testes (credenciais reais do Mercado Pago, JWT_SECRET) não pode mudar o resultado. Os caminhos do
+  // servidor saem do próprio arquivo, não da pasta atual.
   const child = spawn(process.execPath, [SERVER_FILE], {
+    cwd: tmpdir(),
     env: { ...process.env, ...env, PORT: '0' },
     stdio: ['ignore', 'pipe', 'pipe']
   });

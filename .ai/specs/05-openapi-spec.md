@@ -87,7 +87,8 @@ components:
         sellerEmail: { type: string, description: 'Mercado Pago: o único vendedor do pedido' }
         marketplaceFeeCents: { type: integer, description: 'Mercado Pago: comissão da AgroTech gravada na criação' }
         reservedUntil: { type: string, format: date-time, description: 'Mercado Pago: até quando o estoque fica reservado sem pagamento aprovado' }
-        paymentReview: { type: object, description: 'pagamento divergente (valor, referência ou recebedor) que não mudou o pedido: { reason, paymentId, at }' }
+        paymentReview: { type: object, description: 'pagamento divergente (valor, referência ou recebedor) ou aprovado depois do cancelamento, que não mudou o pedido: { reason, paymentId, at, resolvedAt? }; resolvedAt quando o estorno desse pagamento é confirmado' }
+        refundRequest: { type: object, description: 'estorno pedido pelo ADMIN: { paymentId, at, by, mpStatus }' }
         payment:
           type: object
           description: 'Mercado Pago: nunca traz token. history registra cada mudança de estado.'
@@ -394,6 +395,26 @@ paths:
         '404': { description: 'pedido inexistente ou de outra conta (só o dono ou o ADMIN)' }
         '409': { description: 'conta Mercado Pago do vendedor desconectada (renovação do token recusada)' }
         '502': { description: 'Mercado Pago indisponível' }
+  /api/admin/orders/{id}/refund:
+    post:
+      summary: Estorno total pelo ADMIN (Mercado Pago, spec 10 RF-08)
+      description: >-
+        Estorna o pagamento que pagou o pedido (paymentStatus PAGO) ou, sem pedido pago, o pagamento em
+        revisão aberta (aprovado depois do cancelamento ou com valor divergente). Pede ao Mercado Pago
+        (POST /v1/payments/{id}/refunds, corpo vazio = total) com o token do vendedor e
+        X-Idempotency-Key "estorno-<paymentId>" (clique repetido não estorna em dobro). Grava
+        refundRequest { paymentId, at, by, mpStatus }. O pedido só muda quando o Mercado Pago confirma:
+        na consulta logo em seguida, no webhook ou na varredura. Confirmado: PAGO vira ESTORNADO (estoque
+        devolvido); pagamento em revisão ganha paymentReview.resolvedAt.
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '202': { description: 'estorno pedido; message explica a divisão proporcional entre vendedor e comissão', content: { application/json: { schema: { type: object, properties: { message: { type: string }, order: { $ref: '#/components/schemas/Order' } } } } } }
+        '401': { description: 'sem token ou token inválido' }
+        '403': { description: 'não é ADMIN' }
+        '404': { description: 'pedido inexistente, ou Mercado Pago não está ligado neste servidor' }
+        '409': { description: 'nada a estornar, conta do vendedor desconectada, ou Mercado Pago recusou (ex.: vendedor sem saldo): resolver pelo painel do Mercado Pago' }
+        '502': { description: 'Mercado Pago indisponível' }
   /api/payments/webhook:
     post:
       summary: Notificação do Mercado Pago (pública, com assinatura obrigatória)
@@ -403,7 +424,7 @@ paths:
         e só então responde 200 (falha ao consultar ou gravar responde 500, e o Mercado Pago reenvia;
         o reenvio é idempotente). Só o tópico payment decide:
         o servidor consulta GET /v1/payments/{id} com o token do vendedor (achado pelo user_id) e confere
-        referência, valor e recebedor. merchant_order é aceito e ignorado (a varredura e o sync cobrem).
+        referência, valor e recebedor. merchant_order (inclusive no formato antigo ?id=…&topic=merchant_order, sem data.id nem assinatura útil) recebe 200 antes da checagem de assinatura e é ignorado: nada muda, e a varredura e o sync cobrem.
       parameters:
         - { name: data.id, in: query, required: true, schema: { type: string } }
         - { name: type, in: query, required: false, schema: { type: string } }
@@ -434,7 +455,7 @@ paths:
   /api/mp/callback:
     get:
       summary: Volta do OAuth do Mercado Pago (pública; o usuário vem do state)
-      description: 'Consome o state sempre. Troca o código por tokens no servidor (POST /oauth/token, form-urlencoded) e grava os tokens cifrados (AES-256-GCM, MP_TOKEN_ENCRYPTION_KEY). Responde uma página HTML com mensagem fixa; nada da query volta para o HTML e não há redirecionamento.'
+      description: 'Consome o state sempre. Troca o código por tokens no servidor (POST /oauth/token, form-urlencoded; com MP_OAUTH_TEST_TOKEN=1 manda test_token=true, para conta de teste no sandbox) e grava os tokens cifrados (AES-256-GCM, MP_TOKEN_ENCRYPTION_KEY). Responde uma página HTML com mensagem fixa; nada da query volta para o HTML e não há redirecionamento.'
       parameters:
         - { name: state, in: query, required: true, schema: { type: string } }
         - { name: code, in: query, required: false, schema: { type: string } }
