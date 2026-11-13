@@ -128,6 +128,9 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
     de outro vendedor. Trocar o carrinho?".
   - **Servidor:** `POST /api/orders` recusa (400) um pedido com itens de mais de um vendedor, ou de
     vendedor sem conta Mercado Pago conectada (409). O servidor não confia no app.
+  - A regra vale **com o Mercado Pago ligado**. No modo simulado, sem as variáveis `MP_*`, o pedido
+    segue como hoje, para a web e o app continuarem funcionando até a parte das telas (decisão da
+    implementação, 2026-11-12).
 - **Critério de aceite:** teste de API com dois vendedores (400), teste com vendedor desconectado
   (409) e teste de domínio da regra do carrinho.
 
@@ -165,9 +168,11 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 ### RF-04 — Webhook e estado do pagamento `[NOVO]`
 
 - **Rota:** `POST /api/payments/webhook`, pública, sem `authenticate`.
-- **Tópicos:** `payment`, que se consulta em `GET /v1/payments/{id}`, e `merchant_order`, que o
-  Checkout Pro também envia (`GET /merchant_orders/{id}`). O `merchant_order` só serve para achar
-  os pagamentos do pedido; a decisão é sempre pelo `payment`.
+- **Tópicos:** a decisão é sempre pelo `payment`, que se consulta em `GET /v1/payments/{id}`.
+  - O `merchant_order`, que o Checkout Pro também envia, é aceito (200) e ignorado: a varredura e o
+    sync acham os pagamentos do pedido pelo `external_reference`.
+  - O token usado na consulta é o do vendedor cujo `mpUserId` é o `user_id` da notificação. Isso
+    ainda precisa ser confirmado com uma notificação real; se não casar, a varredura cobre.
 - **Cabeçalho incompleto:** falta de `x-signature`, `x-request-id` ou `data.id` responde 400.
 - **Assinatura:** o servidor valida a assinatura **antes** de qualquer outra coisa.
   - Monta o manifest `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` e calcula o HMAC-SHA256 com
@@ -186,14 +191,19 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 | Status do Mercado Pago | Pedido | Estoque |
 |---|---|---|
 | `approved` | `PAGO` (timeline "Pedido Confirmado") | baixa definitiva |
-| `pending`, `in_process`, `authorized` | `AGUARDANDO_PAGAMENTO` | segue reservado |
-| `rejected`, `cancelled`, ou expirado sem pagamento | `CANCELADO` | reserva devolvida |
-| `refunded`, `charged_back` | `ESTORNADO` | devolvido |
+| `pending`, `in_process`, `authorized` | `AGUARDANDO_PAGAMENTO`; a reserva vai até o vencimento do pagamento (`date_of_expiration`) | segue reservado |
+| `rejected`, `cancelled` | continua `AGUARDANDO_PAGAMENTO`: o comprador pode tentar outro meio na mesma página | segue reservado |
+| reserva vencida sem pagamento aprovado nem pendente | `CANCELADO` | reserva devolvida |
+| `refunded`, `charged_back` (do pagamento que pagou o pedido) | `ESTORNADO` | devolvido |
 
+- O estado do pagamento fica no campo `paymentStatus`. O `status` continua sendo o texto que a web e o
+  app mostram: "Aguardando pagamento", "Pedido Confirmado", "Cancelado" ou "Estornado". Trocar o
+  `status` por códigos mostraria "PAGO" cru nas telas de hoje.
 - **Repetição:** a mesma notificação pode chegar mais de uma vez (o Mercado Pago reenvia até
   receber 200/201).
-  - Dedup por `type` + `data.id`.
-  - Aplicar de novo o mesmo estado não muda nada.
+  - Não há descarte por `type` + `data.id`: o mesmo pagamento muda de status (aprovado e depois
+    estornado), e descartar pelo id perderia o estorno. A proteção é a aplicação idempotente: cada
+    notificação reconsulta o pagamento, e aplicar de novo o mesmo estado não muda nada.
   - Estado só avança: `PAGO` nunca volta a `AGUARDANDO`.
 - **Resposta:** 200 **logo depois** de validar a assinatura, antes de consultar o Mercado Pago
   (regra do guia de webhooks do plugin; o prazo do Mercado Pago é 22 s). A consulta e a gravação
@@ -215,7 +225,8 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
   - A reserva vence junto com a preferência (30 min). Para boleto e Pix, vale o prazo do meio de
     pagamento informado pelo Mercado Pago.
   - Ao vencer, o pedido vai para `CANCELADO` e o estoque volta.
-  - O vencimento é conferido na leitura do pedido e por uma varredura a cada minuto, sem fila nova.
+  - O vencimento é conferido por uma varredura a cada minuto, sem fila nova, e pelo sync. A leitura
+    do pedido não confere: `GET` não grava.
   - A mesma varredura consulta no Mercado Pago, pelo `external_reference`, os pedidos e campanhas
     pendentes há mais de 2 minutos. Assim, um webhook perdido não deixa pagamento sem registro.
 - **Critério de aceite:**
@@ -376,14 +387,15 @@ Status de todos: **pendente**. Itens novos estão marcados `[NOVO]`.
 ### Formato novo no `db.json` `[NOVO]`
 
 ```text
-orders[] (campos novos):
-  status: 'AGUARDANDO_PAGAMENTO' | 'PAGO' | 'CANCELADO' | 'ESTORNADO'
-  sellerEmail, marketplaceFeeCents, reservedUntil
+orders[] (campos novos, só em pedido do Mercado Pago):
+  paymentStatus: 'AGUARDANDO_PAGAMENTO' | 'PAGO' | 'CANCELADO' | 'ESTORNADO'
+  status: texto da tela ('Aguardando pagamento' | 'Pedido Confirmado' | 'Cancelado' | 'Estornado')
+  sellerEmail, marketplaceFeeCents, reservedUntil, paymentReview?: { reason, paymentId, at }
   payment: { provider: 'mercadopago', preferenceId, paymentId?, mpStatus?, method?,
              checkoutUrl, history: [{ at, from, to, source }] }
-sellerAccounts[]: { email, mpUserId, accessTokenEnc, refreshTokenEnc, expiresAt,
+sellerAccounts[]: { userId, email, mpUserId, accessTokenEnc, refreshTokenEnc, expiresAt, scope,
                     connectedAt, status: 'CONECTADA' | 'DESCONECTADA' }
-oauthStates[]: { state, email, codeVerifier, expiresAt }          // uso único, vence em 10 min
+oauthStates[]: { state, userId, codeVerifier, expiresAt }          // uso único, vence em 10 min
 sponsorshipPlans[]: { id, days, priceCents, active }
 sponsorships[] (spec 09, campos novos):
   status também 'PENDENTE' | 'CANCELADA'; origem: 'manual' | 'mercadopago'; payment: {...}
@@ -394,13 +406,15 @@ settings: { marketplaceFeePercent }
 
 As mudanças entram em `.ai/specs/05-openapi-spec.md` no PR de implementação, antes do código:
 
-- `POST /api/orders`: passa a devolver `status: 'AGUARDANDO_PAGAMENTO'` e `checkoutUrl`. Novos
-  erros: 400 (vários vendedores), 409 (vendedor sem conta conectada), 502 (Mercado Pago
-  indisponível).
+- `POST /api/orders`: passa a devolver `paymentStatus: 'AGUARDANDO_PAGAMENTO'` e
+  `payment.checkoutUrl`. Novos erros: 400 (vários vendedores), 409 (vendedor sem conta conectada),
+  502 (Mercado Pago indisponível).
 - `POST /api/orders/:id/sync`: dono ou ADMIN; consulta o pagamento e devolve o pedido.
-- `POST /api/orders/:id/cancel`: dono, só em `AGUARDANDO_PAGAMENTO`.
+- `POST /api/orders/:id/cancel`: dono, só em `AGUARDANDO_PAGAMENTO` (parte das telas).
 - `POST /api/payments/webhook`: pública, com assinatura obrigatória.
-- `GET /api/mp/connect`: vendedor; devolve a URL de autorização do Mercado Pago.
+- `POST /api/mp/connect`: vendedor; grava o state e devolve a URL de autorização do Mercado Pago.
+  É `POST` porque grava (o state) e assim passa pela fila de escrita.
+- `GET /api/admin/settings` e `PUT /api/admin/settings`: comissão (ADMIN).
 - `GET /api/mp/callback`: retorno do OAuth (`code`, `state`).
 - `DELETE /api/mp/connect`: desconecta.
 - `GET /api/mp/status`: `{ connected, expiresAt }`, sem token.
