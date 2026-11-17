@@ -7,22 +7,18 @@ arquivo no mesmo PR (`docs/agents/architecture.md`).
 Regras que valem para todas as rotas:
 
 - Erro sempre como `{ "message": string }` com o status HTTP correspondente.
-- Falha de leitura ou gravação do `db.json` (ex.: arquivo corrompido) responde `500` com `{ "message": string }` em qualquer rota. O servidor não cai; o arquivo não é regravado (issue #39).
-- Entrada que o cliente errou volta com o status dele: JSON malformado é `400` e corpo maior que 2 MB é `413`, ambos com `{ "message": string }`. Rota `/api/*` que não existe responde `404`.
-- Banco ilegível em rota autenticada é `500`, nunca `401` (o `401` é só do token).
-- Limites de entrada: preço do produto até R$ 10.000.000, estoque até 1.000.000 e quantidade por item do pedido de 1 a 10.000.
 - Autenticação por `Authorization: Bearer <JWT>` (validade de 7 dias, payload
   `{ sub, email, role }`). Token ausente ou inválido: 401. Perfil sem
   permissão: 403.
-- Texto enviado pelo usuário (nome, empresa, campos do produto e da loja, texto da
-  avaliação, descrição do lançamento financeiro) é gravado com HTML escapado (`<` vira `&lt;` etc.),
-  porque o front monta as telas com `innerHTML`.
+- Texto enviado pelo usuário (nome, empresa, campos do produto) é gravado com
+  HTML escapado (`<` vira `&lt;` etc.), porque o front monta as telas com
+  `innerHTML`.
 
 ```yaml
 openapi: 3.0.0
 info:
   title: AgroTech API
-  version: 1.5.0
+  version: 1.1.0
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -38,12 +34,6 @@ components:
         propertyOrCompany: { type: string }
         email: { type: string }
         role: { type: string, enum: [PRODUTOR, VENDEDOR, ADMIN] }
-        storeProfileImage: { type: string, nullable: true, description: link http(s) ou foto enviada }
-        storeCoverImage: { type: string, nullable: true, description: link http(s) ou foto enviada }
-        storeBio: { type: string, description: até 500 caracteres }
-        storePhone: { type: string }
-        storeLocation: { type: string }
-        storeHours: { type: string }
     Session:
       type: object
       properties:
@@ -52,7 +42,7 @@ components:
     Product:
       type: object
       properties:
-        id: { type: string, description: 'UUID; anúncio gravado antes da issue #27 mantém o id que tinha (ex.: "1")' }
+        id: { type: string }
         name: { type: string }
         price: { type: number, exclusiveMinimum: 0 }
         category: { type: string }
@@ -75,13 +65,12 @@ components:
     Order:
       type: object
       properties:
-        id: { type: string, example: AGT-9F3A2C1B7D4E, description: 'AGT- e 12 hexadecimais aleatórios (48 bits); pedido gravado antes da issue #27 mantém o formato AGT-12345' }
+        id: { type: string, example: AGT-12345 }
         ownerEmail: { type: string }
-        date: { type: string, description: 'só em pedido gravado antes da issue #25: data legível do seed ("15/Set/2026") ou "Hoje", que não é data real; pedido novo não tem' }
-        createdAt: { type: string, format: date-time, description: 'quando o pedido foi criado; a tela de pedidos mostra em dd/mm/aaaa. Pedido gravado antes da issue #6 não tem' }
+        date: { type: string }
         status: { type: string }
         statusStep: { type: integer, minimum: 1, maximum: 4 }
-        trackingCode: { type: string, example: BR-AGRO-9F3A2C1B7D4E-X, description: '12 hexadecimais aleatórios (48 bits); pedido antigo mantém o formato BR-AGRO-123456-X' }
+        trackingCode: { type: string }
         carrier: { type: string }
         estimatedDelivery: { type: string }
         total: { type: number, description: 'calculado no servidor (calculateCartSummary, src/services/commerce.js)' }
@@ -94,19 +83,21 @@ components:
         timeline:
           type: array
           items: { type: object, properties: { title: { type: string }, time: { type: string }, completed: { type: boolean } } }
-    FinanceEntry:
-      type: object
-      description: >-
-        Lançamento do extrato financeiro da conta. COMPRA = pedido da conta (saída, pelo total do
-        pedido); VENDA = itens dos produtos da conta num pedido de outra conta (entrada, preço x
-        quantidade, sem cupom nem frete); MANUAL = lançamento digitado pela conta.
-      properties:
-        id: { type: string, example: compra-AGT-12345 }
-        type: { type: string, enum: [INCOME, EXPENSE] }
-        source: { type: string, enum: [COMPRA, VENDA, MANUAL] }
-        title: { type: string }
-        amount: { type: number, exclusiveMinimum: 0 }
-        date: { type: string, format: date-time, nullable: true, description: 'null em pedido antigo sem data real (gravado só com "Hoje")' }
+   Payment:
+     type: object
+     properties:
+       id: { type: string, example: pay-3f9c1a2b }
+       ownerEmail: { type: string }
+       orderId: { type: string, nullable: true }
+       method: { type: string, enum: [pix, credit, boleto] }
+       installments: { type: integer, minimum: 1, maximum: 6, description: 'sempre 1 para pix e boleto' }
+       total: { type: number, description: 'calculado no servidor (catálogo ou total do pedido vinculado), nunca do cliente' }
+       status:
+         type: string
+         enum: [PENDENTE, APROVADO, RECUSADO, EXPIRADO]
+         description: 'máquina de estados em src/services/payment.js: PENDENTE→APROVADO/RECUSADO/EXPIRADO, RECUSADO→PENDENTE (nova tentativa). Pagamento aprovado é o que faz o pedido avançar.'
+       createdAt: { type: string, description: 'ISO 8601' }
+     description: 'Nenhum dado sensível de cartão (número, CVV, validade) é aceito, persistido ou logado.'
 paths:
   /api/health:
     get:
@@ -182,59 +173,6 @@ paths:
         '201': { description: 'anúncio criado', content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }
         '400': { description: 'dados incompletos, preço/estoque inválidos ou imagem inválida' }
         '401': { description: 'sem token ou token inválido' }
-  /api/auth/store:
-    put:
-      summary: Edita o perfil da loja do usuário da sessão
-      security: [{ bearer: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name: { type: string }
-                propertyOrCompany: { type: string }
-                storeProfileImage: { type: string, description: link http(s) ou foto enviada (data URL de imagem) }
-                storeCoverImage: { type: string, description: link http(s) ou foto enviada (data URL de imagem) }
-                storeBio: { type: string, maxLength: 500 }
-                storePhone: { type: string }
-                storeLocation: { type: string }
-                storeHours: { type: string }
-      responses:
-        '200': { description: 'perfil atualizado', content: { application/json: { schema: { type: object, properties: { user: { $ref: '#/components/schemas/User' } } } } } }
-        '400': { description: 'nome vazio ou imagem inválida' }
-        '401': { description: 'sem token ou token inválido' }
-        '404': { description: 'usuário não encontrado' }
-  /api/products/{id}/reviews:
-    post:
-      summary: Avalia um anúncio (texto até 600 caracteres, nota de 0 a 5; sem nota vale 5)
-      security: [{ bearer: [] }]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties: { text: { type: string, maxLength: 600 }, rating: { type: number, minimum: 0, maximum: 5 } }
-      responses:
-        '201': { description: 'avaliação criada', content: { application/json: { schema: { type: object, properties: { review: { type: object }, rating: { type: number }, reviewsCount: { type: integer } } } } } }
-        '400': { description: 'texto vazio' }
-        '401': { description: 'sem token ou token inválido' }
-        '404': { description: 'produto não encontrado' }
-  /api/products/{id}/reviews/{reviewId}:
-    delete:
-      summary: Remove uma avaliação (o autor dela ou ADMIN)
-      security: [{ bearer: [] }]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: reviewId, in: path, required: true, schema: { type: string } }]
-      responses:
-        '204': { description: 'removida' }
-        '401': { description: 'sem token ou token inválido' }
-        '403': { description: 'não é o autor nem ADMIN' }
-        '404': { description: 'produto ou avaliação não encontrados' }
   /api/products/{id}:
     delete:
       summary: Remove um anúncio (dono do anúncio ou ADMIN)
@@ -266,38 +204,72 @@ paths:
                 items:
                   type: array
                   minItems: 1
-                  items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1, maximum: 10000 } } }
-                coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20], description: 'sem diferenciar maiúsculas; cupom que não existe ou abaixo do valor mínimo é ignorado, sem erro, e o pedido sai sem desconto' }
+                  items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1 } } }
+                coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20] }
       responses:
         '201': { description: 'pedido criado', content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
-        '400': { description: 'lista vazia, produto fora do catálogo ou quantidade que não é inteira de 1 a 10.000' }
+        '400': { description: 'lista vazia, produto fora do catálogo ou quantidade inválida' }
         '401': { description: 'sem token ou token inválido' }
-  /api/finance/entries:
-    get:
-      summary: Extrato financeiro da conta da sessão, do mais recente ao mais antigo (ADMIN também vê só o dele)
-      security: [{ bearer: [] }]
-      responses:
-        '200': { description: 'lançamentos', content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/FinanceEntry' } } } } }
-        '401': { description: 'sem token ou token inválido' }
-    post:
-      summary: Registra um lançamento manual na conta da sessão
-      security: [{ bearer: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [title, amount, type]
-              properties:
-                title: { type: string, maxLength: 120, description: 'cortado em 120 caracteres' }
-                amount: { type: number, exclusiveMinimum: 0 }
-                type: { type: string, enum: [INCOME, EXPENSE] }
-      responses:
-        '201': { description: 'lançamento criado (source MANUAL)', content: { application/json: { schema: { $ref: '#/components/schemas/FinanceEntry' } } } }
-        '400': { description: 'descrição vazia, valor que não é maior que zero ou tipo fora da lista' }
-        '401': { description: 'sem token ou token inválido' }
-  /api/admin/summary:
+  /api/payments:
+     post:
+       summary: Abre um pagamento no estado PENDENTE (RF04)
+       security: [{ bearer: [] }]
+       requestBody:
+         required: true
+         content:
+           application/json:
+             schema:
+               type: object
+               properties:
+                 method: { type: string, enum: [pix, credit, boleto] }
+                 installments: { type: integer, minimum: 1, maximum: 6, default: 1, description: 'cartão: 1–6; pix e boleto: só 1' }
+                 items:
+                   type: array
+                   description: 'obrigatório se orderId não for informado'
+                   items: { type: object, required: [id, quantity], properties: { id: { type: string }, quantity: { type: integer, minimum: 1 } } }
+                 coupon: { type: string, enum: [AGRO10, FRETEGRATIS, NOVOCLIENTE, COLHEITA20] }
+                 orderId: { type: string, description: 'se informado, o total é o do pedido (que deve ser do usuário)' }
+               description: 'Campos de cartão (número, CVV, validade) não fazem parte do contrato e são descartados.'
+       responses:
+         '201': { description: 'pagamento criado como PENDENTE', content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+         '400': { description: 'meio inválido, parcelas fora de 1–6 (cartão) ou itens/pedido ausentes' }
+         '401': { description: 'sem token ou token inválido' }
+         '404': { description: 'orderId informado não existe ou não é do usuário' }
+   /api/payments/{id}:
+     get:
+       summary: Consulta um pagamento do usuário
+       security: [{ bearer: [] }]
+       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+       responses:
+         '200': { description: 'pagamento', content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+         '401': { description: 'sem token ou token inválido' }
+         '404': { description: 'pagamento de outro usuário ou inexistente' }
+   /api/payments/{id}/confirm:
+     post:
+       summary: Confirma o pagamento (PENDENTE -> APROVADO); o pedido vinculado avança
+       security: [{ bearer: [] }]
+       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+       responses:
+         '200': { description: 'pagamento APROVADO', content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+         '404': { description: 'pagamento não encontrado' }
+         '409': { description: 'transição inválida (ex.: já RECUSADO ou EXPIRADO)' }
+   /api/payments/{id}/refuse:
+     post:
+       summary: Recusa o pagamento (PENDENTE -> RECUSADO; pode voltar a PENDENTE numa nova tentativa)
+       security: [{ bearer: [] }]
+       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+       responses:
+         '200': { description: 'pagamento RECUSADO', content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+         '409': { description: 'transição inválida (ex.: APROVADO não recusa)' }
+   /api/payments/{id}/expire:
+     post:
+       summary: Expira o pagamento (PENDENTE -> EXPIRADO; Pix/boleto vencidos)
+       security: [{ bearer: [] }]
+       parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+       responses:
+         '200': { description: 'pagamento EXPIRADO', content: { application/json: { schema: { $ref: '#/components/schemas/Payment' } } } }
+         '409': { description: 'transição inválida (ex.: APROVADO não expira)' }
+   /api/admin/summary:
     get:
       summary: Totais da plataforma
       security: [{ bearer: [] }]

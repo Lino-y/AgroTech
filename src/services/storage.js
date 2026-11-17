@@ -1,7 +1,10 @@
 const STORAGE_KEYS = {
   USER: 'agrotech_user',
   PRODUCTS: 'agrotech_products',
-  TOKEN: 'agrotech_token'
+  TOKEN: 'agrotech_token',
+  FINANCE: 'agrotech_finance',
+  CART: 'agrotech_cart',
+  COUPON: 'agrotech_coupon'
 };
 
 export function readStorage(key, fallback = null) {
@@ -65,4 +68,28 @@ export function setToken(token) {
 
 export function removeToken() {
   removeStorage(STORAGE_KEYS.TOKEN);
+}
+
+export function getFinance() {
+  return readStorage(STORAGE_KEYS.FINANCE, null);
+}
+
+export function setFinance(finance) {
+  writeStorage(STORAGE_KEYS.FINANCE, finance);
+}
+
+export function getCart() {
+  return readStorage(STORAGE_KEYS.CART, null);
+}
+
+export function setCart(cart) {
+  writeStorage(STORAGE_KEYS.CART, cart);
+}
+
+export function getCoupon() {
+  return readStorage(STORAGE_KEYS.COUPON, null);
+}
+
+export function setCoupon(coupon) {
+  writeStorage(STORAGE_KEYS.COUPON, coupon);
 }

@@ -1,3 +1,5 @@
+import { formatBRL } from '../services/format.js';
+
 export function renderProductCard(product) {
   return `
     <div style="background: white; border-radius: 8px; padding: 12px; margin: 8px; border: 1px solid #e2e8f0;">
@@ -5,7 +7,7 @@ export function renderProductCard(product) {
         ${product.emoji}
       </div>
       <h3 style="font-size: 14px; margin-top: 8px;">${product.name}</h3>
-      <p style="color: var(--forest); font-weight: bold; margin-top: 4px;">R$ ${product.price.toFixed(2)}</p>
+      <p style="color: var(--forest); font-weight: bold; margin-top: 4px;">R$ ${formatBRL(product.price)}</p>
       <button onclick="addToCart('${product.id}')" style="width: 100%; background: var(--forest); color: white; border: none; padding: 8px; border-radius: 4px; margin-top: 8px; cursor: pointer;">Adicionar</button>
     </div>
   `;

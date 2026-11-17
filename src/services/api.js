@@ -1,47 +1,26 @@
 import { getToken, removeToken, removeUser } from './storage.js';
 
-// A tela registra o que fazer quando a sessão deixa de valer (volta ao login e limpa o estado da conta).
-let onUnauthorized = null;
-export function setUnauthorizedHandler(handler) {
-  onUnauthorized = handler;
-}
-
-// Sem limite de tempo, um servidor que não responde deixava o "carregando" ligado para sempre.
-const REQUEST_TIMEOUT_MS = 30_000;
-
 export async function apiRequest(path, options = {}) {
   const token = getToken();
-  // Os cabeçalhos do chamador somam aos montados aqui; não podem apagar o token (issue #22).
-  const { headers = {}, ...rest } = options;
   const response = await fetch(`/api${path}`, {
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    ...rest,
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers
+      ...(options.headers || {})
     }
-  }).catch((error) => {
-    if (error?.name === 'TimeoutError') {
-      throw new Error('O servidor demorou para responder. Tente de novo.', { cause: error });
-    }
-    // O fetch só rejeita quando a requisição não chega ao servidor (sem internet, servidor fora do ar).
-    throw new Error('Sem conexão com o servidor. Verifique a internet e tente de novo.', { cause: error });
   });
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     const message = payload.message || 'Erro ao carregar dados do servidor.';
 
-    // 401 de quem estava logado: a sessão deixou de valer. O 403 é regra de negócio (ex.: excluir o
-    // anúncio de outro) e não encerra nada.
-    if (response.status === 401 && token) {
+    if (response.status === 401 || response.status === 403) {
       removeToken();
       removeUser();
-      onUnauthorized?.();
     }
 
-    throw Object.assign(new Error(message), { status: response.status });
+    throw new Error(message);
   }
 
   if (response.status === 204) return null;
@@ -68,20 +47,26 @@ export async function createOrder(payload) {
   return apiRequest('/orders', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+// RF04: pagamento nasce PENDENTE; confirmação explícita separada.
+export async function createPayment(payload) {
+  return apiRequest('/payments', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function confirmPayment(id) {
+  return apiRequest(`/payments/${encodeURIComponent(id)}/confirm`, { method: 'POST' });
+}
+
 export async function loadOrders() {
   return apiRequest('/orders');
 }
 
-export async function loadFinanceEntries() {
-  return apiRequest('/finance/entries');
-}
-
-export async function createFinanceEntry(payload) {
-  return apiRequest('/finance/entries', { method: 'POST', body: JSON.stringify(payload) });
-}
-
 export async function updateStore(payload) {
   return apiRequest('/auth/store', { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+// Perfil público de uma loja (capa, foto, bio, contato) por e-mail do vendedor
+export async function loadSellerStore(email) {
+  return apiRequest(`/store/${encodeURIComponent(email)}`);
 }
 
 export async function deleteProduct(id) {

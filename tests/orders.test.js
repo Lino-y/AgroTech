@@ -144,7 +144,7 @@ const login = async (email, password) => (await api('POST', '/api/auth/login', {
 test('anúncio e pedido novos saem com o id novo, e os gravados antes continuam valendo', async () => {
   const seller = await newUser({ role: 'VENDEDOR' });
   const buyer = await newUser();
-  const product = await api('POST', '/api/products', { name: 'Milho', price: 150, category: 'Grãos', description: 'lote' }, seller.token);
+  const product = await api('POST', '/api/products', { name: 'Milho', price: 150, category: 'Grãos', description: 'lote', imageUrl: 'https://exemplo.com/milho.png' }, seller.token);
   assert.equal(product.status, 201);
   assert.match(product.body.id, UUID);
 

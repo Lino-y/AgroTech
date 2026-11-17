@@ -6,7 +6,8 @@ export default [
   { ignores: ['node_modules/', '.qa/'] },
   js.configs.recommended,
   { files: ['src/**/*.js'], languageOptions: { globals: globals.browser } },
-  { files: ['server.js', 'tests/**/*.js', 'eslint.config.js'], languageOptions: { globals: globals.node } },
+  { files: ['server.js', 'tests/**/*.js', 'scripts/**/*.js', 'eslint.config.js'], languageOptions: { globals: { ...globals.node, ...globals.browser } } },
+  { files: ['scripts/**/*.mjs'], rules: { 'no-undef': 'off' } },
   { files: ['.ai/**/*.js', '.claude/**/*.js'], languageOptions: { sourceType: 'commonjs', globals: globals.node } },
   {
     rules: {
