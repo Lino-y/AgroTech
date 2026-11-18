@@ -277,3 +277,19 @@ Antes de codar, dois testes no sandbox real decidiram o desenho:
   `GET`/`PUT /api/admin/settings` e `POST /api/admin/orders/{id}/refund`, que já existiam.
 - **Versão do app:** 0.5.1 (versionCode 14).
 - **Falta:** a web (parte 3c) e o patrocínio pago (parte 4, depende da spec 09).
+
+## 15. Parte 3c: web (em andamento, 2026-11-18)
+
+Análise: `.claude/analysis/feat-91-mercado-pago-web-3c.md` (Opus 5.5, planejamento). Implementação: Haiku 5.5.
+As cinco decisões foram tomadas pelas recomendações da análise, por falta de resposta explícita do usuário;
+ver a seção de decisões abaixo.
+
+### Passo 1 (nível 3): regras compartilhadas no domínio
+
+| ID | Critério | Status | Evidência |
+|----|----------|--------|-----------|
+| CA34 | URL segura, botões do pedido, mensagem de resultado, conflito de vendedor e carrinho ficam em `packages/domain/payments.js`; o app só reexporta | ✅ | `packages/domain/payments.js:136`, `packages/domain/payments.js:145`, `packages/domain/payments.js:157`, `packages/domain/payments.js:183`, `packages/domain/payments.js:194`; `apps/mobile/src/lib/payment.ts:14`; testes "link de pagamento …", "?pedido= da volta …", "botões do pedido …", "vendedor do carrinho …", "pagar pelo carrinho …" em `tests/payments.test.js:155` a `tests/payments.test.js:199` |
+
+- **Decisão tomada sem resposta explícita:** `orderIdFromSearch` usa expressão regular, não `URLSearchParams`,
+  porque o domínio só pode usar globais do ECMAScript (ADR-0002; o lint acusou `no-undef`).
+- **Verificação:** `npm test` 404/404; lint 17 avisos e 0 erros; typecheck da raiz e do app sem erro; app 134/134.
