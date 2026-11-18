@@ -293,3 +293,10 @@ ver a seção de decisões abaixo.
 - **Decisão tomada sem resposta explícita:** `orderIdFromSearch` usa expressão regular, não `URLSearchParams`,
   porque o domínio só pode usar globais do ECMAScript (ADR-0002; o lint acusou `no-undef`).
 - **Verificação:** `npm test` 404/404; lint 17 avisos e 0 erros; typecheck da raiz e do app sem erro; app 134/134.
+
+### Passo 2 (nível 2): serviços de API
+
+Sem CA próprio: o passo prepara o que o passo 4 (catálogo) usa. Testes em `tests/api-client.test.js`.
+- `createOrder(payload, idempotencyKey)` manda `Idempotency-Key` só com chave não vazia (`src/services/api.js:69`).
+- `loadAppConfig`, `syncOrder` e `cancelOrder` codificam o id e usam `apiRequest` (`src/services/api.js:74` a `:84`).
+- **Teste:** 4 casos novos; `npm test` 408/408.

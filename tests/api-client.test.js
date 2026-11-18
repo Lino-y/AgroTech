@@ -33,3 +33,45 @@ test('o resto das opções (método, corpo) chega ao fetch', async (t) => {
   assert.equal(options.method, 'PUT');
   assert.equal(options.body, '{"a":1}');
 });
+
+// --- parte 3c: pagamento pela web (api.js) ---
+const { createOrder, loadAppConfig, syncOrder, cancelOrder } = await import('../src/services/api.js');
+
+test('createOrder com chave manda Idempotency-Key e mantém o token e o Content-Type', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response('{}', { status: 201 }));
+  await createOrder({ items: [], returnTo: 'web' }, 'ord-abc12345');
+  const [url, options] = fetchMock.mock.calls[0].arguments;
+  assert.equal(url, '/api/orders');
+  assert.equal(options.method, 'POST');
+  assert.equal(options.headers['Idempotency-Key'], 'ord-abc12345');
+  assert.equal(options.headers.Authorization, 'Bearer tok-123');
+  assert.equal(options.headers['Content-Type'], 'application/json');
+});
+
+test('createOrder sem chave, ou com chave undefined, não manda cabeçalho Idempotency-Key', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response('{}', { status: 201 }));
+  await createOrder({ items: [] });
+  await createOrder({ items: [] }, undefined);
+  await createOrder({ items: [] }, '');
+  for (const call of fetchMock.mock.calls) {
+    assert.equal(call.arguments[1].headers['Idempotency-Key'], undefined);
+  }
+});
+
+test('syncOrder e cancelOrder chamam o caminho e o método certos, e codificam o id', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response('{}', { status: 200 }));
+  await syncOrder('AGT-B403E9D09B59');
+  await cancelOrder('AGT-B403E9D09B59');
+  await syncOrder('A/B');
+  const [first, second, third] = fetchMock.mock.calls.map((call) => [call.arguments[0], call.arguments[1].method]);
+  assert.deepEqual(first, ['/api/orders/AGT-B403E9D09B59/sync', 'POST']);
+  assert.deepEqual(second, ['/api/orders/AGT-B403E9D09B59/cancel', 'POST']);
+  assert.equal(third[0], '/api/orders/A%2FB/sync');
+});
+
+test('loadAppConfig pede /api/app-config por GET', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response('{"payments":"mercadopago"}', { status: 200 }));
+  const config = await loadAppConfig();
+  assert.equal(fetchMock.mock.calls[0].arguments[0], '/api/app-config');
+  assert.equal(config.payments, 'mercadopago');
+});
