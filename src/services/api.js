@@ -64,8 +64,25 @@ export async function createProduct(payload) {
   return apiRequest('/products', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export async function createOrder(payload) {
-  return apiRequest('/orders', { method: 'POST', body: JSON.stringify(payload) });
+// A chave vem do chamador, uma vez por fechamento: um reenvio com a mesma chave devolve o mesmo pedido.
+// Sem chave válida, o cabeçalho não é enviado (um undefined iria como a palavra "undefined").
+export async function createOrder(payload, idempotencyKey) {
+  const headers = typeof idempotencyKey === 'string' && idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {};
+  return apiRequest('/orders', { method: 'POST', body: JSON.stringify(payload), headers });
+}
+
+export async function loadAppConfig() {
+  return apiRequest('/app-config');
+}
+
+// Volta do Checkout Pro: pede ao servidor para conferir o pagamento (quem decide é o Mercado Pago, não a página).
+export async function syncOrder(id) {
+  return apiRequest(`/orders/${encodeURIComponent(id)}/sync`, { method: 'POST' });
+}
+
+// Comprador desiste de um pedido que ainda aguarda pagamento.
+export async function cancelOrder(id) {
+  return apiRequest(`/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
 }
 
 export async function loadOrders() {

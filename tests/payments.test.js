@@ -3,7 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { marketplaceFeeCents, paymentDecision, PAYMENT_STATUS, toCents } from '../packages/domain/payments.js';
+import {
+  cartSellerProblem, isSafeCheckoutUrl, marketplaceFeeCents, orderActions, orderIdFromSearch, paymentDecision,
+  paymentResultMessage, PAYMENT_STATUS, sellerConflict, toCents
+} from '../packages/domain/payments.js';
 import { buildFinanceEntries } from '../packages/domain/finance.js';
 import { decryptToken, encryptToken, verifyWebhookSignature } from '../apps/api/mercadopago.js';
 
@@ -145,4 +148,57 @@ test('token do vendedor cifrado: volta igual com a chave certa e falha se altera
   const tampered = sealed.slice(0, -2) + (sealed.endsWith('A') ? 'BB' : 'AA');
   assert.throws(() => decryptToken(key, tampered));
   assert.throws(() => decryptToken(crypto.randomBytes(32), sealed));
+});
+
+// --- pagamento na interface (app e web) ---
+
+test('link de pagamento: só https do Mercado Pago; domínio parecido e http são recusados', () => {
+  assert.equal(isSafeCheckoutUrl('https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=1'), true);
+  assert.equal(isSafeCheckoutUrl('https://sandbox.mercadopago.com/checkout/v1/redirect?pref_id=1'), true);
+  assert.equal(isSafeCheckoutUrl('http://www.mercadopago.com.br/checkout'), false);
+  assert.equal(isSafeCheckoutUrl('https://mercadopago.com.br.evil.dev/checkout'), false);
+  assert.equal(isSafeCheckoutUrl('https://mercadopago.com.evil.dev/'), false);
+  assert.equal(isSafeCheckoutUrl('javascript:alert(1)'), false);
+  assert.equal(isSafeCheckoutUrl(undefined), false);
+});
+
+test('?pedido= da volta: só AGT- com 3 a 40 caracteres; curto, outro campo ou ausente é null', () => {
+  assert.equal(orderIdFromSearch('?pedido=AGT-B403E9D09B59&status=approved'), 'AGT-B403E9D09B59');
+  assert.equal(orderIdFromSearch('?status=approved&pedido=AGT-B403E9D09B59'), 'AGT-B403E9D09B59');
+  assert.equal(orderIdFromSearch('?pedido=AGT-AB'), null, 'curto demais');
+  assert.equal(orderIdFromSearch('?pedido=<script>'), null);
+  assert.equal(orderIdFromSearch('?status=approved'), null, 'sem pedido');
+  assert.equal(orderIdFromSearch(''), null);
+});
+
+test('botões do pedido: aguardando sem pagamento paga e cancela; boleto em andamento só confere; pago, nada', () => {
+  const checkoutUrl = 'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=1';
+  assert.deepEqual(orderActions({ paymentStatus: 'AGUARDANDO_PAGAMENTO', payment: { checkoutUrl } }), { pay: true, cancel: true, check: true, note: null });
+  const boleto = orderActions({ paymentStatus: 'AGUARDANDO_PAGAMENTO', payment: { checkoutUrl, mpStatus: 'pending', method: 'ticket' } });
+  assert.deepEqual([boleto.pay, boleto.cancel, boleto.check], [false, false, true]);
+  assert.match(boleto.note ?? '', /boleto/);
+  assert.equal(orderActions({ paymentStatus: 'AGUARDANDO_PAGAMENTO', payment: { checkoutUrl: 'http://x.dev' } }).pay, false, 'link fora do Mercado Pago não abre');
+  assert.deepEqual(orderActions({ paymentStatus: 'PAGO', payment: { checkoutUrl } }), { pay: false, cancel: false, check: false, note: null });
+  assert.deepEqual(orderActions({ status: 'Pedido Confirmado' }), { pay: false, cancel: false, check: false, note: null }, 'pedido simulado');
+});
+
+test('mensagem depois de conferir: a verdade é o paymentStatus do servidor', () => {
+  assert.match(paymentResultMessage({ id: 'AGT-1', paymentStatus: 'PAGO' }).title, /aprovado/);
+  assert.match(paymentResultMessage({ id: 'AGT-1', paymentStatus: 'AGUARDANDO_PAGAMENTO', payment: { mpStatus: 'pending', method: 'pix' } }).title, /andamento/);
+  assert.match(paymentResultMessage({ id: 'AGT-1', paymentStatus: 'AGUARDANDO_PAGAMENTO', payment: {} }).title, /não foi concluído/);
+  assert.match(paymentResultMessage({ id: 'AGT-1', paymentStatus: 'CANCELADO' }).title, /cancelado/i);
+});
+
+test('vendedor do carrinho: outro vendedor conflita; produto sem dono não bloqueia; carrinho vazio não conflita', () => {
+  assert.equal(sellerConflict([{ ownerEmail: 'a@x.dev' }], { ownerEmail: 'b@x.dev' }), true);
+  assert.equal(sellerConflict([{ ownerEmail: 'a@x.dev' }], { ownerEmail: 'a@x.dev' }), false);
+  assert.equal(sellerConflict([{ ownerEmail: 'a@x.dev' }], {}), false, 'anúncio antigo sem dono');
+  assert.equal(sellerConflict([], { ownerEmail: 'b@x.dev' }), false);
+});
+
+test('pagar pelo carrinho: dois vendedores recusados; vendedor que não recebe recusado; caso bom passa', () => {
+  const ok = [{ name: 'Milho', ownerEmail: 'a@x.dev', payable: true }];
+  assert.equal(cartSellerProblem(ok), null);
+  assert.match(cartSellerProblem([...ok, { name: 'Ração', ownerEmail: 'b@x.dev', payable: true }]) ?? '', /mais de um vendedor/);
+  assert.match(cartSellerProblem([{ name: 'Sal', ownerEmail: 'c@x.dev', payable: false }]) ?? '', /Sal.*não recebe/);
 });

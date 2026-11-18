@@ -122,3 +122,79 @@ function paymentMismatch(order, payment, collectorId) {
  */
 export const countsAsSale = (order) =>
   order.paymentStatus !== PAYMENT_STATUS.AGUARDANDO && order.paymentStatus !== PAYMENT_STATUS.CANCELADO;
+
+// --- Pagamento na interface (app e web). Funções puras: quem chama decide o que fazer com o resultado. ---
+
+/** @type {Record<string, string>} */
+const METHOD_LABEL = { ticket: 'boleto', pix: 'Pix', bank_transfer: 'Pix', credit_card: 'cartão', debit_card: 'cartão de débito' };
+
+/**
+ * Só abre link https do próprio Mercado Pago (o servidor manda o init_point da preferência).
+ * @param {string | null | undefined} url
+ * @returns {boolean}
+ */
+export function isSafeCheckoutUrl(url) {
+  return /^https:\/\/([a-z0-9-]+\.)*mercadopago\.com(\.br)?(\/|$)/i.test(String(url ?? ''));
+}
+
+/**
+ * Número do pedido na busca da página (?pedido=AGT-…). Qualquer outro formato é null.
+ * @param {string | null | undefined} search
+ * @returns {string | null}
+ */
+export function orderIdFromSearch(search) {
+  const match = /(?:^|[?&])pedido=([^&#]*)/.exec(String(search ?? ''));
+  return match && /^AGT-[A-Z0-9]{3,40}$/.test(match[1]) ? match[1] : null;
+}
+
+/** @param {string | null | undefined} method */
+const pendingNote = (method) => `Pagamento em andamento (${METHOD_LABEL[String(method)] ?? 'em análise'}): o pedido confirma sozinho quando o Mercado Pago aprovar.`;
+
+/**
+ * Botões do pedido em "Meus pedidos". Pedido simulado ou já resolvido não tem nenhum.
+ * @param {{ status?: string, paymentStatus?: string, payment?: { checkoutUrl?: string, mpStatus?: string | null, method?: string | null } }} order
+ */
+export function orderActions(order) {
+  if (order.paymentStatus !== 'AGUARDANDO_PAGAMENTO') return { pay: false, cancel: false, check: false, note: null };
+  if (isPendingPayment(order.payment?.mpStatus)) return { pay: false, cancel: false, check: true, note: pendingNote(order.payment?.method) };
+  return { pay: isSafeCheckoutUrl(order.payment?.checkoutUrl), cancel: true, check: true, note: null };
+}
+
+/**
+ * O que mostrar depois de conferir o pagamento no servidor. A verdade é o paymentStatus do servidor.
+ * @param {{ id?: string, paymentStatus?: string, payment?: { mpStatus?: string | null, method?: string | null } }} order
+ * @returns {{ title: string, body: string }}
+ */
+export function paymentResultMessage(order) {
+  const id = order.id ?? '';
+  if (order.paymentStatus === 'PAGO') return { title: 'Pagamento aprovado', body: `Pedido ${id} confirmado.` };
+  if (order.paymentStatus === 'CANCELADO') return { title: 'Pedido cancelado', body: `O pedido ${id} foi cancelado e o estoque foi liberado.` };
+  if (order.paymentStatus === 'ESTORNADO') return { title: 'Pagamento estornado', body: `O pagamento do pedido ${id} foi devolvido.` };
+  if (isPendingPayment(order.payment?.mpStatus)) return { title: 'Pagamento em andamento', body: pendingNote(order.payment?.method) };
+  return { title: 'O pagamento não foi concluído', body: `O pedido ${id} continua aguardando. Você pode pagar de novo em Meus pedidos.` };
+}
+
+/**
+ * Vendedor diferente do que já está no carrinho? Produto sem dono (anúncio antigo) não bloqueia.
+ * @param {{ ownerEmail?: string }[]} products itens do carrinho
+ * @param {{ ownerEmail?: string }} product o que a pessoa quer adicionar
+ * @returns {boolean}
+ */
+export function sellerConflict(products, product) {
+  const seller = products.find((item) => item.ownerEmail)?.ownerEmail;
+  return Boolean(seller && product.ownerEmail && seller !== product.ownerEmail);
+}
+
+/**
+ * Problema do carrinho para pagar pelo Mercado Pago, com os produtos já conferidos no catálogo ao vivo:
+ * mais de um vendedor, ou produto de vendedor que ainda não recebe. null = pode pagar.
+ * @param {{ name: string, ownerEmail?: string, payable?: boolean }[]} products
+ * @returns {string | null}
+ */
+export function cartSellerProblem(products) {
+  const sellers = new Set(products.map((product) => product.ownerEmail).filter(Boolean));
+  if (sellers.size > 1) return 'O carrinho tem produtos de mais de um vendedor. Pague um vendedor por vez: remova os de outro vendedor.';
+  const blocked = products.filter((product) => product.payable === false).map((product) => product.name);
+  if (blocked.length) return `O vendedor de ${blocked.join(', ')} ainda não recebe pelo Mercado Pago. Remova do carrinho para pagar o resto.`;
+  return null;
+}
