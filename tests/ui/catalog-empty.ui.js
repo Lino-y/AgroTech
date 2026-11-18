@@ -37,12 +37,14 @@ test('busca: o contador e os cartões mostram só os anúncios que casam com o t
   await page.close();
 });
 
-test('busca: o contador continua certo depois de a tela ser redesenhada', { skip: skipReason }, async () => {
+test('busca: ao voltar para a tela de catálogo, a busca vem limpa (contagem cheia)', { skip: skipReason }, async () => {
   const page = await app.open({ products: { body: CATALOG } });
   await type(page, 'milho');
   await page.evaluate("navigateTo('catalog')");
-  assert.equal(await page.evaluate(COUNTER), '1 anúncios ativos');
-  assert.equal(await page.evaluate(SHOWN), 1);
+  // navigateTo limpa o termo: a caixa e o contador voltam ao estado cheio.
+  assert.equal(await page.evaluate(COUNTER), '3 anúncios ativos');
+  assert.equal(await page.evaluate(SHOWN), 3);
+  assert.equal(await page.evaluate("document.getElementById('searchInput').value"), '');
   assert.deepEqual(page.errors, []);
   await page.close();
 });
