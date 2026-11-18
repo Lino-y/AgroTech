@@ -140,3 +140,19 @@ test('volta com pedido de outra conta (404): mostra a mensagem do servidor, não
   assert.equal(calls.notify[0].body, 'Pedido não encontrado.');
   assert.doesNotMatch(calls.notify[0].title, /internet/);
 });
+
+test('volta guardada para depois do login: ida e volta, id inválido descartado, sem armazenamento não quebra', async () => {
+  const { createReturnStore } = await import('../src/modules/mp-checkout.js');
+  const data = new Map();
+  const storage = { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, v), removeItem: (k) => data.delete(k) };
+  const store = createReturnStore(() => storage);
+  store.save('AGT-B403E9D09B59');
+  assert.equal(store.read(), 'AGT-B403E9D09B59');
+  data.set('agrotech.pendingReturn', '<img src=x>');
+  assert.equal(store.read(), null, 'valor fora do formato do servidor é descartado');
+  store.save(null);
+  assert.equal(store.read(), null, 'salvar vazio limpa a volta');
+  const broken = createReturnStore(() => { throw new Error('bloqueado'); });
+  assert.doesNotThrow(() => broken.save('AGT-B403E9D09B59'));
+  assert.equal(broken.read(), null);
+});

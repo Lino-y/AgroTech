@@ -8,7 +8,7 @@ import { calculateCartSummary, validateCouponCode } from '../../packages/domain/
 import { summarizeFinance } from '../../packages/domain/finance.js';
 import { formatOrderDate } from '../services/orders.js';
 import { cartSellerProblem, paymentResultMessage, sellerConflict } from '../../packages/domain/payments.js';
-import { checkoutTarget, exposeOrderHandlers, finishReturn, renderMercadoPagoPayment, renderOrderPaymentActions, returnPlan } from './mp-checkout.js';
+import { checkoutTarget, createReturnStore, exposeOrderHandlers, finishReturn, renderMercadoPagoPayment, renderOrderPaymentActions, returnPlan } from './mp-checkout.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../../packages/domain/catalog.js';
 import { catalogEmptyKind, filterCatalogProducts } from '../services/catalog-view.js';
@@ -69,6 +69,9 @@ const initialUser = savedUser || {
 // --- ESTADO GLOBAL DA APLICAÇÃO ---
 const INITIAL_COINS = 350;
 
+// Volta do Mercado Pago guardada entre o login e a página (sessionStorage; ver createReturnStore).
+const returnStore = createReturnStore(() => window.sessionStorage);
+
 const state = {
   activeScreen: 'catalog',
   authMode: 'register',
@@ -99,7 +102,7 @@ const state = {
   ],
   // Armazena a tela que o usuário tentou acessar antes do login
   pendingScreen: null,
-  pendingReturn: null, // pedido da volta do Mercado Pago esperando o login (CA38)
+  pendingReturn: returnStore.read(), // pedido da volta do Mercado Pago esperando o login (CA38)
   // Estados de carregamento e erro para produtos da API
   loadingProducts: false,
   productsError: null,
@@ -2417,6 +2420,7 @@ function handleMercadoPagoReturn(search) {
   if (plan.action === 'skip') return;
   if (plan.action === 'login') {
     state.pendingReturn = plan.id;
+    returnStore.save(plan.id);
     window.history.replaceState(null, '', window.location.pathname);
     window.navigateTo('orders');
     return;
@@ -2429,6 +2433,7 @@ function handleMercadoPagoReturn(search) {
     // Token vencido: o pedido fica guardado e volta depois do login (resumePendingReturn).
     onExpired: (id) => {
       state.pendingReturn = id;
+      returnStore.save(id);
     },
     notify: (title, body, order) => showToast(`${title}. ${body}`, order?.paymentStatus === 'PAGO' ? 'success' : 'info'),
     // navigateTo('orders') já recarrega os pedidos (loadMyOrders, o mesmo syncOrders).
@@ -2439,6 +2444,7 @@ function handleMercadoPagoReturn(search) {
 function resumePendingReturn() {
   const id = state.pendingReturn;
   state.pendingReturn = null;
+  returnStore.save(null);
   if (id) handleMercadoPagoReturn(`?pedido=${id}`);
 }
 

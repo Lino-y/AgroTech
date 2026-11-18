@@ -121,3 +121,31 @@ export function returnPlan({ search, payments, loggedIn }) {
   if (!id) return { action: 'skip' };
   return { action: loggedIn ? 'run' : 'login', id };
 }
+
+/**
+ * Guarda o pedido da volta enquanto a pessoa entra de novo (sessionStorage: sobrevive a um recarregamento da
+ * página, some ao fechar a aba). Falha de armazenamento (modo privado, bloqueado) não quebra nada: a volta
+ * então fica só em memória. Só devolve um id no formato do servidor.
+ * @param {() => { getItem: (key: string) => string | null, setItem: (key: string, value: string) => void, removeItem: (key: string) => void }} getStorage
+ */
+export function createReturnStore(getStorage) {
+  const KEY = 'agrotech.pendingReturn';
+  return {
+    save(id) {
+      try {
+        if (id) getStorage().setItem(KEY, id);
+        else getStorage().removeItem(KEY);
+      } catch {
+        // Sem armazenamento: a volta segue só em memória.
+      }
+    },
+    read() {
+      try {
+        const value = getStorage().getItem(KEY);
+        return value && ORDER_ID_RE.test(value) ? value : null;
+      } catch {
+        return null;
+      }
+    }
+  };
+}
