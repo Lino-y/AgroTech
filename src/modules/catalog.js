@@ -8,7 +8,7 @@ import { calculateCartSummary, validateCouponCode } from '../../packages/domain/
 import { summarizeFinance } from '../../packages/domain/finance.js';
 import { formatOrderDate } from '../services/orders.js';
 import { cartSellerProblem, paymentResultMessage, sellerConflict } from '../../packages/domain/payments.js';
-import { checkoutTarget, exposeOrderHandlers, renderMercadoPagoPayment, renderOrderPaymentActions } from './mp-checkout.js';
+import { checkoutTarget, exposeOrderHandlers, finishReturn, renderMercadoPagoPayment, renderOrderPaymentActions, returnPlan } from './mp-checkout.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../../packages/domain/catalog.js';
 import { catalogEmptyKind, filterCatalogProducts } from '../services/catalog-view.js';
@@ -99,6 +99,7 @@ const state = {
   ],
   // Armazena a tela que o usuário tentou acessar antes do login
   pendingScreen: null,
+  pendingReturn: null, // pedido da volta do Mercado Pago esperando o login (CA38)
   // Estados de carregamento e erro para produtos da API
   loadingProducts: false,
   productsError: null,
@@ -428,7 +429,7 @@ window.toggleFavorite = function(productId) {
 
 // Pagamento pelo Mercado Pago (spec 10, parte 3c): modo vindo do servidor e a chave de idempotência do fechamento.
 function loadPaymentMode() {
-  loadAppConfig()
+  return loadAppConfig()
     .then((config) => {
       state.payments = config.payments === 'mercadopago' ? 'mercadopago' : 'simulado';
       renderApp();
@@ -737,6 +738,7 @@ window.handleRegister = async function(event) {
     showToast('Conta criada com sucesso!', 'success');
     // Pela navegação, que também carrega o extrato quando o financeiro é a tela pendente.
     window.navigateTo(targetScreen);
+    resumePendingReturn();
   } catch (error) {
     showToast(error.message || 'Não foi possível criar sua conta.', 'error');
   }
@@ -763,6 +765,7 @@ window.handleLogin = async function(event) {
     showToast('Login realizado com sucesso!', 'success');
     // Pela navegação, que também carrega o extrato quando o financeiro é a tela pendente.
     window.navigateTo(targetScreen);
+    resumePendingReturn();
   } catch (error) {
     showToast(error.message || 'Não foi possível entrar.', 'error');
   }
@@ -2390,7 +2393,8 @@ function safeInitApp() {
     }
   }
 
-  loadPaymentMode();
+  // A volta do Mercado Pago espera o modo do servidor: no simulado ela não roda.
+  loadPaymentMode().then(() => handleMercadoPagoReturn(window.location.search));
   // Carrega o catálogo do servidor (produtos salvos em db.json)
   loadAndSyncProducts();
 }
@@ -2402,6 +2406,36 @@ function loadAndSyncProducts() {
 window.retryLoadProducts = function() {
   loadAndSyncProducts();
 };
+
+// Volta do Mercado Pago (?pedido=AGT-…, CA38; decisão em returnPlan, conferência em finishReturn). Sem sessão,
+// o id fica só em memória até o login: recarregar descarta, e o pedido continua em Meus pedidos. O resultado
+// vem do servidor, nunca dos parâmetros que o Mercado Pago põe na URL (status, payment_id).
+function handleMercadoPagoReturn(search) {
+  const loggedIn = Boolean(state.user && state.user.email && state.user.email.trim() !== '');
+  const plan = returnPlan({ search, payments: state.payments, loggedIn });
+  if (plan.action === 'skip') return;
+  if (plan.action === 'login') {
+    state.pendingReturn = plan.id;
+    window.history.replaceState(null, '', window.location.pathname);
+    window.navigateTo('orders');
+    return;
+  }
+  finishReturn({
+    search,
+    pathname: window.location.pathname,
+    history: window.history,
+    sync: syncOrder,
+    notify: (title, body, order) => showToast(`${title}. ${body}`, order?.paymentStatus === 'PAGO' ? 'success' : 'info'),
+    // navigateTo('orders') já recarrega os pedidos (loadMyOrders, o mesmo syncOrders).
+    onDone: () => window.navigateTo('orders')
+  });
+}
+
+function resumePendingReturn() {
+  const id = state.pendingReturn;
+  state.pendingReturn = null;
+  if (id) handleMercadoPagoReturn(`?pedido=${id}`);
+}
 
 // Inicializar aplicação
 console.log('AgroTech iniciando...');

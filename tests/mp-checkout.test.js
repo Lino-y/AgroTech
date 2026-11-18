@@ -3,7 +3,7 @@
 // dependências, e os testes usam funções falsas.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkoutTarget, exposeOrderHandlers, finishReturn, renderMercadoPagoPayment, renderOrderPaymentActions } from '../src/modules/mp-checkout.js';
+import { checkoutTarget, exposeOrderHandlers, finishReturn, renderMercadoPagoPayment, renderOrderPaymentActions, returnPlan } from '../src/modules/mp-checkout.js';
 
 const checkoutUrl = 'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=1';
 
@@ -50,7 +50,7 @@ function fakeDeps(overrides = {}) {
     pathname: '/',
     history: { replaceState: (state, title, url) => { calls.replace.push(url); calls.order.push('replace'); } },
     sync: async (id) => { calls.sync.push(id); calls.order.push('sync'); return { id, paymentStatus: 'PAGO' }; },
-    notify: (title, body) => calls.notify.push({ title, body }),
+    notify: (title, body, order) => calls.notify.push({ title, body, order }),
     onDone: () => { calls.done += 1; },
     ...overrides
   };
@@ -99,4 +99,26 @@ test('exposeOrderHandlers publica as três ações em window e as repassa ao cha
   } finally {
     delete globalThis.window;
   }
+});
+
+test('volta: o servidor chega ao aviso (pago vira sucesso); no erro, o aviso vem sem pedido', async () => {
+  const ok = fakeDeps();
+  await finishReturn(ok.deps);
+  assert.equal(ok.calls.notify[0].order.paymentStatus, 'PAGO');
+  const fail = fakeDeps({ sync: async () => { throw new Error('fora do ar'); } });
+  await finishReturn(fail.deps);
+  assert.equal(fail.calls.notify[0].order, undefined);
+});
+
+test('plano da volta: no simulado ou sem pedido válido não faz nada', () => {
+  const search = '?pedido=AGT-B403E9D09B59&status=approved';
+  assert.deepEqual(returnPlan({ search, payments: 'simulado', loggedIn: true }), { action: 'skip' });
+  assert.deepEqual(returnPlan({ search: '?status=approved', payments: 'mercadopago', loggedIn: true }), { action: 'skip' });
+  assert.deepEqual(returnPlan({ search: '?pedido=AGT-AB', payments: 'mercadopago', loggedIn: false }), { action: 'skip' });
+});
+
+test('plano da volta: sem sessão guarda o id para depois do login; com sessão confere já', () => {
+  const search = '?pedido=AGT-B403E9D09B59&status=approved';
+  assert.deepEqual(returnPlan({ search, payments: 'mercadopago', loggedIn: false }), { action: 'login', id: 'AGT-B403E9D09B59' });
+  assert.deepEqual(returnPlan({ search, payments: 'mercadopago', loggedIn: true }), { action: 'run', id: 'AGT-B403E9D09B59' });
 });

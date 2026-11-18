@@ -81,7 +81,7 @@ export function exposeOrderHandlers(actions) {
  * Volta da página do Mercado Pago: lê o pedido da busca (?pedido=AGT-…) e confere no servidor. Não
  * decide nada pelos parâmetros do Mercado Pago (status, payment_id): o resultado vem do servidor.
  * @param {{ search: string, history: { replaceState: (state: null, title: string, url: string) => void }, pathname: string,
- *   sync: (id: string) => Promise<OrderView>, notify: (title: string, body: string) => void, onDone: () => void }} deps
+ *   sync: (id: string) => Promise<OrderView>, notify: (title: string, body: string, order?: OrderView) => void, onDone: () => void }} deps
  * @returns {Promise<string | null>} id conferido, ou null quando a busca não tem um pedido válido
  */
 export async function finishReturn(deps) {
@@ -92,10 +92,22 @@ export async function finishReturn(deps) {
   try {
     const order = await deps.sync(id);
     const message = paymentResultMessage(order);
-    deps.notify(message.title, message.body);
+    deps.notify(message.title, message.body, order);
   } catch {
     deps.notify('Não deu para conferir agora', `Confira o pedido ${id} em Meus pedidos quando tiver internet.`);
   }
   deps.onDone();
   return id;
+}
+
+/**
+ * O que fazer com a busca ao abrir a página: nada (modo simulado ou sem ?pedido= válido), conferir já, ou
+ * guardar o id até a pessoa entrar. A conferência em si é finishReturn.
+ * @param {{ search: string, payments: string, loggedIn: boolean }} input
+ * @returns {{ action: 'skip' } | { action: 'run' | 'login', id: string }}
+ */
+export function returnPlan({ search, payments, loggedIn }) {
+  const id = payments === 'mercadopago' ? orderIdFromSearch(search) : null;
+  if (!id) return { action: 'skip' };
+  return { action: loggedIn ? 'run' : 'login', id };
 }
