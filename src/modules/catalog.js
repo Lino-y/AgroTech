@@ -542,7 +542,8 @@ window.processPayment = once('payment', async function(event) {
       coupon: state.appliedCoupon,
       ...(mercadoPago ? { returnTo: 'web' } : {})
     };
-    const newOrder = await createOrder(payload, checkoutKeyFor(state.cart, state.appliedCoupon));
+    // A chave só vai no modo Mercado Pago: no simulado o fechamento segue exatamente como antes (CA35).
+    const newOrder = await createOrder(payload, mercadoPago ? checkoutKeyFor(state.cart, state.appliedCoupon) : undefined);
 
     if (mercadoPago) {
       goToCheckout(newOrder);
@@ -2425,6 +2426,10 @@ function handleMercadoPagoReturn(search) {
     pathname: window.location.pathname,
     history: window.history,
     sync: syncOrder,
+    // Token vencido: o pedido fica guardado e volta depois do login (resumePendingReturn).
+    onExpired: (id) => {
+      state.pendingReturn = id;
+    },
     notify: (title, body, order) => showToast(`${title}. ${body}`, order?.paymentStatus === 'PAGO' ? 'success' : 'info'),
     // navigateTo('orders') já recarrega os pedidos (loadMyOrders, o mesmo syncOrders).
     onDone: () => window.navigateTo('orders')

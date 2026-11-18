@@ -81,7 +81,8 @@ export function exposeOrderHandlers(actions) {
  * Volta da página do Mercado Pago: lê o pedido da busca (?pedido=AGT-…) e confere no servidor. Não
  * decide nada pelos parâmetros do Mercado Pago (status, payment_id): o resultado vem do servidor.
  * @param {{ search: string, history: { replaceState: (state: null, title: string, url: string) => void }, pathname: string,
- *   sync: (id: string) => Promise<OrderView>, notify: (title: string, body: string, order?: OrderView) => void, onDone: () => void }} deps
+ *   sync: (id: string) => Promise<OrderView>, notify: (title: string, body: string, order?: OrderView) => void, onDone: () => void,
+ *   onExpired?: (id: string) => void }} deps
  * @returns {Promise<string | null>} id conferido, ou null quando a busca não tem um pedido válido
  */
 export async function finishReturn(deps) {
@@ -93,8 +94,17 @@ export async function finishReturn(deps) {
     const order = await deps.sync(id);
     const message = paymentResultMessage(order);
     deps.notify(message.title, message.body, order);
-  } catch {
-    deps.notify('Não deu para conferir agora', `Confira o pedido ${id} em Meus pedidos quando tiver internet.`);
+  } catch (error) {
+    if (error?.status === 401) {
+      // Sessão vencida: o pedido fica guardado e a pessoa entra de novo para conferir.
+      deps.onExpired?.(id);
+      deps.notify('Entre de novo para conferir', `O pedido ${id} continua em Meus pedidos.`);
+    } else if (error?.status) {
+      // Quem respondeu explicou o motivo (ex.: pedido de outra conta).
+      deps.notify('Não deu para conferir', error.message || `Confira o pedido ${id} em Meus pedidos.`);
+    } else {
+      deps.notify('Não deu para conferir agora', `Confira o pedido ${id} em Meus pedidos quando tiver internet.`);
+    }
   }
   deps.onDone();
   return id;

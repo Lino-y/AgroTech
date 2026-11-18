@@ -122,3 +122,21 @@ test('plano da volta: sem sessão guarda o id para depois do login; com sessão 
   assert.deepEqual(returnPlan({ search, payments: 'mercadopago', loggedIn: false }), { action: 'login', id: 'AGT-B403E9D09B59' });
   assert.deepEqual(returnPlan({ search, payments: 'mercadopago', loggedIn: true }), { action: 'run', id: 'AGT-B403E9D09B59' });
 });
+
+test('volta com sessão vencida (401): guarda o pedido para depois do login e não diz "internet"', async () => {
+  const expired = Object.assign(new Error('Token inválido ou expirado.'), { status: 401 });
+  const guarded = [];
+  const { deps, calls } = fakeDeps({ sync: async () => { throw expired; }, onExpired: (id) => guarded.push(id) });
+  await finishReturn(deps);
+  assert.deepEqual(guarded, ['AGT-B403E9D09B59']);
+  assert.equal(calls.notify[0].title, 'Entre de novo para conferir');
+  assert.doesNotMatch(calls.notify[0].body, /internet/);
+});
+
+test('volta com pedido de outra conta (404): mostra a mensagem do servidor, não a de internet', async () => {
+  const notFound = Object.assign(new Error('Pedido não encontrado.'), { status: 404 });
+  const { deps, calls } = fakeDeps({ sync: async () => { throw notFound; } });
+  await finishReturn(deps);
+  assert.equal(calls.notify[0].body, 'Pedido não encontrado.');
+  assert.doesNotMatch(calls.notify[0].title, /internet/);
+});
