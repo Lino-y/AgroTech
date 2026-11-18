@@ -300,3 +300,15 @@ Sem CA próprio: o passo prepara o que o passo 4 (catálogo) usa. Testes em `tes
 - `createOrder(payload, idempotencyKey)` manda `Idempotency-Key` só com chave não vazia (`src/services/api.js:69`).
 - `loadAppConfig`, `syncOrder` e `cancelOrder` codificam o id e usam `apiRequest` (`src/services/api.js:74` a `:84`).
 - **Teste:** 4 casos novos; `npm test` 408/408.
+
+### Passo 3 (nível 3): módulo da página de pagamento (`src/modules/mp-checkout.js`)
+
+Sem CA próprio: o passo entrega as peças que o passo 4 liga no `catalog.js`.
+- Tela de pagamento com o Mercado Pago (texto sem campo de cartão; ação passada pelo chamador): `src/modules/mp-checkout.js:27`.
+- Botões do pedido; pedido pago ou id fora do formato não gera HTML: `src/modules/mp-checkout.js:43`.
+- Abertura do Checkout Pro só com link https do Mercado Pago: `src/modules/mp-checkout.js:62`.
+- Ações dos botões expostas em `window`: `src/modules/mp-checkout.js:74`.
+- Volta com `?pedido=`: limpa a URL antes do sync e mostra o resultado do servidor: `src/modules/mp-checkout.js:87`.
+- **Decisão:** o módulo não tem `// @ts-check`, porque `src/modules/` não é checado (a regra de JSDoc vale para `src/services/`); ver `docs/agents/architecture.md`.
+- **Defeito achado pelo teste e corrigido:** pedido pago gerava um contêiner vazio em vez de nada.
+- **Teste:** `tests/mp-checkout.test.js` (9 casos). `npm test` 417/417; lint 17 avisos e 0 erros; typecheck sem erro.
