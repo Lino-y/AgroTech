@@ -312,3 +312,19 @@ Sem CA próprio: o passo entrega as peças que o passo 4 liga no `catalog.js`.
 - **Decisão:** o módulo não tem `// @ts-check`, porque `src/modules/` não é checado (a regra de JSDoc vale para `src/services/`); ver `docs/agents/architecture.md`.
 - **Defeito achado pelo teste e corrigido:** pedido pago gerava um contêiner vazio em vez de nada.
 - **Teste:** `tests/mp-checkout.test.js` (9 casos). `npm test` 417/417; lint 17 avisos e 0 erros; typecheck sem erro.
+
+### Passo 4 (nível 4): ligação no catálogo (`src/modules/catalog.js`)
+
+Implementado pelo Haiku 5.5, com a análise do Opus 5.5 (`.claude/analysis/feat-91-mercado-pago-web-3c.md`).
+
+| ID | Critério | Status | Evidência |
+|----|----------|--------|-----------|
+| CA35 | Sem o Mercado Pago (padrão `simulado`), a tela de pagamento, o carrinho e os pedidos não mudam | ✅ | `src/modules/catalog.js:89` (padrão `simulado`); `src/modules/catalog.js:1412` (a tela nova só com `mercadopago`); `npm run test:ui` 34/34, sem pulado |
+| CA36 | Com o Mercado Pago, adicionar produto de outro vendedor pede confirmação; o fechamento confere o vendedor no catálogo ao vivo | ✅ | `src/modules/catalog.js:460` (confirmação ao adicionar); `src/modules/catalog.js:530` (`cartSellerProblem` no fechamento) |
+| CA37 | O fechamento envia `returnTo: 'web'` e `Idempotency-Key`; redireciona só para o Mercado Pago; sem moedas nem "aprovado" antes do pagamento | ✅ | `src/modules/catalog.js:542` (`returnTo`); `src/modules/catalog.js:547` (`goToCheckout`); `src/modules/catalog.js:565` e `:575` (redirecionamento com `checkoutTarget`); moedas só no fluxo simulado |
+| CA38 | Volta com `?pedido=` (limpar URL, conferir no servidor, não repetir) | ⏳ | não ligado neste passo: é o passo 5, de nível 5, que a regra manda o Opus implementar |
+| CA39 | Meus Pedidos com os botões do pedido; pedido não pago sem rastreio | ✅ | `src/modules/catalog.js:2157` (botões); `src/modules/catalog.js:2159` (rastreio, transporte e demonstração só para pedido pago) |
+
+- **Decisão tomada sem resposta explícita:** a decisão 3 (esconder a escolha de pagamento só com o Mercado Pago) é aplicada na linha 1412; a decisão 4 (moedas só com pedido pago) aparece no fluxo: nenhuma moeda no modo Mercado Pago.
+- **Comportamento novo no modo simulado:** o fechamento agora envia `Idempotency-Key` também no simulado. O servidor já tratava essa chave para pedidos; o efeito para a pessoa é só evitar pedido duplicado num reenvio.
+- **Verificação:** `npm test` 417/417; `npm run test:ui` 34/34; lint 17 avisos e 0 erros; typecheck sem erro.
