@@ -64,7 +64,7 @@ async function newUser(server, extra = {}) {
 }
 
 const productBody = (extra = {}) => ({
-  name: 'Lote de teste', price: 100, unit: 'kg', category: 'Grãos', location: 'MS - BR', description: 'descrição', imageUrl: '', ...extra
+  name: 'Lote de teste', price: 100, unit: 'kg', category: 'Grãos', location: 'MS - BR', description: 'descrição', imageUrl: 'https://exemplo.com/lote.png', ...extra
 });
 
 let shared;

@@ -1,4 +1,4 @@
-// @ts-check
+﻿// @ts-check
 import { loadCatalog } from '../services/catalog-load.js';
 
 // Número da carga mais recente: resposta de uma carga antiga (retry com outra ainda em andamento) não

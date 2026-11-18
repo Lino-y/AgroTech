@@ -1,4 +1,4 @@
-// @ts-check
+﻿// @ts-check
 
 /**
  * Carga do extrato financeiro na tela. Cada carga começa com um extrato novo, vazio e em

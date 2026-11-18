@@ -8,8 +8,9 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { getProductCategoryStyle } from './src/services/catalog.js';
-import { newProductId, newOrderId, newTrackingCode } from './src/services/ids.js';
 import { calculateCartSummary } from './src/services/commerce.js';
+import { buildFinanceEntries } from './src/services/finance.js';
+import { newOrderId, newProductId, newTrackingCode } from './src/services/ids.js';
 import { canTransition, validatePaymentRequest } from './src/services/payment.js';
 
 dotenv.config();
@@ -17,6 +18,39 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+
+// ponytail: Express 4 não captura rejeição de handler async. Sem isto, um erro de banco vira promise
+// rejeitada sem resposta e derruba o processo. Todo handler passa por aqui e o erro vai para o
+// tratador de erro (500). Teto: Express 5 faz isso sozinho; a troca de versão pede pedido explícito.
+const catchAsync = (handler) => (req, res, next) => {
+  try {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  } catch (error) {
+    next(error);
+  }
+};
+for (const method of ['get', 'post', 'put', 'delete']) {
+  const register = app[method].bind(app);
+  app[method] = (route, ...handlers) => (handlers.length ? register(route, ...handlers.map(catchAsync)) : register(route));
+}
+
+// Uma gravação por vez: a rota lê, altera e grava o db.json dentro da mesma vez, sem outra gravação
+// no meio (senão uma perde o que a outra gravou). A vez passa quando a resposta sai ou a conexão cai.
+// GET não entra na fila. Teto: um cliente que nunca termina a requisição trava a fila; um timeout de
+// requisição é o próximo passo se isso acontecer.
+let dbQueue = Promise.resolve();
+// A rota é case-insensitiva no Express: /API/finance/entries é a mesma rota. Alinhamos a fila
+// com o que o Express considera: tudo que começa com /api em qualquer caixa entra na fila.
+app.use((req, res, next) => {
+  if (req.method === 'GET' || !req.path.toLowerCase().startsWith('/api')) return next();
+  const previous = dbQueue;
+  let done;
+  dbQueue = new Promise((resolve) => { done = resolve; });
+  res.once('finish', done);
+  res.once('close', done);
+  previous.then(next);
+});
+
 const PORT = Number(process.env.PORT || 3001);
 // Sem JWT_SECRET, segredo aleatório por processo — nunca um valor fixo no código, que está
 // no GitHub e deixaria qualquer um forjar token de admin. Custo: o login cai a cada reinício.
@@ -119,6 +153,8 @@ const defaultDb = {
       ownerEmail: 'demo@agrotech.com.br',
       date: '15/Set/2026',
       status: 'Em trânsito',
+      // O status e o estágio do rastreio dizem a mesma coisa, inclusive no seed (issue #41).
+      statusStep: 3,
       trackingCode: 'BR-AGRO-982134-X',
       carrier: 'AgroExpress Logística Rural',
       estimatedDelivery: '18/Set/2026',
@@ -134,7 +170,9 @@ const defaultDb = {
         { title: 'Chegada na Fazenda', time: 'Previsão: 18/Set', completed: false }
       ]
     }
-  ]
+  ],
+  // Lançamentos manuais do financeiro: { id, ownerEmail, type, title, amount, createdAt }.
+  financeEntries: []
 };
 
 const signToken = (user) => jwt.sign(
@@ -146,6 +184,8 @@ const signToken = (user) => jwt.sign(
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 const normalizeDbUsers = (users = []) => {
+  // ponytail: o seed do demo e do admin é reaplicado a cada leitura para não exigir migração,
+  // mas só completa campos que faltam — nunca sobrescreve o perfil que o usuário editou.
   const merged = [...users];
 
   for (const seed of defaultDb.users) {
@@ -161,8 +201,8 @@ const normalizeDbUsers = (users = []) => {
     if (existingIndex >= 0) {
       const currentUser = merged[existingIndex];
       merged[existingIndex] = {
-        ...currentUser,
         ...seedUser,
+        ...currentUser,
         email: normalizedEmail,
         password: currentUser.password && String(currentUser.password).startsWith('$2')
           ? currentUser.password
@@ -184,30 +224,11 @@ const normalizeDbUsers = (users = []) => {
 
 async function ensureDbFile() {
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
-
-  try {
-    await fs.access(dataFile);
-  } catch {
-    await fs.writeFile(dataFile, JSON.stringify(defaultDb, null, 2), 'utf8');
-    return;
-  }
-
-  try {
-    const raw = await fs.readFile(dataFile, 'utf8');
-    const parsed = JSON.parse(raw);
-    const normalizedDb = {
-      users: normalizeDbUsers(parsed.users || defaultDb.users),
-      products: parsed.products || defaultDb.products,
-      orders: parsed.orders || defaultDb.orders,
-      payments: parsed.payments || []
-    };
-
-    if (JSON.stringify(normalizedDb) !== raw) {
-      await fs.writeFile(dataFile, JSON.stringify(normalizedDb, null, 2), 'utf8');
-    }
-  } catch {
-    await fs.writeFile(dataFile, JSON.stringify(defaultDb, null, 2), 'utf8');
-  }
+  // Só cria o arquivo quando ele não existe. Nunca regrava um existente: se estiver corrompido, a
+  // leitura falha com erro (500) e o conteúdo fica intacto para conferir.
+  await fs.writeFile(dataFile, JSON.stringify(defaultDb, null, 2), { encoding: 'utf8', flag: 'wx' }).catch((error) => {
+    if (error.code !== 'EEXIST') throw error;
+  });
 }
 
 async function readDb() {
@@ -218,13 +239,18 @@ async function readDb() {
     users: normalizeDbUsers(parsed.users || []),
     products: parsed.products || defaultDb.products,
     orders: parsed.orders || defaultDb.orders,
+    financeEntries: parsed.financeEntries || [],
     payments: parsed.payments || []
   };
 }
 
 async function writeDb(db) {
   await ensureDbFile();
-  await fs.writeFile(dataFile, JSON.stringify(db, null, 2), 'utf8');
+  // Grava num arquivo temporário e troca de uma vez: quem lê vê o arquivo antigo ou o novo, nunca
+  // um JSON pela metade.
+  const tmp = `${dataFile}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8');
+  await fs.rename(tmp, dataFile);
 }
 
 // Perfis que o próprio usuário pode escolher no cadastro; ADMIN nunca vem do corpo da requisição.
@@ -272,8 +298,15 @@ const authenticate = async (req, res, next) => {
     return res.status(401).json({ message: 'Token de autenticação ausente.' });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ message: 'Token inválido ou expirado.' });
+  }
+  // Banco ilegível aqui é erro de servidor (500), não "token inválido": quem mandou o token
+  // errou nada; o servidor é que não consegue ler os usuários.
+  try {
     const db = await readDb();
     const user = db.users.find((item) => item.id === decoded.sub || item.email === decoded.email);
     if (!user) {
@@ -282,8 +315,8 @@ const authenticate = async (req, res, next) => {
 
     req.user = sanitizeUser(user);
     next();
-  } catch {
-    return res.status(401).json({ message: 'Token inválido ou expirado.' });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -303,11 +336,16 @@ app.use((req, res, next) => {
   }
   next();
 });
-// As imagens de capa/foto da loja vão embutidas em base64 (~2,7 MB para um
-// arquivo de 2 MB), então o limite precisa acomodá-las.
-app.use(express.json({ limit: '4mb' }));
+app.use(express.json({ limit: '2mb' }));
 // Só o front é público: a raiz tem server.js e .env, e o banco fica em src/data/.
-app.use('/src/data', (_, res) => res.status(404).json({ message: 'Não encontrado.' }));
+// O banco mora em src/data, que fica dentro da pasta servida como estática. O bloqueio compara
+// o caminho DEPOIS de decodificar (senão /src/%64ata/db.json passava) e em minúsculas.
+app.use('/src', (req, res, next) => {
+  if (decodeURIComponent(req.path).toLowerCase().replace(/\\/g, '/').includes('/data/')) {
+    return res.status(404).json({ message: 'Não encontrado.' });
+  }
+  next();
+});
 app.use('/src', express.static(path.join(__dirname, 'src')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
@@ -331,7 +369,8 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const user = {
-    id: `usr-${Date.now()}`,
+    // Id em UUID: o relógio (Date.now) repetia para dois cadastros no mesmo milissegundo.
+    id: `usr-${crypto.randomUUID()}`,
     name: cleanText(name),
     propertyOrCompany: cleanText(propertyOrCompany),
     email: normalizedEmail,
@@ -384,8 +423,8 @@ app.put('/api/auth/store', authenticate, async (req, res) => {
   }
 
   // Foto/capa podem vir como link http(s) ou arquivo enviado (data URL de imagem).
-  // Aspasto é removido: em atributo HTML uma aspa fecharia a tag e permitiria XSS.
-  const imagePattern = /^(https?:\/\/.+|data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+)$/i;
+  // Aspa é removida: em atributo HTML uma aspa fecharia a tag e permitiria XSS.
+  const imagePattern = /^(https?:\/\/.+|data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+)$/i; // eslint-disable-line no-useless-escape -- \/ dentro de regex é legível e não muda o casamento
   const cleanImage = (value) => String(value || '').replace(/"/g, '').trim() || null;
   if (storeProfileImage && !imagePattern.test(cleanImage(storeProfileImage))) {
     return res.status(400).json({ message: 'Imagem de perfil inválida.' });
@@ -396,14 +435,15 @@ app.put('/api/auth/store', authenticate, async (req, res) => {
   const profileImage = storeProfileImage !== undefined ? cleanImage(storeProfileImage) : undefined;
   const coverImage = storeCoverImage !== undefined ? cleanImage(storeCoverImage) : undefined;
 
-  user.name = String(name).trim();
-  if (propertyOrCompany !== undefined) user.propertyOrCompany = String(propertyOrCompany).trim();
+  // O nome do usuário vira autor de avaliação e título de loja no HTML do front: escapa aqui, na entrada.
+  user.name = cleanText(name);
+  if (propertyOrCompany !== undefined) user.propertyOrCompany = cleanText(propertyOrCompany);
   if (profileImage !== undefined) user.storeProfileImage = profileImage;
   if (coverImage !== undefined) user.storeCoverImage = coverImage;
-  if (storeBio !== undefined) user.storeBio = String(storeBio || '').slice(0, 500);
-  if (storePhone !== undefined) user.storePhone = String(storePhone || '').trim();
-  if (storeLocation !== undefined) user.storeLocation = String(storeLocation || '').trim();
-  if (storeHours !== undefined) user.storeHours = String(storeHours || '').trim();
+  if (storeBio !== undefined) user.storeBio = cleanText(String(storeBio || '').slice(0, 500));
+  if (storePhone !== undefined) user.storePhone = cleanText(storePhone);
+  if (storeLocation !== undefined) user.storeLocation = cleanText(storeLocation);
+  if (storeHours !== undefined) user.storeHours = cleanText(storeHours);
 
   await writeDb(db);
   res.json({ user: sanitizeUser(user) });
@@ -429,7 +469,8 @@ app.post('/api/products', authenticate, async (req, res) => {
     location = 'Região Agrícola - BR',
     stock = 100,
     shippingType = 'CIF - Entrega na Fazenda',
-    certification = 'Emite Nota Fiscal e Certificado MAPA'
+    certification = 'Emite Nota Fiscal e Certificado MAPA',
+    announced
   } = req.body;
   if (!name || !price || !category || !description) {
     return res.status(400).json({ message: 'Dados do produto incompletos.' });
@@ -470,24 +511,11 @@ app.post('/api/products', authenticate, async (req, res) => {
     comments: []
   };
   // Lote "postado" ainda não anunciado: sai do catálogo até o dono publicá-lo.
-  if (req.body.announced === false) product.announced = false;
+  if (announced === false) product.announced = false;
 
   db.products.unshift(product);
   await writeDb(db);
   res.status(201).json(product);
-});
-
-// Publica no mercado um lote postado (só o dono pode). Devolve o produto anunciado.
-app.post('/api/products/:id/announce', authenticate, async (req, res) => {
-  const db = await readDb();
-  const product = db.products.find((p) => p.id === req.params.id);
-  if (!product) return res.status(404).json({ message: 'Produto não encontrado.' });
-  if (product.ownerEmail !== req.user.email) {
-    return res.status(403).json({ message: 'Só o dono pode anunciar o lote.' });
-  }
-  product.announced = true;
-  await writeDb(db);
-  res.json(product);
 });
 
 app.post('/api/products/:id/reviews', authenticate, async (req, res) => {
@@ -503,11 +531,11 @@ app.post('/api/products/:id/reviews', authenticate, async (req, res) => {
   }
 
   const review = {
-    id: `rev-${Date.now()}`,
+    id: `rev-${crypto.randomUUID()}`,
     author: req.user.name || req.user.propertyOrCompany || 'Produtor Rural',
     authorEmail: req.user.email,
-    text: String(text).trim().slice(0, 600),
-    rating: Math.min(5, Math.max(0, Number(rating) || 5))
+    text: cleanText(String(text).trim().slice(0, 600)),
+    rating: Math.min(5, Math.max(0, Number(rating) || 0))
   };
 
   product.comments = product.comments || [];
@@ -668,15 +696,23 @@ app.post('/api/orders', authenticate, async (req, res) => {
   const lines = Array.isArray(items)
     ? items.map((item) => ({ product: db.products.find((p) => p.id === String(item?.id)), quantity: Number(item?.quantity) }))
     : [];
-  if (!lines.length || lines.some(({ product, quantity }) => !product || !Number.isInteger(quantity) || quantity < 1)) {
+  if (!lines.length || lines.some(({ product, quantity }) => !product || !Number.isInteger(quantity) || quantity < 1 || quantity > 100000)) {
     return res.status(400).json({ message: 'Itens do pedido inválidos: informe produtos do catálogo e quantidades inteiras maiores que zero.' });
   }
-  const orderItems = lines.map(({ product, quantity }) => ({ ...product, quantity }));
+  const orderItems = lines.map(({ product: product, quantity }) => {
+    // eslint-disable-next-line no-unused-vars -- comentários, descrição e foto não vão no item do pedido
+    const { comments, description, image, ...slim } = product;
+    return {
+      // O item do pedido não precisa carregar comentários, descrição nem a foto em data URL.
+      id: slim.id, name: slim.name, price: slim.price, ownerEmail: slim.ownerEmail, quantity
+    };
+  });
   const { total } = calculateCartSummary(orderItems, typeof coupon === 'string' ? coupon.toUpperCase() : null);
 
   const order = {
     id: newOrderId(),
     ownerEmail: req.user.email,
+    // Data real do pedido: "Meus Pedidos" a mostra em dd/mm/aaaa e o financeiro recorta por mês.
     createdAt: new Date().toISOString(),
     status: 'Pedido Confirmado',
     statusStep: 1,
@@ -698,6 +734,37 @@ app.post('/api/orders', authenticate, async (req, res) => {
   res.status(201).json(order);
 });
 
+// Extrato financeiro da conta da sessão, inclusive para o ADMIN (o total da plataforma fica em
+// /api/admin/summary): compras, vendas dos produtos dela e lançamentos manuais.
+app.get('/api/finance/entries', authenticate, async (req, res) => {
+  const db = await readDb();
+  res.json(buildFinanceEntries(db, req.user.email));
+});
+
+const FINANCE_ENTRY_TYPES = ['INCOME', 'EXPENSE'];
+
+app.post('/api/finance/entries', authenticate, async (req, res) => {
+  const { title, amount, type } = req.body;
+  const amountValue = Number(amount);
+  if (!title || !String(title).trim() || !Number.isFinite(amountValue) || amountValue <= 0 || !FINANCE_ENTRY_TYPES.includes(type)) {
+    return res.status(400).json({ message: 'Lançamento inválido: informe a descrição, um valor maior que zero e o tipo INCOME ou EXPENSE.' });
+  }
+
+  const db = await readDb();
+  const entry = {
+    id: crypto.randomUUID(),
+    ownerEmail: req.user.email,
+    type,
+    title: cleanText(String(title).trim().slice(0, 120)),
+    amount: amountValue,
+    createdAt: new Date().toISOString()
+  };
+  db.financeEntries.unshift(entry);
+  await writeDb(db);
+  // Responde no mesmo formato do extrato (GET acima), pela mesma função.
+  res.status(201).json(buildFinanceEntries({ financeEntries: [entry] }, req.user.email)[0]);
+});
+
 app.get('/api/admin/summary', authenticate, requireAdmin, async (_, res) => {
   const db = await readDb();
   const revenue = db.orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
@@ -716,8 +783,23 @@ app.get('/api/admin/users', authenticate, requireAdmin, async (_, res) => {
   res.json(users);
 });
 
+// Rota /api que não existe: 404 em JSON, não o index.html com 200 (issue #26). Fica depois de
+// todas as rotas de API e antes do fallback da SPA.
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ message: 'Rota não encontrada.' });
+});
+
 app.get('*', (_, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Erro de rota (ex.: db.json ilegível) vira 500 com { message }, sem derrubar o processo.
+// O log não guarda o corpo da requisição, onde veio a senha do cliente.
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  console.error('[agrotech]', error.message);
+  const status = error.type === 'entity.too.large' ? 413 : error.type === 'entity.parse.failed' || error.type === 'syntax' ? 400 : 500;
+  res.status(status).json({ message: status === 500 ? 'Erro ao acessar os dados do servidor.' : error.message });
 });
 
 app.listen(PORT, () => {

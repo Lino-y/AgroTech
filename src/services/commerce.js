@@ -1,21 +1,19 @@
-// @ts-check
+﻿// @ts-check
 
 /**
  * @typedef {{ type: 'percent' | 'fixed', value: number, min: number, description: string }
  *   | { type: 'free_shipping', min: number, description: string }} CouponRule
  * @typedef {{ price?: number | string, quantity?: number | string }} CartLine
  * @typedef {{ subtotal: number, discount: number, shipping: number, total: number,
- *   freeShipping: boolean, hasCoupon: boolean }} CartSummary
+ *   freeShipping: boolean, freeShippingBySubtotal: boolean, hasCoupon: boolean }} CartSummary
  */
-
-import { formatBRL } from './format.js';
 
 /** @type {Record<string, CouponRule>} */
 export const COUPON_RULES = {
-  AGRO10: { type: 'percent', value: 0.10, min: 150, description: '10% OFF acima de R$ 150,00' },
-  FRETEGRATIS: { type: 'free_shipping', min: 0, description: 'Frete Grátis' },
-  NOVOCLIENTE: { type: 'fixed', value: 25, min: 100, description: 'R$ 25,00 OFF acima de R$ 100,00' },
-  COLHEITA20: { type: 'percent', value: 0.20, min: 200, description: '20% OFF acima de R$ 200,00' }
+  AGRO10: { type: 'percent', value: 0.10, min: 150, description: '10% OFF a partir de R$ 150' },
+  FRETEGRATIS: { type: 'free_shipping', min: 0, description: 'Frete Grátis a partir de R$ 0' },
+  NOVOCLIENTE: { type: 'fixed', value: 25, min: 100, description: 'R$ 25 OFF a partir de R$ 100' },
+  COLHEITA20: { type: 'percent', value: 0.20, min: 200, description: '20% OFF a partir de R$ 200' }
 };
 
 /**
@@ -34,7 +32,7 @@ export function validateCouponCode(code, subtotal = 0) {
   if (subtotal < rule.min) {
     return {
       valid: false,
-      message: `Cupom ${upper} exige valor mínimo de R$ ${formatBRL(rule.min)}. Subtotal: R$ ${formatBRL(subtotal)}.`
+      message: `Cupom ${upper} exige valor mínimo de R$ ${rule.min.toFixed(2)}. Subtotal: R$ ${subtotal.toFixed(2)}.`
     };
   }
   return { valid: true, coupon: upper, rule };
@@ -47,15 +45,22 @@ export function validateCouponCode(code, subtotal = 0) {
  * @returns {CartSummary}
  */
 export function calculateCartSummary(cart = [], appliedCoupon = null) {
-  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+  // ponytail: soma em centavos para não carregar ruído de ponto flutuante (799.8000000000001)
+  // para o pedido e o financeiro. Teto: valores acima de 2^53 centavos; dinheiro real não chega lá.
+  /** @param {number} value */
+  const roundCents = (value) => Math.round(value * 100) / 100;
+  const subtotal = roundCents(cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0));
   let discount = 0;
-  let freeShipping = subtotal > 800; // RF03: frete grátis acima de R$ 800,00
+  // RF03: frete grátis acima de R$ 800,00. É o que a tela anuncia como "compra acima de R$ 800";
+  // `freeShipping` também liga com o cupom FRETEGRATIS (issue #19).
+  const freeShippingBySubtotal = subtotal > 800;
+  let freeShipping = freeShippingBySubtotal;
 
   if (appliedCoupon && COUPON_RULES[appliedCoupon]) {
     const rule = COUPON_RULES[appliedCoupon];
     if (subtotal >= (rule.min || 0)) {
       if (rule.type === 'percent') {
-        discount = subtotal * rule.value;
+        discount = roundCents(subtotal * rule.value);
       }
       if (rule.type === 'fixed') {
         discount = rule.value;
@@ -67,7 +72,7 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
   }
 
   const shipping = freeShipping || subtotal === 0 ? 0 : 35;
-  const total = Math.max(0, subtotal - discount) + shipping;
+  const total = roundCents(Math.max(0, subtotal - discount) + shipping);
 
   return {
     subtotal,
@@ -75,6 +80,7 @@ export function calculateCartSummary(cart = [], appliedCoupon = null) {
     shipping,
     total,
     freeShipping,
+    freeShippingBySubtotal,
     hasCoupon: Boolean(appliedCoupon)
   };
 }

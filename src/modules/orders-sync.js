@@ -1,4 +1,4 @@
-// @ts-check
+﻿// @ts-check
 
 /**
  * Carga de "Meus Pedidos" (GET /api/orders), no molde de syncFinance. Cada carga começa com uma

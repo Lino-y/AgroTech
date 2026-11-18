@@ -223,7 +223,7 @@ test('compra aprovada entra no extrato do comprador (saída) e do vendedor (entr
   const seller = await newUser({ role: 'VENDEDOR' });
   const buyer = await newUser();
   const other = await newUser();
-  const product = (await api('POST', '/api/products', { name: 'Milho', price: 150, category: 'Grãos', description: 'lote' }, seller.token)).body;
+  const product = (await api('POST', '/api/products', { name: 'Milho', price: 150, category: 'Grãos', description: 'lote', imageUrl: 'https://exemplo.com/milho.png' }, seller.token)).body;
   const order = await api('POST', '/api/orders', { items: [{ id: product.id, quantity: 2 }] }, buyer.token);
   assert.equal(order.status, 201);
   assert.ok(!Number.isNaN(Date.parse(order.body.createdAt)), 'pedido novo grava a data real');

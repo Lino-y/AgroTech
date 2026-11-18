@@ -1,4 +1,4 @@
-// @ts-check
+﻿// @ts-check
 
 /** @type {Record<string, string>} */
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };

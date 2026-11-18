@@ -66,7 +66,7 @@ const product = (n) => ({
   category: 'Grãos',
   location: 'Mato Grosso do Sul - BR',
   description: 'Criado em paralelo para o teste de concorrência',
-  imageUrl: ''
+  imageUrl: 'https://exemplo.com/lote.png'
 });
 
 test('criações simultâneas não se perdem e o servidor continua de pé', async () => {
