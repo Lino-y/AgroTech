@@ -22,6 +22,7 @@ import {
 } from './payments.js';
 import { isBelowMinVersion, readAppMinVersion, readLatestVersion } from './app-version.js';
 import { newOrderId, newProductId, newReviewId, newTrackingCode, newUserId } from './ids.js';
+import { readSupabaseConfig, readSupabaseState, writeSupabaseState } from './supabase-state.js';
 
 dotenv.config();
 
@@ -71,6 +72,15 @@ if ('error' in mercadoPagoConfig) {
   process.exit(1);
 }
 const MP = mercadoPagoConfig.mode === 'mercadopago' ? mercadoPagoConfig : null;
+// Onde mora o estado (ADR-0003): linha jsonb do Supabase com SUPABASE_URL + SUPABASE_SERVICE_KEY, ou o
+// arquivo (DATA_FILE vence sempre). Configuração pela metade derruba a subida, como o Mercado Pago.
+const stateConfig = readSupabaseConfig(process.env);
+if ('error' in stateConfig) {
+  console.error(`[agrotech] ${stateConfig.error}`);
+  process.exit(1);
+}
+const SUPABASE = stateConfig.mode === 'supabase' ? stateConfig : null;
+console.log(SUPABASE ? `[agrotech] dados: Supabase (${new URL(SUPABASE.url).host})` : '[agrotech] dados: arquivo');
 if (MP && !/^https:\/\/(?!localhost|127\.|0\.0\.0\.0)/.test(MP.appUrl)) {
   console.warn('[agrotech] APP_URL não é https público: o Mercado Pago não manda notificação nem volta sozinho, e a volta da web sai em http. Só para teste.');
 }
@@ -92,7 +102,7 @@ const dataFile = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json'
 // O banco morava em src/data (pasta servida como estática). Sem este aviso, quem tem o arquivo antigo
 // veria o app subir com os dados de exemplo e acharia que perdeu tudo.
 const legacyDataFile = path.join(ROOT, 'src', 'data', 'db.json');
-if (!process.env.DATA_FILE && existsSync(legacyDataFile) && !existsSync(dataFile)) {
+if (!SUPABASE && !process.env.DATA_FILE && existsSync(legacyDataFile) && !existsSync(dataFile)) {
   console.warn(`[agrotech] Banco antigo em ${legacyDataFile}. Mova-o para ${dataFile} para manter os seus dados.`);
 }
 
@@ -269,10 +279,17 @@ async function ensureDbFile() {
   });
 }
 
-async function readDb() {
+// Documento cru do backend escolhido. No Supabase, a linha `{}` inicial vira o seed no mapeamento de
+// readDb, como um arquivo novo: não há equivalente ao ensureDbFile.
+async function loadRawDb() {
+  if (SUPABASE) return readSupabaseState(SUPABASE);
   await ensureDbFile();
   const raw = await fs.readFile(dataFile, 'utf8');
-  const parsed = JSON.parse(raw);
+  return JSON.parse(raw);
+}
+
+async function readDb() {
+  const parsed = await loadRawDb();
   return {
     users: normalizeDbUsers(parsed.users || []),
     products: parsed.products || defaultDb.products,
@@ -299,6 +316,8 @@ async function withWriteTurn(work) {
 }
 
 async function writeDb(db) {
+  // Um só PATCH: se falhar, a linha fica como estava e a rota responde 500 (tratador de erro).
+  if (SUPABASE) return writeSupabaseState(SUPABASE, db);
   await ensureDbFile();
   // Grava num arquivo temporário e troca de uma vez: quem lê vê o arquivo antigo ou o novo, nunca
   // um JSON pela metade.

@@ -34,7 +34,9 @@ export function startServer({ env = {} } = {}) {
   // servidor saem do próprio arquivo, não da pasta atual.
   const child = spawn(process.execPath, [SERVER_FILE], {
     cwd: tmpdir(),
-    env: { ...process.env, ...env, PORT: '0' },
+    // SUPABASE_* exportadas no shell ou na CI não chegam ao servidor (gravariam no Supabase de produção);
+    // o teste que quiser o Supabase passa as próprias em `env`.
+    env: { ...process.env, SUPABASE_URL: undefined, SUPABASE_SERVICE_KEY: undefined, ...env, PORT: '0' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   child.stderr.resume();

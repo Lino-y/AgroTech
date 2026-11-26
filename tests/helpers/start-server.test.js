@@ -29,6 +29,25 @@ test('variável com valor undefined sai do ambiente do servidor, mesmo se o proc
   }
 });
 
+test('SUPABASE_* exportadas no processo de teste não chegam ao servidor (ele fica no arquivo)', async () => {
+  const saved = { SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY };
+  process.env.SUPABASE_URL = 'https://exemplo.invalid';
+  process.env.SUPABASE_SERVICE_KEY = 'chave-falsa-teste';
+  try {
+    const started = await startServer({ env: { JWT_SECRET: 'segredo-do-helper' } });
+    try {
+      assert.match(started.output(), /dados: arquivo/);
+    } finally {
+      started.kill();
+    }
+  } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 test('guarda a saída do servidor (o log que o teste pode conferir)', async () => {
   const started = await startServer({ env: { JWT_SECRET: 'segredo-do-helper' } });
   try {

@@ -16,9 +16,11 @@ ou código real em `arquivo:linha`. Mudar uma regra daqui pede ADR em
 - Mobile-first, 360–430px, sem recarregar a página
   (`.ai/specs/03-requisitos-nao-funcionais.md`, RNF02; contêiner de 430px em
   `src/styles/tokens.css:31`).
-- API em Express 4 em `apps/api/server.js`, dados no arquivo `apps/api/data/db.json` lido e
-  gravado só por `readDb`/`writeDb` (`apps/api/server.js:229`, `apps/api/server.js:241`). Banco,
-  ORM ou fila novos só com ADR.
+- API em Express 4 em `apps/api/server.js`, dados no arquivo `apps/api/data/db.json` (dev e
+  testes) ou na linha `agrotech_state.main` do Supabase (quando `SUPABASE_URL` e
+  `SUPABASE_SERVICE_KEY` estão definidas; ADR-0003), sempre lidos e gravados só por
+  `readDb`/`writeDb` (`apps/api/server.js:291`, `apps/api/server.js:318`). Banco,
+  ORM ou fila novos só com ADR (ver `docs/adr/0003-estado-no-supabase-jsonb.md`).
 - Dependência nova só com pedido explícito do usuário. Antes de instalar,
   confira que o pacote existe e é o pretendido (`npm view <pacote>`): nome
   inventado por IA é porta de entrada de pacote malicioso.
