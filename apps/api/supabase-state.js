@@ -49,7 +49,7 @@ export function readSupabaseConfig(env) {
  */
 export async function readSupabaseState(cfg, fetchImpl = fetch) {
   const [row] = await requestOneRow(cfg, 'leitura', 'select=data', { method: 'GET' }, fetchImpl);
-  if (!row || typeof row.data !== 'object' || row.data === null) throw new Error('Supabase: leitura falhou (conteúdo inválido)');
+  if (!row || typeof row.data !== 'object' || row.data === null || Array.isArray(row.data)) throw new Error('Supabase: leitura falhou (conteúdo inválido)');
   return row.data;
 }
 

@@ -52,6 +52,9 @@ Precisamos de um armazenamento durável já, sem mudar rota nem regra de negóci
   disco. Limite de tamanho do corpo e latência com o documento real **não
   verificados**.
 - Gravação é tudo ou nada (um `UPDATE`); se falhar, a linha fica como estava.
+  Exceção: se o timeout de 10 s estourar depois de o Postgres já ter gravado, a
+  rota responde 500 para uma gravação que aconteceu. Repetir a ação pode duplicar
+  um pedido. Aceito na versão interina; não há idempotência no PATCH.
 - O `db.json` continua sendo o banco de dev e dos testes.
 - **Caminho futuro:** migrar para as tabelas da spec 06, rota a rota, quando o
   tamanho do documento ou a necessidade de mais de uma réplica pedirem.

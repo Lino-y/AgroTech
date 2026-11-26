@@ -85,6 +85,11 @@ test('leitura: a linha {} inicial volta como {} (o readDb do servidor transforma
   assert.deepEqual(await readSupabaseState(cfg, fake.impl), {});
 });
 
+test('leitura: conteúdo que não é objeto (array, null) é erro, não vira seed nem apaga o estado', async () => {
+  await rejectsSafely(readSupabaseState(cfg, fakeFetch(() => json(200, [{ data: [] }])).impl), /^Supabase: leitura falhou \(conteúdo inválido\)$/);
+  await rejectsSafely(readSupabaseState(cfg, fakeFetch(() => json(200, [{ data: null }])).impl), /^Supabase: leitura falhou \(conteúdo inválido\)$/);
+});
+
 test('leitura: linha ausente é erro, nunca {} em silêncio', async () => {
   await rejectsSafely(readSupabaseState(cfg, fakeFetch(() => json(200, [])).impl), /^Supabase: leitura falhou \(linhas: 0\)$/);
 });
