@@ -154,6 +154,26 @@ test('servidor: com DATA_FILE e SUPABASE_* no ambiente, grava no arquivo e não 
   }
 });
 
+test('servidor: modo Supabase fora do ar responde 500 genérico e não vaza a chave no log', async () => {
+  const server = await startServer({
+    env: { DATA_FILE: undefined, SUPABASE_URL: 'https://exemplo.invalid', SUPABASE_SERVICE_KEY: KEY, JWT_SECRET: 'segredo-teste' }
+  });
+  try {
+    const res = await fetch(`${server.base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@agrotech.com.br', password: 'admin123' })
+    });
+    assert.equal(res.status, 500);
+    assert.deepEqual(await res.json(), { message: 'Erro ao acessar os dados do servidor.' });
+    assert.match(server.output(), /dados: Supabase \(exemplo\.invalid\)/);
+    assert.match(server.output(), /Supabase: leitura falhou/);
+    assert.equal(server.output().includes(KEY), false, 'a chave apareceu no log');
+  } finally {
+    server.kill();
+  }
+});
+
 test('servidor: só uma SUPABASE_* e sem DATA_FILE, sai com erro que nomeia a variável sem o valor', async () => {
   await assert.rejects(
     startServer({ env: { DATA_FILE: undefined, SUPABASE_URL: 'https://exemplo.invalid', JWT_SECRET: 'segredo-teste' } }),
