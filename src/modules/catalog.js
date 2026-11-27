@@ -7,6 +7,8 @@ import { renderFinanceChart } from '../components/FinanceChart.js';
 import { calculateCartSummary, validateCouponCode } from '../../packages/domain/commerce.js';
 import { summarizeFinance } from '../../packages/domain/finance.js';
 import { formatOrderDate } from '../services/orders.js';
+import { cartSellerProblem, paymentResultMessage, sellerConflict } from '../../packages/domain/payments.js';
+import { checkoutTarget, createReturnStore, exposeOrderHandlers, finishReturn, renderMercadoPagoPayment, renderOrderPaymentActions, returnPlan } from './mp-checkout.js';
 import { addProductToCart, removeProductFromCart, updateCartItemQuantity } from '../services/cart.js';
 import { buildProductDraft } from '../../packages/domain/catalog.js';
 import { catalogEmptyKind, filterCatalogProducts } from '../services/catalog-view.js';
@@ -14,7 +16,7 @@ import { renderCatalogEmptyState } from '../components/CatalogEmptyState.js';
 import { buildSupportReply } from '../../packages/domain/support.js';
 import { draftFromPrompt } from '../../packages/domain/listing.js';
 import { getProducts, getUser, removeToken, removeUser, setProducts, setToken, setUser } from '../services/storage.js';
-import { createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, updateStore, addReview, setUnauthorizedHandler } from '../services/api.js';
+import { cancelOrder, createFinanceEntry, createOrder, createProduct, deleteProduct as deleteProductApi, loadAppConfig, loadFinanceEntries, loadOrders, loadProducts, loginUser, registerUser, syncOrder, updateStore, addReview, setUnauthorizedHandler } from '../services/api.js';
 
 // --- ÍCONES SVG MINIMALISTAS (linha, monocromáticos, herdam a cor do texto) ---
 const ICON_PATHS = {
@@ -67,6 +69,9 @@ const initialUser = savedUser || {
 // --- ESTADO GLOBAL DA APLICAÇÃO ---
 const INITIAL_COINS = 350;
 
+// Volta do Mercado Pago guardada entre o login e a página (sessionStorage; ver createReturnStore).
+const returnStore = createReturnStore(() => window.sessionStorage);
+
 const state = {
   activeScreen: 'catalog',
   authMode: 'register',
@@ -83,6 +88,10 @@ const state = {
   profileSection: null,
   storeEditor: null,
   paymentMethod: 'pix',
+  // Pagamento pelo Mercado Pago (spec 10, parte 3c): vem de /api/app-config; sem ele, segue simulado.
+  payments: 'simulado',
+  checkoutKey: null,
+  checkoutSignature: null,
   creditInstallments: 1,
   financeFilter: 'ALL',
   financePeriod: 6,
@@ -93,6 +102,7 @@ const state = {
   ],
   // Armazena a tela que o usuário tentou acessar antes do login
   pendingScreen: null,
+  pendingReturn: returnStore.read(), // pedido da volta do Mercado Pago esperando o login (CA38)
   // Estados de carregamento e erro para produtos da API
   loadingProducts: false,
   productsError: null,
@@ -420,9 +430,41 @@ window.toggleFavorite = function(productId) {
   renderApp();
 };
 
+// Pagamento pelo Mercado Pago (spec 10, parte 3c): modo vindo do servidor e a chave de idempotência do fechamento.
+function loadPaymentMode() {
+  return loadAppConfig()
+    .then((config) => {
+      state.payments = config.payments === 'mercadopago' ? 'mercadopago' : 'simulado';
+      renderApp();
+    })
+    .catch(() => {
+      // Sem a configuração, o app segue no pagamento simulado, como antes.
+    });
+}
+
+function newCheckoutKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return `ord-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Mesmo carrinho e cupom = mesma chave: um reenvio devolve o pedido já criado, sem reservar o estoque de novo.
+function checkoutKeyFor(cart, coupon) {
+  const signature = JSON.stringify([cart.map(({ id, quantity }) => [id, quantity]), coupon]);
+  if (state.checkoutSignature !== signature || !state.checkoutKey) {
+    state.checkoutSignature = signature;
+    state.checkoutKey = newCheckoutKey();
+  }
+  return state.checkoutKey;
+}
+
 window.addToCart = function(productId) {
   const prod = state.products.find(p => p.id === productId);
   if (!prod) return;
+
+  if (state.payments === 'mercadopago' && sellerConflict(state.cart, prod)) {
+    if (!confirm('Seu carrinho tem itens de outro vendedor, e cada pagamento é de um vendedor só. Trocar o carrinho?')) return;
+    state.cart = [];
+  }
 
   state.cart = addProductToCart(state.cart, prod);
   showToast(`${prod.name} adicionado ao carrinho!`, 'info');
@@ -486,12 +528,30 @@ window.processPayment = once('payment', async function(event) {
     return;
   }
 
+  const mercadoPago = state.payments === 'mercadopago';
+  if (mercadoPago) {
+    // Um vendedor por pagamento, conferido no catálogo ao vivo (o carrinho pode ter sido montado antes).
+    const problem = cartSellerProblem(state.cart.map((item) => state.products.find((p) => p.id === item.id) ?? item));
+    if (problem) {
+      showToast(problem, 'error');
+      return;
+    }
+  }
+
   try {
     // Só o que o servidor lê: preço, frete, total e rastreio saem do catálogo dele (POST /api/orders).
-    const newOrder = await createOrder({
+    const payload = {
       items: state.cart.map(({ id, quantity }) => ({ id, quantity })),
-      coupon: state.appliedCoupon
-    });
+      coupon: state.appliedCoupon,
+      ...(mercadoPago ? { returnTo: 'web' } : {})
+    };
+    // A chave só vai no modo Mercado Pago: no simulado o fechamento segue exatamente como antes (CA35).
+    const newOrder = await createOrder(payload, mercadoPago ? checkoutKeyFor(state.cart, state.appliedCoupon) : undefined);
+
+    if (mercadoPago) {
+      goToCheckout(newOrder);
+      return;
+    }
 
     state.coins += Math.round(newOrder.total / 10); // 1 moeda a cada R$ 10, pelo total cobrado pelo servidor
     // A compra entra em "Meus Pedidos" e no financeiro pelo servidor, que cada tela busca ao abrir.
@@ -502,6 +562,55 @@ window.processPayment = once('payment', async function(event) {
     window.navigateTo('orders');
   } catch (error) {
     showToast(error.message || 'Não foi possível confirmar o pagamento.', 'error');
+  }
+});
+
+// Pedido criado aguardando pagamento: limpa o carrinho e abre a página do Mercado Pago. Sem moedas e sem
+// mensagem de aprovado: quem confirma é o servidor, depois que o Mercado Pago aprovar.
+function goToCheckout(order) {
+  const target = checkoutTarget(order);
+  if (!target.ok) {
+    showToast(target.message, 'error');
+    window.navigateTo('orders');
+    return;
+  }
+  state.cart = [];
+  state.appliedCoupon = null;
+  state.checkoutKey = null;
+  window.location.assign(target.url);
+}
+
+// Botões de pedido do Mercado Pago em "Meus Pedidos" (regras em src/modules/mp-checkout.js).
+function reloadOrdersAfterAction() {
+  return syncOrders(state, { load: loadOrders, render: renderApp });
+}
+
+exposeOrderHandlers({
+  payOrder: (id) => {
+    const order = state.orders.list.find((item) => item.id === id);
+    const target = order ? checkoutTarget(order) : { ok: false, message: 'Pedido não encontrado.' };
+    if (target.ok) window.location.assign(target.url);
+    else showToast(target.message, 'error');
+  },
+  checkOrderPayment: async (id) => {
+    try {
+      const updated = await syncOrder(id);
+      const message = paymentResultMessage(updated);
+      showToast(`${message.title}. ${message.body}`, updated.paymentStatus === 'PAGO' ? 'success' : 'info');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível conferir o pagamento agora.', 'error');
+    }
+    await reloadOrdersAfterAction();
+  },
+  cancelOrderPayment: async (id) => {
+    if (!confirm('Cancelar o pedido? O estoque será liberado.')) return;
+    try {
+      await cancelOrder(id);
+      showToast('Pedido cancelado.', 'info');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível cancelar o pedido.', 'error');
+    }
+    await reloadOrdersAfterAction();
   }
 });
 
@@ -633,6 +742,7 @@ window.handleRegister = async function(event) {
     showToast('Conta criada com sucesso!', 'success');
     // Pela navegação, que também carrega o extrato quando o financeiro é a tela pendente.
     window.navigateTo(targetScreen);
+    resumePendingReturn();
   } catch (error) {
     showToast(error.message || 'Não foi possível criar sua conta.', 'error');
   }
@@ -659,6 +769,7 @@ window.handleLogin = async function(event) {
     showToast('Login realizado com sucesso!', 'success');
     // Pela navegação, que também carrega o extrato quando o financeiro é a tela pendente.
     window.navigateTo(targetScreen);
+    resumePendingReturn();
   } catch (error) {
     showToast(error.message || 'Não foi possível entrar.', 'error');
   }
@@ -1305,6 +1416,7 @@ function renderCartScreen() {
 
 function renderPaymentScreen() {
   const totals = getCartTotals();
+  if (state.payments === 'mercadopago') return renderMercadoPagoPayment(totals.total, 'processPayment');
   const installments = [1, 2, 3, 4, 5, 6];
   const selectedInstallment = Number(state.creditInstallments || 1);
   const installmentValue = totals.total / selectedInstallment;
@@ -2049,7 +2161,9 @@ function renderOrdersScreen() {
                     </span>
                   </div>
                 </div>
+                ${renderOrderPaymentActions(order)}
 
+                ${order.paymentStatus && order.paymentStatus !== 'PAGO' ? '' : `
                 <div style="background: #F4FBF7; padding: 12px; border-radius: 12px; border: 1px solid #E8F5E9; font-size: 12px; display: flex; flex-direction: column; gap: 6px;">
                   <div style="display: flex; justify-content: space-between; color: #1B5E20;">
                     <span style="font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">${icon('truck', 14)} Transportadora:</span>
@@ -2112,6 +2226,7 @@ function renderOrdersScreen() {
                     <span>${isLive ? '⏹️ Pausar' : '⏱️ Rastreio 24h'}</span>
                   </button>
                 </div>
+                `}
 
                 ${order.items && order.items.length ? `
                   <div style="background: #FAFAFA; border: 1px solid #EEEEEE; border-radius: 12px; padding: 10px 12px;">
@@ -2282,6 +2397,8 @@ function safeInitApp() {
     }
   }
 
+  // A volta do Mercado Pago espera o modo do servidor: no simulado ela não roda.
+  loadPaymentMode().then(() => handleMercadoPagoReturn(window.location.search));
   // Carrega o catálogo do servidor (produtos salvos em db.json)
   loadAndSyncProducts();
 }
@@ -2293,6 +2410,43 @@ function loadAndSyncProducts() {
 window.retryLoadProducts = function() {
   loadAndSyncProducts();
 };
+
+// Volta do Mercado Pago (?pedido=AGT-…, CA38; decisão em returnPlan, conferência em finishReturn). Sem sessão,
+// o id fica só em memória até o login: recarregar descarta, e o pedido continua em Meus pedidos. O resultado
+// vem do servidor, nunca dos parâmetros que o Mercado Pago põe na URL (status, payment_id).
+function handleMercadoPagoReturn(search) {
+  const loggedIn = Boolean(state.user && state.user.email && state.user.email.trim() !== '');
+  const plan = returnPlan({ search, payments: state.payments, loggedIn });
+  if (plan.action === 'skip') return;
+  if (plan.action === 'login') {
+    state.pendingReturn = plan.id;
+    returnStore.save(plan.id);
+    window.history.replaceState(null, '', window.location.pathname);
+    window.navigateTo('orders');
+    return;
+  }
+  finishReturn({
+    search,
+    pathname: window.location.pathname,
+    history: window.history,
+    sync: syncOrder,
+    // Token vencido: o pedido fica guardado e volta depois do login (resumePendingReturn).
+    onExpired: (id) => {
+      state.pendingReturn = id;
+      returnStore.save(id);
+    },
+    notify: (title, body, order) => showToast(`${title}. ${body}`, order?.paymentStatus === 'PAGO' ? 'success' : 'info'),
+    // navigateTo('orders') já recarrega os pedidos (loadMyOrders, o mesmo syncOrders).
+    onDone: () => window.navigateTo('orders')
+  });
+}
+
+function resumePendingReturn() {
+  const id = state.pendingReturn;
+  state.pendingReturn = null;
+  returnStore.save(null);
+  if (id) handleMercadoPagoReturn(`?pedido=${id}`);
+}
 
 // Inicializar aplicação
 console.log('AgroTech iniciando...');

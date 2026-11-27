@@ -277,3 +277,70 @@ Antes de codar, dois testes no sandbox real decidiram o desenho:
   `GET`/`PUT /api/admin/settings` e `POST /api/admin/orders/{id}/refund`, que já existiam.
 - **Versão do app:** 0.5.1 (versionCode 14).
 - **Falta:** a web (parte 3c) e o patrocínio pago (parte 4, depende da spec 09).
+
+## 15. Parte 3c: web (em andamento, 2026-11-18)
+
+Análise: `.claude/analysis/feat-91-mercado-pago-web-3c.md` (Opus 5.5, planejamento). Implementação: Haiku 5.5.
+As cinco decisões foram tomadas pelas recomendações da análise, por falta de resposta explícita do usuário;
+ver a seção de decisões abaixo.
+
+### Passo 1 (nível 3): regras compartilhadas no domínio
+
+| ID | Critério | Status | Evidência |
+|----|----------|--------|-----------|
+| CA34 | URL segura, botões do pedido, mensagem de resultado, conflito de vendedor e carrinho ficam em `packages/domain/payments.js`; o app só reexporta | ✅ | `packages/domain/payments.js:136`, `packages/domain/payments.js:145`, `packages/domain/payments.js:157`, `packages/domain/payments.js:183`, `packages/domain/payments.js:194`; `apps/mobile/src/lib/payment.ts:14`; testes "link de pagamento …", "?pedido= da volta …", "botões do pedido …", "vendedor do carrinho …", "pagar pelo carrinho …" em `tests/payments.test.js:155` a `tests/payments.test.js:199` |
+
+- **Decisão tomada sem resposta explícita:** `orderIdFromSearch` usa expressão regular, não `URLSearchParams`,
+  porque o domínio só pode usar globais do ECMAScript (ADR-0002; o lint acusou `no-undef`).
+- **Verificação:** `npm test` 404/404; lint 17 avisos e 0 erros; typecheck da raiz e do app sem erro; app 134/134.
+
+### Passo 2 (nível 2): serviços de API
+
+Sem CA próprio: o passo prepara o que o passo 4 (catálogo) usa. Testes em `tests/api-client.test.js`.
+- `createOrder(payload, idempotencyKey)` manda `Idempotency-Key` só com chave não vazia (`src/services/api.js:69`).
+- `loadAppConfig`, `syncOrder` e `cancelOrder` codificam o id e usam `apiRequest` (`src/services/api.js:74` a `:84`).
+- **Teste:** 4 casos novos; `npm test` 408/408.
+
+### Passo 3 (nível 3): módulo da página de pagamento (`src/modules/mp-checkout.js`)
+
+Sem CA próprio: o passo entrega as peças que o passo 4 liga no `catalog.js`.
+- Tela de pagamento com o Mercado Pago (texto sem campo de cartão; ação passada pelo chamador): `src/modules/mp-checkout.js:27`.
+- Botões do pedido; pedido pago ou id fora do formato não gera HTML: `src/modules/mp-checkout.js:43`.
+- Abertura do Checkout Pro só com link https do Mercado Pago: `src/modules/mp-checkout.js:62`.
+- Ações dos botões expostas em `window`: `src/modules/mp-checkout.js:74`.
+- Volta com `?pedido=`: limpa a URL antes do sync e mostra o resultado do servidor: `src/modules/mp-checkout.js:88`.
+- **Decisão:** o módulo não tem `// @ts-check`, porque `src/modules/` não é checado (a regra de JSDoc vale para `src/services/`); ver `docs/agents/architecture.md`.
+- **Defeito achado pelo teste e corrigido:** pedido pago gerava um contêiner vazio em vez de nada.
+- **Teste:** `tests/mp-checkout.test.js` (9 casos). `npm test` 417/417; lint 17 avisos e 0 erros; typecheck sem erro.
+
+### Passo 4 (nível 4): ligação no catálogo (`src/modules/catalog.js`)
+
+Implementado pelo Haiku 5.5, com a análise do Opus 5.5 (`.claude/analysis/feat-91-mercado-pago-web-3c.md`).
+
+| ID | Critério | Status | Evidência |
+|----|----------|--------|-----------|
+| CA35 | Sem o Mercado Pago (padrão `simulado`), a tela de pagamento, o carrinho e os pedidos não mudam | ✅ | `src/modules/catalog.js:92` (padrão `simulado`); `src/modules/catalog.js:1419` (a tela nova só com `mercadopago`); `npm run test:ui` 34/34, sem pulado |
+| CA36 | Com o Mercado Pago, adicionar produto de outro vendedor pede confirmação; o fechamento confere o vendedor no catálogo ao vivo | ✅ | `src/modules/catalog.js:464` (confirmação ao adicionar); `src/modules/catalog.js:534` (`cartSellerProblem` no fechamento) |
+| CA37 | O fechamento envia `returnTo: 'web'` e `Idempotency-Key`; redireciona só para o Mercado Pago; sem moedas nem "aprovado" antes do pagamento | ✅ | `src/modules/catalog.js:546` (`returnTo`); `src/modules/catalog.js:570` (`goToCheckout`); `src/modules/catalog.js:571` (`checkoutTarget`) e `:580` (`window.location.assign`); moedas só no fluxo simulado |
+| CA38 | Volta com `?pedido=` (limpar URL, conferir no servidor, não repetir) | ✅ | passo 5 (Opus 5.5): `src/modules/catalog.js:2400` (roda depois do modo do servidor; no `simulado` não roda); `src/modules/catalog.js:2416` (`handleMercadoPagoReturn`: sem sessão guarda em `state.pendingReturn`, `src/modules/catalog.js:105`, limpa a URL e pede login); `src/modules/catalog.js:745` e `:768` (retoma depois do cadastro ou login); `src/modules/mp-checkout.js:109` (`returnPlan`); `src/modules/mp-checkout.js:95` (aviso com o pedido do servidor); testes "plano da volta …" e "volta: o servidor chega ao aviso …" em `tests/mp-checkout.test.js:104` a `tests/mp-checkout.test.js:120` |
+| CA39 | Meus Pedidos com os botões do pedido; pedido não pago sem rastreio | ✅ | `src/modules/catalog.js:2164` (botões); `src/modules/catalog.js:2166` (rastreio, transporte e demonstração só para pedido pago) |
+
+- **Decisão tomada sem resposta explícita:** a decisão 3 (esconder a escolha de pagamento só com o Mercado Pago) é aplicada na linha 1415; a decisão 4 (moedas só com pedido pago) aparece no fluxo: nenhuma moeda no modo Mercado Pago.
+- **Modo simulado intacto (revisão do Opus, corrigido):** a chave de idempotência só vai ao servidor no modo Mercado Pago (`src/modules/catalog.js:548`). Antes, o simulado também mandava a chave e guardava o mesmo id, então recomprar o mesmo carrinho devolvia o pedido antigo com moedas de novo. Agora o fechamento simulado é igual ao de antes (CA35).
+- **Verificação:** `npm test` 417/417; `npm run test:ui` 34/34; lint 17 avisos e 0 erros; typecheck sem erro.
+
+### Revisão final (Opus 5.5) e correções
+
+A revisão final do Opus achou um defeito que bloqueava o PR (o simulado acima) e dois casos da volta:
+- **Token vencido (401):** o pedido fica guardado (`onExpired`, `state.pendingReturn`) e a pessoa entra de novo; a mensagem não fala de internet. `src/modules/mp-checkout.js:98`. Testes em `tests/mp-checkout.test.js` ("sessão vencida").
+- **Pedido de outra conta (404):** mostra a mensagem do servidor. `src/modules/mp-checkout.js:102`. Teste "pedido de outra conta".
+- **Pendências aceitas e não cobertas por teste:** a ligação no `catalog.js` (troca de carrinho, fechamento, `resumePendingReturn`) só é testada indiretamente, pelos testes de interface (34/34) e pelas funções puras. Não há `tests/ui/mp-return.ui.js`.
+- **Teste instável:** uma rodada de `npm test` deu 419/420; duas rodadas seguidas depois das correções deram 422/422. Não identificado.
+- **Verificação final:** `npm test` 422/422 (duas rodadas); `npm run test:ui` 34/34; lint 17 avisos e 0 erros; typecheck sem erro.
+
+### Itens da recomendação após a revisão (2026-11-18)
+
+- **Volta guardada no sessionStorage** (decisão 5 revista): o pedido sobrevive a um recarregamento da página antes do login. A leitura só aceita o formato do servidor. `src/modules/mp-checkout.js:131` (`createReturnStore`); ligação em `src/modules/catalog.js:105`; testes em `tests/mp-checkout.test.js` ("volta guardada …") e `tests/ui/mp-return.ui.js` (2 casos, no Chrome).
+- **Teste de interface da volta** (`tests/ui/mp-return.ui.js`): no modo simulado a volta não age e a URL fica como veio; o pedido guardado volta depois de recarregar, e valor inválido é descartado.
+- **Teste instável:** uma falha isolada (419/420) não voltou em 5 rodadas seguidas (`npm test` 423/423). Causa não identificada; mantido como pendência.
+- **Verificação:** `npm test` 423/423; `npm run test:ui` 36/36 (sem pulados); lint 17 avisos e 0 erros; typecheck sem erro.
