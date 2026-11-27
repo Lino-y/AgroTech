@@ -59,6 +59,13 @@ estado inicial, apague o arquivo e reinicie o servidor.
 Quem já tinha o banco em `src/data/db.json` (antes do passo A2 da ADR-0002) deve
 mover o arquivo para `apps/api/data/db.json`; o servidor avisa na subida se achar o antigo.
 
+Em produção o estado pode morar no Supabase, numa linha jsonb (`agrotech_state`, id `main`;
+ADR-0003): defina `SUPABASE_URL` (https) e `SUPABASE_SERVICE_KEY` (chave service_role, só no
+servidor) no `.env` ou no ambiente. Precisa das duas: só uma derruba a subida com a mensagem do
+que falta. `DATA_FILE` vence sempre, mesmo com as duas definidas, e os testes rodam no arquivo
+(o helper dos testes tira as `SUPABASE_*` herdadas do shell). A subida diz no log onde estão os
+dados: `dados: arquivo` ou `dados: Supabase (<host>)`.
+
 ## 4. Testes e qualidade
 
 | O quê | Comando |
